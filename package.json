@@ -1,0 +1,11 @@
+{
+  "name": "infograb-democut-skills",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "lint": "./scripts/validate-skills.sh",
+    "ci": "npm run lint"
+  }
+}
