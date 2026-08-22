@@ -6,7 +6,7 @@
 
 ```
 DemoCut 스킬을 설치해줘.
-1. `npx skills add infograb/infograb-democut-skills` 를 실행한다.
+1. `npx skills add infograb/democut-skills` 를 실행한다.
 2. BYTEPLUS_API_KEY 환경변수가 설정돼 있는지 확인하고, 없으면 어디서 발급하는지 알려준다.
 설치가 끝나면 알려줘.
 ```
@@ -16,14 +16,14 @@ DemoCut 스킬을 설치해줘.
 ### Claude Code
 
 ```bash
-npx skills add infograb/infograb-democut-skills
+npx skills add infograb/democut-skills
 ```
 
 또는 저장소를 클론해 스킬 디렉토리를 `~/.claude/skills/` 로 복사한다.
 
 ```bash
-git clone https://github.com/infograb/infograb-democut-skills.git
-cp -r infograb-democut-skills/democut-seedance ~/.claude/skills/
+git clone https://github.com/infograb/democut-skills.git
+cp -r democut-skills/democut-seedance ~/.claude/skills/
 ```
 
 ### 그 외 에이전트

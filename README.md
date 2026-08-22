@@ -9,7 +9,7 @@ Claude Code·Cursor·Codex 같은 에이전트에서 바로 쓰기 위한 절차
 
 ```
 DemoCut 스킬을 설치해줘.
-1. `npx skills add infograb/infograb-democut-skills` 를 실행한다.
+1. `npx skills add infograb/democut-skills` 를 실행한다.
 2. BYTEPLUS_API_KEY 환경변수가 설정돼 있는지 확인하고, 없으면 어디서 발급하는지 알려준다.
 설치가 끝나면 알려줘.
 ```
