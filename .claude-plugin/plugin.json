@@ -1,5 +1,5 @@
 {
-  "name": "infograb-democut-skills",
+  "name": "democut-skills",
   "version": "0.1.0",
   "description": "DemoCut 에이전트 스킬 컬렉션 — AI 영상 생성(Seedance), 자동 편집 파이프라인. InfoGrab 제공.",
   "author": {
