@@ -44,7 +44,7 @@ python3 $P/planner.py shell spec.json -o house.json      # 평면 틀로 집 구
 python3 $P/planner.py check house.json                   # 검사 (오류가 있으면 종료 코드 1)
 python3 $P/planner.py walls house.json ROOM_ID           # 벽별 빈 구간 = 가구를 붙일 자리와 최대 폭
 python3 $P/planner.py inventory house.json               # 방별 인벤토리 마크다운
-python3 $P/planner.py render house.json -o plan.html [--embed-images]
+python3 $P/planner.py render house.json -o plan.html [--embed-images]   # plan.svg(도면만)도 함께 쓴다
 python3 -I $P/ohouse_sizes.py EXTRACT.txt [--download DIR]   # 오늘의집 페이지에서 실측 후보·리뷰 정보 뽑기
 ```
 
@@ -64,13 +64,14 @@ python3 -I $P/ohouse_sizes.py EXTRACT.txt [--download DIR]   # 오늘의집 페�
 누가 무엇을 하는 방인지, 예산, 이미 가진 가구, 꼭 쓰고 싶은 오늘의집 링크, 리뷰하고 싶은 제품 종류.
 
 - 「이번 편 방」 「촬영 세트」 처럼 방 하나면 `type: "room"`. 현관이 필요 없다.
+- 원룸형에서 주방 크기를 안 주면 기본 크기로 넣는다(원룸에도 싱크대 복도는 있다). 주방·화장실이 정말 없는 방이면 `type: "room"` 이다.
 - 크기가 없으면 묻는다. 평수만 주면 가로·세로를 묻거나, 가정한 비율을 `meta.notes` 에 적고 진행한다.
 - 한 번에 다 묻지 말고 빠진 것 중 배치를 바꾸는 것(크기·문 위치·용도)부터 묻는다.
 
 ### 2. 집 구조 만들기
 
 출력 디렉터리는 사용자가 정한 곳, 없으면 `~/room-plans/<slug>/` 다(`<slug>` 는 영문 소문자와 하이픈).
-그 안에 `spec.json` · `house.json` · `plan.html` 을 둔다.
+그 안에 `spec.json` · `house.json` · `plan.html` · `plan.svg` 를 둔다.
 
 - 사용자 도면이 있으면 house.json 을 직접 쓴다(house-json.md 「사용자가 도면을 줄 때」).
 - 없으면 spec.json 을 쓰고 `shell` 로 만든다. 출력의 가정(`*` 줄)을 사용자에게 전한다.
@@ -89,8 +90,10 @@ python3 -I $P/ohouse_sizes.py EXTRACT.txt [--download DIR]   # 오늘의집 페�
 
 ohouse-sizing.md 를 따른다. 요점:
 
-1. Tavily search(`include_domains: ["store.ohou.se", "ohou.se"]`)로 후보를 찾는다. `curl`·WebFetch 는 403 이다.
-2. 후보를 Tavily extract(`extract_depth: "advanced"`)로 받고, 결과 파일을 `ohouse_sizes.py` 에 넘긴다.
+1. Tavily search(`include_domains: ["store.ohou.se"]`, 질의 「오늘의집 쇼핑 + 품목 + 폭·용도 + 상품」)로 후보를 찾는다.
+   `curl`·WebFetch 는 403 이다.
+2. 후보를 Tavily extract(`extract_depth: "advanced"`, `include_images: true`)로 받고, 결과를 `ohouse_sizes.py` 에 넘긴다.
+   「⚠ 덜 그려진 페이지」 가 나오면 `https://ohou.se/productions/<id>/selling` 으로 다시 받는다.
 3. 사이즈표 이미지를 `--download` 로 새 빈 디렉터리에 받아 `Read` 로 읽는다. 침대는 매트리스가 아니라 프레임 바깥 치수다.
 4. 실측·근거·가격·평점·리뷰 수·대표 사진·특징 3~5개를 `product` 에 적는다. `checked` 에 오늘 날짜.
 
@@ -106,6 +109,9 @@ house.json 의 `items` 에 제품을 넣고 `check` 를 돌린다. 오류를 하
 | 앞 여유 · 침대 옆 여유 | 마주 보는 가구를 옮긴다. 메시지가 막는 것을 알려 준다 |
 | 문이 다 열리지 않는다 | 문 열림 범위(`walls` 의 「막힘」)에서 가구를 뺀다 |
 | 닿을 수 없다 | 동선을 막은 가구를 옮긴다. 「좁아진다」 주의가 병목 자리를 알려 준다 |
+
+「통로가 약 550~750mm 로 좁아진다」 주의는 폭 3m 남짓한 원룸에 침대·책상·옷장을 다 넣으면 피하기 어렵다.
+가까운 가구를 옮기거나 더 얕은 제품으로 바꿔 보고, 그래도 남으면 그대로 두고 보고에 이유를 적는다.
 | 실측 미확인 · 제품 링크 없음 | 4단계로 돌아간다 |
 
 한 번에 하나씩 고치고 다시 검사한다. 오류가 0 이 되면 남은 주의를 읽고, 고칠 수 있으면 고친다.
@@ -121,11 +127,15 @@ python3 $P/planner.py render house.json -o plan.html --embed-images
 평면도(비울 자리·가구 앞면·문 열림), 검사 결과, 방별 인벤토리 표, **리뷰 카드**(사진·가격·평점·특징·실측)가 한 장에 나온다.
 카드나 표에 마우스를 올리면 평면도에서 그 자리가 강조된다.
 
+같은 이름의 `plan.svg` 도 함께 생긴다. 도면만 담은 흰 바탕 그림이라 이미지로 열리고, 문서·영상 컷에 그대로 넣을 수 있다.
+도면에는 벽·창·문 열림 호와 가구 기호(침대 베개, 소파 등받이·팔걸이, 변기, 세면대, 장스탠드 등)가 실측 크기로 그려진다.
+그린 뒤 `plan.svg` 를 열어 방 모양과 가구 자리가 의도대로인지 한 번 본다.
+
 ### 7. 보고
 
 다음 순서로 짧게 쓴다.
 
-1. 파일 경로(`plan.html`, `house.json`)
+1. 파일 경로(`plan.html`, `plan.svg`, `house.json`)
 2. 방마다 무엇을 어디에 놓았는지 한두 줄, 그렇게 놓은 사용성 이유
 3. 리뷰할 제품 목록: 이름 · 가격 · 평점(리뷰 수) · 실측 근거
 4. 검사 결과: 오류 0, 남은 주의와 그 이유

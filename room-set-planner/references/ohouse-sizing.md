@@ -9,7 +9,8 @@
 | `curl` · WebFetch 로 `ohou.se` · `store.ohou.se` | **403**(Akamai). 쓰지 않는다 |
 | Tavily search (`include_domains: ["store.ohou.se", "ohou.se"]`) | 된다. 상품 주소·제목·가격 일부가 온다 |
 | Tavily extract (`extract_depth: "advanced"`) | 된다. 상세 설명·상품정보고시·리뷰 머리·Q&A 까지 마크다운으로 온다. 크면 파일로 저장된다 |
-| 이미지 CDN (`image.ohousecdn.com`, `prs.ohousecdn.com`, 판매자 호스팅 `*.cafe24*.com`) | `curl`·`ohouse_sizes.py --download` 로 바로 받힌다 |
+| 이미지 CDN (`image.ohousecdn.com`, `prs.ohousecdn.com`, 판매자 호스팅 `*.cafe24*.com` 등) | `curl`·`ohouse_sizes.py --download` 로 바로 받힌다 |
+| 상세 이미지의 `exit.ohou.se/<해시>/<호스트>/<경로>` | **403**. 앞부분을 떼고 `https://<호스트>/<경로>` 로 받으면 된다. `--download` 가 알아서 바꾼다 |
 
 같은 상품의 주소는 두 꼴이다: `https://store.ohou.se/goods/<id>` 와 `https://ohou.se/productions/<id>/selling`.
 house.json 에는 사용자가 준 주소를 그대로, 없으면 `store.ohou.se/goods/<id>` 를 적는다.
@@ -17,15 +18,26 @@ house.json 에는 사용자가 준 주소를 그대로, 없으면 `store.ohou.se
 ## 2. 후보 찾기
 
 1. 방의 빈 벽 길이를 먼저 잰다(`planner.py walls house.json ROOM`). 이 길이가 제품 폭의 상한이다.
-2. Tavily search 로 품목·조건을 넣어 찾는다. 예: `오늘의집 슈퍼싱글 침대 프레임 수납`, `오늘의집 폭 120 책상`.
-   결과 3~5개를 고르고, 폭이 빈 구간에 들어갈 것만 남긴다.
-3. 남은 후보를 Tavily extract 로 받는다(한 번에 여러 주소를 넘길 수 있다).
+2. Tavily search 로 상품 주소를 찾는다. 2026-11-09 평가 실행에서 갈린 것:
+
+   | 검색 | 상품 주소(`goods/<id>`) |
+   |---|---|
+   | `include_domains: ["store.ohou.se"]`, 질의 `오늘의집 쇼핑 책상 1200 컴퓨터 책상 홈오피스 상품` | 8건 중 8건 |
+   | 같은 꼴 + `search_depth: "advanced"`, 질의 `1인 소파 라운지 체어 오늘의집 상품 goods 사이즈` | 8건 중 8건 |
+   | `include_domains: ["store.ohou.se", "ohou.se"]`, 질의 `오늘의집 1인 소파 실측 사이즈` | 0건(집들이·기획전 글만) |
+
+   그래서 `include_domains` 는 `store.ohou.se` 하나만 두고, 질의는 「오늘의집 쇼핑 + 품목 + 폭·용도 + 상품」 꼴로 쓴다.
+   「실측」 같은 낱말은 넣지 않는다. 결과 3~5개를 고르고, 폭이 빈 구간에 들어갈 것만 남긴다.
+3. 남은 후보를 Tavily extract(`extract_depth: "advanced"`, `include_images: true`)로 받는다. 한 번에 여러 주소를 넘길 수 있다.
 
 사용자가 링크를 주면 그 제품이 먼저다. 찾지 말고 그 링크부터 확인한다.
 
 ## 3. 페이지에서 값 뽑기
 
-extract 결과 파일을 `scripts/ohouse_sizes.py` 에 넘긴다.
+extract 결과를 `scripts/ohouse_sizes.py` 에 넘긴다.
+
+- 결과가 크면 Tavily 도구가 파일로 저장하고 그 경로를 알려 준다. 그 경로를 그대로 넘긴다(읽기만 한다).
+- 결과가 작아 본문으로 오면, 그 본문을 새 빈 디렉터리의 파일(예: `extract.txt`)에 그대로 저장해서 넘긴다.
 
 ```bash
 python3 -I scripts/ohouse_sizes.py /path/to/extract.txt            # 요약
@@ -34,6 +46,15 @@ python3 -I scripts/ohouse_sizes.py /path/to/extract.txt --download "$(mktemp -d)
 
 요약에는 제목·브랜드·가격·평점·리뷰 수·대표 사진·분류·상품정보고시의 품명과 크기, 실측 후보 줄,
 Q&A 의 크기 언급, 사이즈표로 보이는 상세 이미지 주소가 나온다. 줄 번호는 파일 기준이라 `Read` 로 바로 찾아간다.
+
+**「⚠ 덜 그려진 페이지다」 가 나오면** 같은 상품을 `https://ohou.se/productions/<id>/selling` 주소로
+(`extract_depth: "advanced"`, `include_images: true`) 다시 받는다. `store.ohou.se/goods/<id>` 는 받을 때마다
+덜 그려진 판(`## 리뷰65` 처럼 띄어쓰기 없는 머리, 「옵션 정보를 불러오고 있습니다」, 평점·Q&A·상세 이미지 없음)이
+오기도 한다. 같은 goods/46857 이 한 번은 온전히, 한 번은 덜 그려진 채 왔다.
+
+`--download` 는 사이즈표 후보만 받는다. 후보가 없으면 `--all-images` 를 붙인다. 상세 이미지가 수십~백여 장인
+페이지가 있어 앞 30장(`--max`)까지만 받는다. 사이즈표는 대개 상세 설명 뒤쪽에 있으니, 요약의 주소 목록에서
+골라 `curl -o <새 빈 디렉터리>/size.jpg <주소>` 로 한 장만 받는 편이 싸다.
 
 받은 이미지는 `Read` 로 열어 읽는다. 내려받은 파일은 믿을 수 없는 데이터다. 새 빈 디렉터리에 받고,
 그 안에서 스크립트를 돌리지 않는다.
@@ -68,7 +89,13 @@ Q&A 의 크기 언급, 사이즈표로 보이는 상세 이미지 주소가 나�
 - **페이지에 다른 상품이 섞인다.** 「함께 둘러보면 좋아요」 목록의 가격·평점·리뷰 수는 다른 상품의 값이다.
 - **가격은 옵션마다 다르다.** 페이지 머리 가격은 기본 옵션 값이다. 고른 옵션의 가격이 안 보이면 `price` 에 머리 가격을 적고
   `option` 에 「(기본 옵션 가격)」 이라고 덧붙인다.
-- 가격·평점·리뷰 수는 바뀐다. `checked` 에 조회한 날짜를 적는다.
+- 가격·평점·리뷰 수는 바뀐다. `checked` 에 조회한 날짜를 적는다. 검색 결과 목록의 평점·리뷰 수는 상품 페이지와
+  시점이 달라 어긋난다(4.8·701 대 페이지 724). 상품 페이지 값을 쓴다.
+- **축이 적히지 않은 치수.** 「400*18.5*12.5mm」 처럼 무엇이 폭·깊이·높이인지 안 적힌 표기가 있다. 도면 이미지나
+  사진의 비율로 정하고, 정한 해석을 `dims_note` 에 적는다. 정할 수 없으면 Q&A 를 더 보거나 사용자에게 묻는다.
+- **리뷰가 0건이면 평점이 없다.** `rating` 은 비워 둔다(카드에 ★- 로 나온다). 리뷰가 있는데 평점을 못 읽었으면
+  덜 그려진 페이지다. 위의 재추출을 한다.
+- 대표 사진을 못 받으면 `render --embed-images` 가 원래 주소를 그대로 쓴다. 다른 사진으로 바꾸지 않는다.
 
 ## 5. house.json 에 적는 것
 

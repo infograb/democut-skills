@@ -10,7 +10,7 @@ ohou.se 는 curl 같은 직접 요청을 막는다(Akamai 403). 그래서 페이
                                               + 실측 후보 줄 + 사이즈표로 보이는 상세 이미지 주소
   ohouse_sizes.py PAGE.txt --json             같은 내용을 JSON 으로
   ohouse_sizes.py PAGE.txt --download DIR     사이즈표 후보 이미지를 DIR(새 빈 디렉터리)에 받는다
-        [--all-images]                        상세 이미지 전부를 받는다(사이즈표가 이름으로 안 잡힐 때)
+        [--all-images] [--max N]              상세 이미지 전부를 받는다(사이즈표가 이름으로 안 잡힐 때, 앞에서 N장까지·기본 30)
 
 뽑은 값은 후보일 뿐이다. 실측은 사람이 읽듯이 확인한다: 옵션 이름 · 상품정보 표 · 상세 이미지
 (사이즈표) · Q&A 답변 순으로 보고, 침대는 매트리스가 아니라 프레임 바깥 치수를 쓴다.
@@ -69,7 +69,8 @@ def summarize(url, page_title, body, base=0):
     lines = body.split("\n")
     info = {"url": url, "page_title": page_title, "title": None, "brand": None, "price": None,
             "rating": None, "review_count": None, "image": None, "category": [], "spec_table": {},
-            "options": [], "dim_lines": [], "qna_lines": [], "detail_images": [], "size_images": []}
+            "options": [], "dim_lines": [], "qna_lines": [], "detail_images": [], "size_images": [],
+            "partial": False}
     # 제목: 본문의 첫 '# ' 줄
     ti = next((i for i, l in enumerate(lines) if l.startswith("# ")), None)
     if ti is not None:
@@ -78,7 +79,7 @@ def summarize(url, page_title, body, base=0):
             l = l.strip()
             if not l:
                 continue
-            m = re.match(r"\[([^\]]+)\]\(https://store\.ohou\.se/brands/", l)
+            m = re.match(r"\[([^\]]+)\]\((?:https://store\.ohou\.se)?/brands/", l)
             if m:
                 info["brand"] = m.group(1).strip()
             elif not l.startswith(("!", "*", "[", "|")):
@@ -112,7 +113,7 @@ def summarize(url, page_title, body, base=0):
             h = s.lstrip("#").strip()
             if s.startswith("## ") and TOP_SECTION.match(h):
                 section, sub = h, ""
-                m = re.match(r"리뷰\s+([\d,]+)", section)
+                m = re.match(r"리뷰\s*([\d,]+)", section)
                 if m:
                     info["review_count"] = info["review_count"] or num(m.group(1))
                     after_review_head = 6
@@ -147,6 +148,9 @@ def summarize(url, page_title, body, base=0):
         hits = [m.group(0).strip() for p in DIM_PATTERNS for m in p.finditer(text)]
         if hits:
             info["dim_lines"].append({"line": ln, "section": (section or "머리") + (" > " + sub if sub else ""), "text": text[:240]})
+    # 덜 그려진 판: 리뷰·문의가 비어 오고 옵션이 「불러오고 있습니다」 로 남는다
+    if "옵션 정보를 불러오고 있습니다" in body or (info["review_count"] and info["rating"] is None):
+        info["partial"] = True
     # 옵션 이름: 머리 영역에서 사이즈 낱말이 든 짧은 줄(옵션 셀렉트 제목)
     if ti is not None:
         for l in lines[ti:ti + 60]:
@@ -158,8 +162,16 @@ def summarize(url, page_title, body, base=0):
     return info
 
 
+def retry_url(url):
+    m = re.search(r"(?:goods|productions)/(\d+)", url)
+    return "https://ohou.se/productions/{}/selling".format(m.group(1)) if m else None
+
+
 def fmt_page(p):
     out = ["## {}".format(p["title"] or p["page_title"]), "- 주소: {}".format(p["url"])]
+    if p["partial"]:
+        out.append("- ⚠ 덜 그려진 페이지다(평점·Q&A·상세 이미지가 빠질 수 있다). 다시 받는다: {} "
+                   "(extract_depth advanced, include_images true)".format(retry_url(p["url"]) or "productions/<id>/selling"))
     if p["category"]:
         out.append("- 분류: {}".format(" > ".join(p["category"])))
     out.append("- 브랜드: {}".format(p["brand"] or "미상"))
@@ -189,6 +201,12 @@ def fmt_page(p):
     return "\n".join(out)
 
 
+def unwrap(url):
+    """exit.ohou.se/<해시>/<호스트>/<경로> 는 403 이다. 원래 판매자 호스트 주소로 바꾼다."""
+    m = re.match(r"https?://exit\.ohou\.se/[0-9a-f]+/(.+)$", url)
+    return "https://" + m.group(1) if m else url
+
+
 def download(urls, dest, limit=8000000):
     import urllib.request
     if os.path.exists(dest) and os.listdir(dest):
@@ -196,6 +214,7 @@ def download(urls, dest, limit=8000000):
     os.makedirs(dest, exist_ok=True)
     saved = []
     for n, u in enumerate(urls, 1):
+        u = unwrap(u)
         if not u.startswith("https://"):
             continue
         req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
@@ -223,6 +242,7 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--download", metavar="DIR", help="사이즈표 후보 이미지를 받을 새 빈 디렉터리")
     ap.add_argument("--all-images", action="store_true", help="상세 이미지 전부를 받는다")
+    ap.add_argument("--max", type=int, default=30, help="받을 이미지 수 상한(기본 30)")
     a = ap.parse_args(argv)
     with open(a.page, encoding="utf-8", errors="replace") as f:
         text = f.read()
@@ -242,6 +262,10 @@ def main(argv=None):
         if not urls:
             print("\n받을 이미지가 없다" + ("" if a.all_images else " — --all-images 를 붙여 본다"))
             return 0
+        if len(urls) > a.max:
+            print("\n이미지 {}장 중 앞 {}장만 받는다(--max 로 바꾼다). 사이즈표는 대개 상세 설명 뒤쪽에 있다 — "
+                  "요약의 이미지 주소를 보고 필요한 것만 curl 로 받아도 된다".format(len(urls), a.max))
+            urls = urls[:a.max]
         saved = download(urls, a.download)
         print("\n받은 이미지 {}장 → {}".format(len(saved), a.download))
         for path, u in saved:

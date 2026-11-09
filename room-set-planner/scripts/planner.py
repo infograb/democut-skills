@@ -18,6 +18,7 @@ import datetime
 import html as _html
 import json
 import math
+import os
 import sys
 from collections import deque
 
@@ -1338,6 +1339,127 @@ def fetch_image(url, limit=3000000):
     return "data:{};base64,{}".format(ct, base64.b64encode(data).decode("ascii"))
 
 
+# ----------------------------------------------------------------------------- 도면 기호
+
+def _band(rect, side, depth):
+    """사각형의 한 변에 붙은 띠."""
+    x0, y0, x1, y1 = rect
+    return {"n": (x0, y0, x1, y0 + depth), "s": (x0, y1 - depth, x1, y1),
+            "w": (x0, y0, x0 + depth, y1), "e": (x1 - depth, y0, x1, y1)}[side]
+
+
+def _inset(rect, d):
+    x0, y0, x1, y1 = rect
+    return (x0 + d, y0 + d, x1 - d, y1 - d)
+
+
+def _split(rect, facing, n, gap):
+    """가구 폭 방향(정면과 나란한 축)으로 n 등분."""
+    x0, y0, x1, y1 = rect
+    out = []
+    if facing in "ns":
+        w = (x1 - x0 - gap * (n - 1)) / float(n)
+        for i in range(n):
+            a = x0 + i * (w + gap)
+            out.append((a, y0, a + w, y1))
+    else:
+        h = (y1 - y0 - gap * (n - 1)) / float(n)
+        for i in range(n):
+            a = y0 + i * (h + gap)
+            out.append((x0, a, x1, a + h))
+    return out
+
+
+def _svg_rect(r, rx=0):
+    x0, y0, x1, y1 = r
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return ""
+    return '<rect class="sym" x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}" rx="{:.0f}"/>'.format(
+        x0, y0, x1 - x0, y1 - y0, min(rx, (x1 - x0) / 2.0, (y1 - y0) / 2.0))
+
+
+def _svg_ellipse(r):
+    x0, y0, x1, y1 = r
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return ""
+    return '<ellipse class="sym" cx="{:.0f}" cy="{:.0f}" rx="{:.0f}" ry="{:.0f}"/>'.format(
+        (x0 + x1) / 2.0, (y0 + y1) / 2.0, (x1 - x0) / 2.0, (y1 - y0) / 2.0)
+
+
+def _svg_line(a, b):
+    return '<line class="sym" x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/>'.format(a[0], a[1], b[0], b[1])
+
+
+def _inner_edge(rect, side):
+    """띠의 안쪽 변(가구 가운데 쪽) 양 끝점."""
+    x0, y0, x1, y1 = rect
+    return {"n": ((x0, y1), (x1, y1)), "s": ((x0, y0), (x1, y0)),
+            "w": ((x1, y0), (x1, y1)), "e": ((x0, y0), (x0, y1))}[side]
+
+
+def furniture_symbol(it, g):
+    """평면도에서 품목을 알아보게 하는 기호. 기호가 없는 품목은 빈 목록."""
+    cat = it.get("category")
+    rect, f = g["rect"], g["facing"]
+    back = OPP[f]
+    x0, y0, x1, y1 = rect
+    W, H = x1 - x0, y1 - y0
+    wide = W if f in "ns" else H    # 정면 폭
+    deep = H if f in "ns" else W    # 깊이
+    lat = ("w", "e") if f in "ns" else ("n", "s")
+    m = min(W, H)
+    out = []
+    if cat == "bed":
+        head = _band(rect, back, min(500, deep * 0.22))
+        for p in _split(_inset(head, 70), f, 2 if wide >= 1300 else 1, 90):
+            out.append(_svg_rect(p, 70))
+        out.append(_svg_line(*_inner_edge(_band(rect, back, deep * 0.4), back)))
+    elif cat == "sofa":
+        out.append(_svg_rect(_band(rect, back, min(260, deep * 0.3))))
+        for sd in lat:
+            out.append(_svg_rect(_band(rect, sd, min(200, wide * 0.15))))
+    elif cat == "chair":
+        out.append(_svg_rect(_band(rect, back, min(120, deep * 0.25))))
+    elif cat == "toilet":
+        out.append(_svg_rect(_inset(_band(rect, back, deep * 0.3), 25), 20))
+        out.append(_svg_ellipse(_inset(_band(rect, f, deep * 0.72), 40)))
+    elif cat == "washbasin":
+        out.append(_svg_ellipse(_inset(rect, m * 0.15)))
+    elif cat == "bathtub":
+        out.append(_svg_rect(_inset(rect, 70), 180))
+    elif cat in ("washer", "dryer"):
+        out.append(_svg_ellipse(_inset(rect, m * 0.15)))
+    elif cat in ("lamp", "plant"):
+        c = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+        r = m * 0.42
+        out.append(_svg_ellipse((c[0] - r, c[1] - r, c[0] + r, c[1] + r)))
+        if cat == "lamp":
+            out.append(_svg_line((c[0] - r * 0.7, c[1] - r * 0.7), (c[0] + r * 0.7, c[1] + r * 0.7)))
+            out.append(_svg_line((c[0] - r * 0.7, c[1] + r * 0.7), (c[0] + r * 0.7, c[1] - r * 0.7)))
+    elif cat == "wardrobe":
+        a, b = _inner_edge(_band(rect, back, deep * 0.5), back)   # 옷걸이 봉
+        out.append(_svg_line(a, b))
+        n = max(2, int(wide // 300))
+        for i in range(1, n):
+            t = i / float(n)
+            px, py = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            d = deep * 0.18
+            out.append(_svg_line((px - d, py - d), (px + d, py + d)) if f in "ns" else _svg_line((px - d, py + d), (px + d, py - d)))
+    elif cat == "kitchen_counter":
+        a, b = _inner_edge(_band(rect, back, deep * 0.12), back)     # 상판 뒤 턱
+        out.append(_svg_line(a, b))
+        sink = _split(_inset(rect, deep * 0.18), f, 3, deep * 0.1)[0]
+        out.append(_svg_rect(sink, 60))
+    elif cat == "shower":
+        out.append(_svg_line((x0, y0), (x1, y1)))
+        c = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+        out.append(_svg_ellipse((c[0] - 50, c[1] - 50, c[0] + 50, c[1] + 50)))
+    elif cat == "fridge":
+        out.append(_svg_line((x0, y0), (x1, y1)))
+        out.append(_svg_line((x0, y1), (x1, y0)))
+    return [x for x in out if x]
+
+
 def review_cards(ctx, rows, num, bad, embed=False):
     out = []
     for rid, r in ctx.rooms.items():
@@ -1382,6 +1504,48 @@ def review_cards(ctx, rows, num, bad, embed=False):
     return "\n".join(out)
 
 
+def _text_w(t, size):
+    return sum(1.0 if ord(ch) > 0x1100 else 0.62 for ch in t) * size
+
+
+def _area(a, b):
+    c = inter(a, b)
+    return (c[2] - c[0]) * (c[3] - c[1]) if c else 0
+
+
+def room_label_spot(ctx, zones, room, name, dims, fs):
+    """방 이름표(이름 + 크기 두 줄)의 왼쪽 위. 가구·비울 자리·문 열림과 덜 겹치는 모서리를 고른다."""
+    x0, y0, x1, y1 = rr(room)
+    bw = max(_text_w(name, fs), _text_w(dims, fs * 0.75)) + fs * 0.4
+    bh = fs * 2.3
+    pad = fs * 0.4
+    cands = [(x0 + pad, y0 + pad), (x1 - pad - bw, y0 + pad), (x0 + pad, y1 - pad - bh),
+             (x1 - pad - bw, y1 - pad - bh), ((x0 + x1 - bw) / 2.0, (y0 + y1 - bh) / 2.0)]
+    obst = []
+    for it in ctx.items:
+        if it["room"] != room["id"]:
+            continue
+        g = ctx.geo[it["id"]]
+        obst.append((g["rect"], 1 if CAT.get(it.get("category"), {}).get("floor") else 4))
+        for z in zones.get(it["id"], []):
+            obst.append((zone_rect(g, z, z["rec"]), 1))
+    for o in ctx.ops:
+        if o["type"] == "door" and room["id"] in (o["room"], o.get("to")):
+            pts = (o["hinge_pt"], o["open_tip"], o["closed_tip"])
+            obst.append(((min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts)), 2))
+    best, score = cands[0], None
+    for cx, cy in cands:
+        if cx < x0 or cy < y0:
+            continue
+        box = (cx, cy, cx + bw, cy + bh)
+        sc = sum(_area(box, ob) * w for ob, w in obst)
+        if score is None or sc < score:
+            best, score = (cx, cy), sc
+        if sc == 0:
+            break
+    return best
+
+
 def render(house, embed=False):
     ctx, zones = check(house)
     wall = ctx.wall
@@ -1394,7 +1558,12 @@ def render(house, embed=False):
     W, H = maxx - minx, maxy - miny
     fs = max(W, H) / 62.0
     M = fs * 4.5
-    vb = (minx - M, miny - M, W + 2 * M, H + 2 * M)
+    bx0, by0, bx1, by1 = minx, miny, maxx, maxy     # 바깥으로 열리는 문까지 넣은 테두리
+    for o in ctx.ops:
+        if o["type"] == "door":
+            for px, py in (o["hinge_pt"], o["open_tip"], o["closed_tip"]):
+                bx0, by0, bx1, by1 = min(bx0, px), min(by0, py), max(bx1, px), max(by1, py)
+    vb = (bx0 - M, by0 - M, bx1 - bx0 + 2 * M, by1 - by0 + 2 * M)
     bad = {}
     for i in ctx.issues:
         for iid in i["ids"]:
@@ -1477,6 +1646,7 @@ def render(house, embed=False):
         s.append('<g class="{}" data-id="{}" data-ref="{}"><title>{}</title>'.format(" ".join(cls), _esc(it["id"]), _esc(it["id"]), _esc(
             "{}. {} — {}×{}×{}mm".format(num[it["id"]], it.get("name") or label_of(it), it["size"]["w"], it["size"]["d"], it["size"].get("h", 0)))))
         s.append('<rect x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}"/>'.format(x0, y0, x1 - x0, y1 - y0))
+        s.extend(furniture_symbol(it, g))
         if zones.get(it["id"]) or CAT.get(it.get("category"), {}).get("wall"):
             axis, a0, a1, edge, sign = side_axis(g["rect"], g["facing"])
             if axis == "x":
@@ -1494,26 +1664,41 @@ def render(house, embed=False):
     for r in rooms:
         x0, y0, x1, y1 = rr(r)
         name = r.get("name") or KIND_KO.get(r.get("kind"), r["id"])
-        s.append('<text class="rlbl" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text>'.format(x0 + fs * 0.5, y0 + fs * 1.3, fs, _esc(name)))
-        s.append('<text class="rdim" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}×{}</text>'.format(
-            x0 + fs * 0.5, y0 + fs * 2.35, fs * 0.75, fmt(x1 - x0), fmt(y1 - y0)))
-    ty = miny - M * 0.45
+        dims = "{}×{}".format(fmt(x1 - x0), fmt(y1 - y0))
+        lx, ly = room_label_spot(ctx, zones, r, name, dims, fs)
+        s.append('<text class="rlbl" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text>'.format(lx, ly + fs * 0.95, fs, _esc(name)))
+        s.append('<text class="rdim" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text>'.format(
+            lx, ly + fs * 2.0, fs * 0.75, dims))
+    ty = by0 - M * 0.45
     s.append('<g class="dim"><line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/>'
              '<line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/><line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/>'
              '<text x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text></g>'.format(
                  minx, ty, maxx, ty, minx, ty - fs * 0.4, minx, ty + fs * 0.4, maxx, ty - fs * 0.4, maxx, ty + fs * 0.4,
                  (minx + maxx) / 2.0, ty - fs * 0.35, fs * 0.8, fmt(W)))
-    tx = minx - M * 0.45
+    tx = bx0 - M * 0.45
     s.append('<g class="dim"><line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/>'
              '<line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/><line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}"/>'
              '<text x="{:.0f}" y="{:.0f}" font-size="{:.0f}" transform="rotate(-90 {:.0f} {:.0f})">{}</text></g>'.format(
                  tx, miny, tx, maxy, tx - fs * 0.4, miny, tx + fs * 0.4, miny, tx - fs * 0.4, maxy, tx + fs * 0.4, maxy,
                  tx - fs * 0.35, (miny + maxy) / 2.0, fs * 0.8, tx - fs * 0.35, (miny + maxy) / 2.0, fmt(H)))
-    sx, sy = maxx - 1000, maxy + M * 0.5
+    sx, sy = bx1 - 1000, by1 + M * 0.5
     s.append('<g class="dim"><line x1="{:.0f}" y1="{:.0f}" x2="{:.0f}" y2="{:.0f}" class="scale"/>'
              '<text x="{:.0f}" y="{:.0f}" font-size="{:.0f}">1m</text></g>'.format(sx, sy, sx + 1000, sy, sx + 500, sy - fs * 0.4, fs * 0.7))
     s.append("</svg>")
     svg = "\n".join(s)
+    # 도면만 담은 SVG 파일(이미지로 열리고, 다른 문서·영상에 넣을 수 있다)
+    top = fs * 3.2
+    svb = (vb[0], vb[1] - top, vb[2], vb[3] + top)
+    k = 1400.0 / max(svb[2], svb[3])    # 긴 변 1400px
+    head = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="{:.0f} {:.0f} {:.0f} {:.0f}" width="{}" height="{}" '
+            'role="img" aria-label="평면도">'.format(svb[0], svb[1], svb[2], svb[3], int(round(svb[2] * k)), int(round(svb[3] * k))))
+    plan_title = '<text class="ttl" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text>'.format(
+        bx0, svb[1] + fs * 1.5, fs * 1.25, _esc(house.get("name", "우리집") + " 평면도"))
+    plan_sub = '<text class="tsub" x="{:.0f}" y="{:.0f}" font-size="{:.0f}">{}</text>'.format(
+        bx0, svb[1] + fs * 2.55, fs * 0.72, _esc("단위 mm · 파란 점선 = 비워 둘 자리 · 파란 굵은 선 = 가구 앞면 · 빨강 = 오류 · 노랑 = 주의"))
+    standalone = "\n".join([head, "<style>" + SVG_CSS + "</style>",
+                            '<rect x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}" fill="#ffffff"/>'.format(*svb),
+                            plan_title, plan_sub] + s[1:])
 
     errs = [i for i in ctx.issues if i["level"] == "error"]
     warns = [i for i in ctx.issues if i["level"] == "warning"]
@@ -1601,7 +1786,27 @@ def render(house, embed=False):
         total=_esc(tot + btxt),
         notes="".join("<li>{}</li>".format(_esc(n)) for n in notes) or "<li>없음</li>",
         date=now,
-    )
+    ), standalone
+
+
+SVG_CSS = (
+    "text{font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Pretendard','Noto Sans KR','Malgun Gothic',sans-serif}"
+    ".floor{stroke:none}.k-bedroom{fill:#f2e8d5}.k-living{fill:#e9efe0}.k-kitchen{fill:#e3ebf3}.k-bathroom{fill:#dcecef}"
+    ".k-entrance{fill:#ebe4da}.k-hall{fill:#efede7}.k-dressroom{fill:#efe5ea}.k-utility{fill:#e6e6e6}"
+    ".wall{fill:none;stroke:#2c2c2c}.win{fill:#ffffff;stroke:#3b9bd6;stroke-width:14}.winline{stroke:#3b9bd6;stroke-width:14}"
+    ".door line,.door path{fill:none;stroke:#1d1f22;stroke-width:18}.door path{stroke-dasharray:40 30;stroke-width:12}"
+    ".zone{fill:rgba(47,129,247,.10);stroke:rgba(47,129,247,.55);stroke-width:10;stroke-dasharray:50 40}.hatch{stroke:rgba(47,129,247,.55);stroke-width:6}"
+    ".item rect{fill:#ffffff;stroke:#3d4045;stroke-width:16}.item.rug rect{fill:none;stroke-dasharray:60 40;stroke-width:10}"
+    ".item.light rect{fill:none;stroke-dasharray:30 30;stroke-width:10}.item.ph rect{stroke-dasharray:80 50}"
+    ".item.err rect{stroke:#cf222e;stroke-width:34}.item.warn rect{stroke:#b07800;stroke-width:26}"
+    ".item .sym,.item rect.sym{fill:none;stroke:#3d4045;stroke-width:9;stroke-dasharray:none}"
+    ".item .front{stroke:#2f6fde;stroke-width:40}"
+    ".ilbl{fill:#1d1f22;text-anchor:middle;paint-order:stroke;stroke:#ffffff;stroke-width:14;font-weight:600}"
+    ".rlbl{fill:#1d1f22;font-weight:700;paint-order:stroke;stroke:#ffffff;stroke-width:22}"
+    ".rdim{fill:#6a6f76;paint-order:stroke;stroke:#ffffff;stroke-width:18}"
+    ".dim line{stroke:#6a6f76;stroke-width:10}.dim line.scale{stroke:#1d1f22;stroke-width:30}.dim text{fill:#6a6f76;text-anchor:middle}"
+    ".ttl{fill:#1d1f22;font-weight:700}.tsub{fill:#6a6f76}"
+)
 
 
 HTML_TMPL = """<!doctype html>
@@ -1666,9 +1871,10 @@ svg {{ width:100%; height:auto; display:block; }}
 .item.ph rect {{ stroke-dasharray:80 50; }}
 .item.err rect {{ stroke:var(--err); stroke-width:34; }}
 .item.warn rect {{ stroke:var(--warn); stroke-width:26; }}
+.item .sym, .item rect.sym {{ fill:none; stroke:var(--item-stroke); stroke-width:9; stroke-dasharray:none; }}
 .item .front {{ stroke:var(--accent); stroke-width:40; }}
 .item.hl rect, tr.hl, li.hl {{ outline:none; }}
-.item.hl rect {{ stroke:var(--accent); stroke-width:44; }}
+.item.hl rect:not(.sym) {{ stroke:var(--accent); stroke-width:44; }}
 .zone.hl {{ fill:rgba(47,129,247,.28); }}
 .ilbl {{ fill:var(--ink); text-anchor:middle; paint-order:stroke; stroke:var(--item); stroke-width:14; font-weight:600; }}
 .rlbl {{ fill:var(--ink); font-weight:700; paint-order:stroke; stroke:var(--halo); stroke-width:22; }}
@@ -1770,13 +1976,16 @@ footer {{ color:var(--muted); font-size:12px; margin-top:28px; }}
 
 def cmd_render(args):
     house = load(args.house)
-    out = render(house, embed=args.embed_images)
+    out, svg = render(house, embed=args.embed_images)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(out)
+    svg_path = os.path.splitext(args.out)[0] + ".svg"
+    with open(svg_path, "w", encoding="utf-8") as f:
+        f.write(svg)
     ctx, _ = check(house)
     errs = sum(1 for i in ctx.issues if i["level"] == "error")
     warns = sum(1 for i in ctx.issues if i["level"] == "warning")
-    print("{} 저장 · 오류 {} · 주의 {}".format(args.out, errs, warns))
+    print("{} · {} 저장 · 오류 {} · 주의 {}".format(args.out, svg_path, errs, warns))
     return 0
 
 
