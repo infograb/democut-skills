@@ -6,9 +6,7 @@
 
 ```
 DemoCut 스킬을 설치해줘.
-1. `npx skills add infograb/democut-skills` 를 실행한다.
-2. BYTEPLUS_API_KEY 환경변수가 설정돼 있는지 확인하고, 없으면 어디서 발급하는지 알려준다.
-설치가 끝나면 알려줘.
+`npx skills add infograb/democut-skills` 를 실행하고, 설치가 끝나면 알려줘.
 ```
 
 ## 수동
@@ -23,7 +21,7 @@ npx skills add infograb/democut-skills
 
 ```bash
 git clone https://github.com/infograb/democut-skills.git
-cp -r democut-skills/democut-seedance ~/.claude/skills/
+cp -r democut-skills/room-set-planner ~/.claude/skills/
 ```
 
 ### 그 외 에이전트
@@ -31,21 +29,13 @@ cp -r democut-skills/democut-seedance ~/.claude/skills/
 `SKILL.md` 는 표준 Markdown 이라 Cursor·Codex 등 Markdown 스킬을 읽는 도구에서
 그대로 동작한다. 각 도구의 스킬 디렉토리에 복사한다.
 
-## 자격증명
+## 스킬별 준비물
 
-`BYTEPLUS_API_KEY` 가 필요하다.
-
-1. [BytePlus 콘솔](https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey) 에서 API Key 발급
-2. **리소스 팩 구매** — 이게 없으면 모델 활성화가 `400 No available resource packs` 로 거부된다
-3. 콘솔에서 사용할 모델 활성화
-
-```bash
-export BYTEPLUS_API_KEY="ark-..."
-```
-
-⚠️ 키를 저장소나 대화에 붙여넣지 않는다. 환경변수나 시크릿 관리자를 쓴다.
+| 스킬 | 필요한 것 |
+|---|---|
+| `room-set-planner` | Python 3.8 이상(표준 라이브러리만). 오늘의집 페이지를 읽으려면 에이전트에 Tavily MCP(`tavily-search`, `tavily-extract`)가 연결돼 있어야 한다 — 오늘의집은 직접 요청을 403 으로 막는다 |
 
 ## 확인
 
-설치 후 에이전트에게 "seedance로 4초짜리 테스트 영상 만들어줘" 라고 하면
-스킬이 호출된다. 비용($0.17)을 먼저 알려주고 확인을 요청하는 것이 정상 동작이다.
+설치 후 에이전트에게 「3m × 3.5m 방 하나를 서재로 꾸며줘」 라고 하면 `room-set-planner` 가 호출된다.
+방 구조를 만들고, 오늘의집 제품을 찾아 실측을 확인하고, 평면도 HTML 을 내놓는 것이 정상 동작이다.
