@@ -33,7 +33,7 @@
 | `shower` · `bathtub` | 정면 | 600 | 700 | 판단 |
 | `appliance` | 정면 | 600 | 750 | 판단 |
 
-빈 자리를 요구하지 않는 품목: `nightstand` · `coffee_table` · `chair` · `lamp` · `plant` · `tv` · `mirror` · `other`.
+빈 자리를 요구하지 않는 품목: `nightstand` · `side_table` · `coffee_table` · `chair` · `lamp` · `plant` · `tv` · `mirror` · `other`.
 `rug` 는 바닥에 깔려서 장애물이 아니다.
 
 품목 하나만 다르게 하려면 `"clearance": {"front": [min, rec]}` (침대는 `side`, 식탁은 `seat`)를 준다.

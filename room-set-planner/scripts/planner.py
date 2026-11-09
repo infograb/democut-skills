@@ -42,6 +42,7 @@ CAT = {
     "bookshelf": dict(label="책장", wall=True, front=(600, 750)),
     "storage": dict(label="수납장", wall=True, front=(600, 750)),
     "nightstand": dict(label="협탁", wall=True),
+    "side_table": dict(label="사이드테이블"),
     "desk": dict(label="책상", front=(750, 900), spot=700),
     "vanity": dict(label="화장대", wall=True, front=(700, 800), spot=600),
     "sofa": dict(label="소파", front=(450, 600)),
@@ -381,26 +382,34 @@ def zones_for(it, g):
     x0, y0, x1, y1 = g["rect"]
     zs = []
     if "sides" in cat or "side" in cl:
-        mn, rec = cl.get("side", cat.get("sides", (500, 650)))
+        mn, rec = _pair(cl.get("side", cat.get("sides", (500, 650))))
         longs = ("w", "e") if f in "ns" else ("n", "s")
         span = {"s": (y0 + 600, y1), "n": (y0, y1 - 600), "e": (x0 + 600, x1), "w": (x0, x1 - 600)}[f]
         for s in longs:
             zs.append(dict(side=s, min=mn, rec=rec, mode="spot", spot=600, span=span,
                            kind="bed_side", label="{} 옆".format(SIDE_KO[s])))
     elif "seats" in cat or "seat" in cl:
-        mn, rec = cl.get("seat", cat.get("seats", (750, 900)))
+        mn, rec = _pair(cl.get("seat", cat.get("seats", (750, 900))))
         sides = it.get("seat_sides") or (("n", "s") if (x1 - x0) >= (y1 - y0) else ("w", "e"))
         for s in sides:
             zs.append(dict(side=s, min=mn, rec=rec, mode="full", spot=0, span=None,
                            kind="seat", label="{} 의자 자리".format(SIDE_KO[s])))
     elif "front" in cat or "front" in cl:
-        mn, rec = cl.get("front", cat.get("front"))
+        mn, rec = _pair(cl.get("front", cat.get("front")))
         if it.get("category") == "wardrobe" and it.get("door") == "sliding" and "front" not in cl:
             mn, rec = 500, 600
         spot = cat.get("spot", 0)
         zs.append(dict(side=f, min=mn, rec=rec, mode="spot" if spot else "full", spot=spot, span=None,
                        kind="front", label="앞"))
     return zs
+
+
+def _pair(v):
+    """여유 값 [최소, 권장]. 숫자 하나면 둘 다 그 값."""
+    if isinstance(v, (int, float)):
+        return v, v
+    a = list(v)
+    return a[0], a[-1]
 
 
 def zone_rect(g, z, depth):
@@ -627,6 +636,8 @@ def check(house):
         nm = ctx.iname(it)
         if not inside(g["rect"], Rr):
             ctx.add("error", "item_outside", "{} 가 {} 밖으로 나간다".format(nm, ctx.rname(R["id"])), [it["id"]])
+        if not (it.get("size") or {}).get("h") and not CAT.get(it.get("category"), {}).get("floor") and it.get("z", 0) < WALL_MOUNT_Z:
+            ctx.add("warning", "no_height", "{}: 높이(size.h)가 없다 — 창을 가리는지 검사하지 못한다".format(nm), [it["id"]])
         # 실측
         if it.get("placeholder"):
             ctx.add("warning", "placeholder", "{}: 제품 미정 — 자리만 잡아 둔 가상 크기다".format(nm), [it["id"]])
@@ -1083,6 +1094,13 @@ def _shell_room(spec, notes):
     return rooms, ops
 
 
+def _open_span(span):
+    """두 방이 맞닿은 길이에 낼 개구부 (offset, width). 500mm 도 못 내면 None."""
+    off = 100 if span >= 800 else 0
+    w = span - 2 * off
+    return (off, w) if w >= 500 else None
+
+
 def _shell_studio(bed, by, wall, notes):
     """원룸(방 1): 위에 방, 아래 줄에 [화장실 | 주방(복도 겸) | 현관]."""
     W, D = bed["w"], bed["d"]
@@ -1110,15 +1128,16 @@ def _shell_studio(bed, by, wall, notes):
     else:
         rooms.append(_room("entry", "entrance", _name(ent, "현관"), kx + kw + wall, y, ent["w"], ent["d"]))
     ops = []
-    fw = 900 if ent["w"] >= 1100 else ent["w"] - 200
+    fw = 900 if ent["w"] >= 1100 else max(ent["w"] - 200, min(ent["w"], 600))
     ops.append(dict(id="front", type="door", room="entry", wall="s", offset=(ent["w"] - fw) / 2, width=fw,
                     to="outside", swing="out", hinge="start"))
-    if stacked:
-        ops.append(dict(id="o_entry", type="opening", room="entry", wall="n", offset=100,
-                        width=max(min(ent["w"], kw) - 200, 600), to="kitchen"))
+    span = min(ent["w"], kw) if stacked else min(ent["d"], kd)    # 현관과 주방이 맞닿은 길이
+    op = _open_span(span)
+    if op:
+        ops.append(dict(id="o_entry", type="opening", room="entry", wall="n" if stacked else "w",
+                        offset=op[0], width=op[1], to="kitchen"))
     else:
-        ov = min(ent["d"], kd)
-        ops.append(dict(id="o_entry", type="opening", room="entry", wall="w", offset=100, width=max(ov - 200, 600), to="kitchen"))
+        notes.append("현관과 주방이 맞닿은 길이가 {}mm 뿐이라 둘 사이 개구부를 만들지 못했다. 현관·주방 크기를 키운다".format(fmt(span)))
     ovx = min(kx + kw, W) - kx
     if ovx >= 800:
         ops.append(dict(id="o_kitchen", type="opening", room="kitchen", wall="n", offset=100, width=ovx - 200, to="room"))
@@ -1314,6 +1333,14 @@ def cmd_shell(args):
 ZONE_KINDS = ("front", "bed_side", "seat")
 
 
+def _safe_url(u, image=False):
+    """href·src 에 넣을 주소. http(s) 와 (사진이면) 내려받아 넣은 data:image 만 통과시킨다."""
+    u = str(u or "").strip()
+    if u.lower().startswith(("https://", "http://")) or (image and u.lower().startswith("data:image/")):
+        return u
+    return "#"
+
+
 def _esc(s):
     return _html.escape(str(s), quote=True)
 
@@ -1473,7 +1500,7 @@ def review_cards(ctx, rows, num, bad, embed=False):
             if img and embed:
                 img = fetch_image(img) or img
             thumb = ('<div class="thumb"><img src="{}" alt="{}" loading="lazy" referrerpolicy="no-referrer"></div>'.format(
-                _esc(img), _esc(prod.get("title") or it.get("name") or "")) if img else '<div class="thumb none">사진 없음</div>')
+                _esc(_safe_url(img, image=True)), _esc(prod.get("title") or it.get("name") or "")) if img else '<div class="thumb none">사진 없음</div>')
             title = prod.get("title") or it.get("name") or label_of(it)
             meta = " · ".join(_esc(x) for x in (prod.get("brand"), prod.get("option")) if x)
             p = price_of(it)
@@ -1492,7 +1519,7 @@ def review_cards(ctx, rows, num, bad, embed=False):
                 '<h4><a href="{url}" target="_blank" rel="noopener">{title}</a></h4>'
                 '{meta}<p class="price">{price}{rt}</p>{kp}<p class="cdim">{dims}{chk}</p></div></article>'.format(
                     cls=cls, id=_esc(it["id"]), thumb=thumb, n=num[it["id"]], lab=_esc(label_of(it)),
-                    url=_esc(prod["url"]), title=_esc(title),
+                    url=_esc(_safe_url(prod["url"])), title=_esc(title),
                     meta='<p class="cmeta">{}</p>'.format(meta) if meta else "",
                     price=price, rt=' <span class="rating">{}</span>'.format(_esc(rt)) if rt else "",
                     kp=('<ul class="kp">' + "".join("<li>{}</li>".format(_esc(k)) for k in kp) + "</ul>") if kp else "",
@@ -1581,7 +1608,7 @@ def render(house, embed=False):
              '<line x1="0" y1="0" x2="0" y2="{0:.0f}" class="hatch"/></pattern></defs>'.format(fs * 0.9))
     for r in rooms:
         x0, y0, x1, y1 = rr(r)
-        s.append('<rect class="floor k-{}" x="{}" y="{}" width="{}" height="{}"/>'.format(r.get("kind"), x0, y0, x1 - x0, y1 - y0))
+        s.append('<rect class="floor k-{}" x="{}" y="{}" width="{}" height="{}"/>'.format(_esc(r.get("kind")), x0, y0, x1 - x0, y1 - y0))
     for it in ctx.items:
         g = ctx.geo[it["id"]]
         for z in zones.get(it["id"], []):
@@ -1608,7 +1635,7 @@ def render(house, embed=False):
             continue
         c = ctx.carve(o)
         kind = ctx.rooms[o["room"]].get("kind")
-        s.append('<rect class="floor k-{}" x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}"/>'.format(kind, c[0], c[1], c[2] - c[0], c[3] - c[1]))
+        s.append('<rect class="floor k-{}" x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}"/>'.format(_esc(kind), c[0], c[1], c[2] - c[0], c[3] - c[1]))
         if o["type"] == "door":
             hx, hy = o["hinge_pt"]
             ox, oy = o["open_tip"]
@@ -1736,7 +1763,7 @@ def render(house, embed=False):
                 src = "가상 크기"
             else:
                 nm = _esc(it.get("name") or prod.get("title") or "제품")
-                pname = '<a href="{}" target="_blank" rel="noopener">{}</a>'.format(_esc(prod["url"]), nm) if prod.get("url") else nm
+                pname = '<a href="{}" target="_blank" rel="noopener">{}</a>'.format(_esc(_safe_url(prod["url"])), nm) if prod.get("url") else nm
                 if prod.get("option"):
                     pname += '<br><small class="muted">{}</small>'.format(_esc(prod["option"]))
                 src = DIMS_SOURCE.get(prod.get("dims_source"), "미확인")
