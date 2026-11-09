@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: oneroom-wfh-furnish
+expected_outcome: |
+  원룸형(방·주방·화장실·현관) 구조를 만들고, 슈퍼싱글 침대와 책상을 포함한 오늘의집 제품을
+  실측 근거와 함께 배치한다. 검사 오류가 0 이고, 합계가 150만원 안이거나 넘으면 그렇다고 보고한다.
+  평면도·인벤토리·리뷰 카드가 든 HTML 한 장과 house.json 이 나온다.
