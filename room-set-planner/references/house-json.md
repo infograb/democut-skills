@@ -130,6 +130,11 @@
 실측 칸(`dims_source`, `dims_note`)과 리뷰 칸(`title` … `checked`)은 [ohouse-sizing.md](ohouse-sizing.md) 5절.
 `url` 이 없거나 `dims_source` 가 비면 검사가 오류를 낸다(`owned`·`placeholder` 는 예외).
 
+### 사진용 칸 — room-set-photos
+
+맨 위 `photo` 블록과 품목의 `look`·`label_en` 은 room-set-photos 스킬이 쓴다. 이 스킬의 검사는 읽지 않는다.
+형식은 room-set-photos 의 `SKILL.md` 「house.json 에 더하는 것」.
+
 ## 평면 틀 입력(spec) — `planner.py shell`
 
 **방 한 칸** (촬영 세트):
