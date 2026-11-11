@@ -585,7 +585,10 @@ def plan_hero(sc, it, ratio):
     best = None
     for lens, pen in ((HERO_LENS, 0.0), (WIDE_LENS, 0.15)):
         hfov = 2 * math.atan((sw / 2.0) / lens)
-        for ang in (0, 20, -20, 40, -40, 60, -60):
+        angles = (0, 20, -20, 40, -40, 60, -60)
+        if best is None and lens == WIDE_LENS:      # 앞이 막힌 품목(책상에 넣은 의자): 옆·뒤에서
+            angles += (90, -90, 120, -120, 150, -150, 180)
+        for ang in angles:
             a = math.radians(ang)
             dx, dy = F[0] * math.cos(a) - F[1] * math.sin(a), F[0] * math.sin(a) + F[1] * math.cos(a)
             for dist in (700, 1000, 1400, 1900, 2500):
@@ -747,14 +750,18 @@ def describe(sc, cam, cv, st, house):
         tc = (cam.x - v["center"][0], cam.y - v["center"][1])
         Ln = math.hypot(*tc) or 1.0
         c = (Fv[0] * tc[0] + Fv[1] * tc[1]) / Ln
-        r = cam.right2()
-        side = "right" if Fv[0] * r[0] + Fv[1] * r[1] > 0 else "left"
+        f2, r2 = cam.fwd2(), cam.right2()
+        ff, fr = Fv[0] * f2[0] + Fv[1] * f2[1], Fv[0] * r2[0] + Fv[1] * r2[1]
+        if abs(fr) >= abs(ff):          # 정면(침대는 발치)이 화면 어느 쪽을 향하나
+            way = "to frame right" if fr > 0 else "to frame left"
+        else:
+            way = "away from the camera" if ff > 0 else "toward the camera"
         if it.get("category") == "bed":
             orient = ("foot end faces camera" if c > 0.75 else "seen from the head end" if c < -0.75
-                      else "seen side-on, foot end to frame {}".format(side))
+                      else "seen side-on, foot end pointing {}".format(way))
         else:
             orient = ("front faces camera" if c > 0.75 else "seen from behind" if c < -0.75
-                      else "seen side-on, front turned frame {}".format(side))
+                      else "seen side-on, front turned {}".format(way))
         parts.append(orient)
         if v["occluder"]:
             parts.append("partly behind the {}".format(_label_en(byid[v["occluder"]])))
@@ -824,7 +831,8 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
         elif ref["role"] == "sketch":
             rt.append("Reference image {} is a massing sketch of this exact camera view: match its perspective and the "
                       "position, size and proportion of every colored box. Box colors only label the items above "
-                      "(pale blue = window, brown = door, dark gray = open doorway); render real materials, not boxes.".format(i))
+                      "(pale blue = window, brown = door, dark gray = open doorway) and must never appear in the photo: "
+                      "render every item in its real colors and materials, not as a box.".format(i))
         elif ref["role"] == "board":
             rt.append("Reference image {} is a board of the actual products, items {} in grid reading order: copy each "
                       "product's shape, color, material and details exactly, and ignore the props and rooms around them "
@@ -859,8 +867,15 @@ def _view_text(sc, cam, spec, byid):
         vx, vy = cam.x - (x0 + x1) / 2.0, cam.y - (y0 + y1) / 2.0
         a = math.degrees(math.atan2(vx * rgt[0] + vy * rgt[1], vx * F[0] + vy * F[1]))   # 직접 적은 컷도 자리로 잰다
         sgn = vx * rgt[0] + vy * rgt[1]
-        where = "the front" if abs(a) < 10 else ("its front-right" if sgn > 0 else "its front-left")
-        where_ko = "정면" if abs(a) < 10 else ("앞 오른쪽" if sgn > 0 else "앞 왼쪽")
+        sd, sd_ko = ("right", "오른쪽") if sgn > 0 else ("left", "왼쪽")
+        if abs(a) < 10:
+            where, where_ko = "the front", "정면"
+        elif abs(a) < 75:
+            where, where_ko = "its front-" + sd, "앞 " + sd_ko
+        elif abs(a) < 135:
+            where, where_ko = "its {} side".format(sd), sd_ko + " 옆"
+        else:
+            where, where_ko = "behind", "뒤"
         if it.get("category") == "bed":
             where = where.replace("the front", "the foot end").replace("front", "foot")
         en = "a closer product shot of the {} from {}, about {:.1f} m away".format(
