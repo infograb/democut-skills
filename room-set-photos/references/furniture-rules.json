@@ -5,7 +5,7 @@
     {
       "id": "bed-mattress",
       "match": {"category": "bed"},
-      "prompt": "Made up with a {mattress} cm mattress {mattress_fit}; bedding top {top} cm high.",
+      "prompt": "Made up with a {mattress} cm mattress {mattress_fit}; mattress top {top} cm high.",
       "avoid": "a mattress longer or wider than its bed frame",
       "check": "매트리스({mattress}cm)가 프레임 위에 머리부터 발치까지 놓였다 — {mattress_fit_ko}",
       "why": "2026-11-11 대표 컷에서 받침이 머리 쪽 벽까지 오지 않아 매트리스 머리 쪽이 떠 있었다(사용자 지적). 프레임 치수만 적으면 모델은 매트리스 크기를 모르고, 다른 옵션을 찍은 제품 사진의 넓은 받침 여백을 따라 받침을 줄이거나 옮긴다."

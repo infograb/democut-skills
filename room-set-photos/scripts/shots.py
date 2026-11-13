@@ -100,6 +100,7 @@ def negative(concept, extra=()):
 
 
 PLANTS = "one or two small plants in ceramic pots"   # photo.plants: true 일 때
+CURTAINS = "sheer curtains"                          # photo.curtains 가 없을 때 창에 거는 것
 OPENING_LEGEND = (("window", "pale blue = window"), ("a door", "brown = door"), ("open doorway", "dark gray = open doorway"))
 
 CONCEPTS = {
@@ -147,6 +148,7 @@ def concept_of(house):
             base[k] = ph[k]
     plants = ph.get("plants")                     # 요청이 없으면 식물을 넣지 않는다
     base["plants"] = (PLANTS if plants is True else str(plants)) if plants else None
+    base["curtains"] = ph.get("curtains") or CURTAINS
     base["key"] = c
     return base
 
@@ -974,6 +976,7 @@ def describe(sc, cam, cv, st, house, rules=()):
     W, H = cam.w, cam.h
     A = float(W * H)
     rooms = {r["id"]: r for r in house.get("rooms", [])}
+    curtains = concept_of(house)["curtains"]
     room = sc.room
     rx0, ry0, rx1, ry1 = P.rr(room)
     byid = {it["id"]: it for it in sc.items}
@@ -1105,8 +1108,8 @@ def describe(sc, cam, cv, st, house, rules=()):
         rel = _wall_rel(m["side"], cam)
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
-            ops.append("a {} cm wide window on {} ({}), sill {} cm, sheer curtains".format(
-                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900))))
+            ops.append("a {} cm wide window on {} ({}), sill {} cm, {}".format(
+                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains))
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
         else:
             other = o.get("to") if o["room"] == room["id"] else o["room"]
