@@ -100,6 +100,11 @@ def negative(concept, extra=()):
 
 
 PLANTS = "one or two small plants in ceramic pots"   # photo.plants: true 일 때
+CURTAINS = "sheer curtains"                          # photo.curtains 가 없을 때 창에 거는 것
+# photo.view 가 없을 때의 창밖: 집 유형 → (프롬프트, 확인 목록, Avoid). 적지 않으면 모델은 한국 집 창밖에 아파트 단지를 그린다.
+# 원룸은 보통 빌라라 창밖이 바로 옆 빌라다(2026-11-13 사용자 지적: 원룸 창밖에 고층 아파트 단지가 보였다)
+VIEWS = {"oneroom": ("facing the next villa's wall and windows 4 m away",
+                     "창밖 — 4m 앞 건너편 빌라의 벽과 창(아파트 단지가 아니다)", "apartment towers")}
 OPENING_LEGEND = (("window", "pale blue = window"), ("a door", "brown = door"), ("open doorway", "dark gray = open doorway"))
 
 CONCEPTS = {
@@ -147,6 +152,9 @@ def concept_of(house):
             base[k] = ph[k]
     plants = ph.get("plants")                     # 요청이 없으면 식물을 넣지 않는다
     base["plants"] = (PLANTS if plants is True else str(plants)) if plants else None
+    base["curtains"] = ph.get("curtains") or CURTAINS
+    v = ph.get("view")                            # 없으면 집 유형 기본값, false 면 적지 않는다(커튼을 친 방)
+    base["view"] = VIEWS.get(house.get("type")) if v is None else ((str(v), "창밖 — " + str(v), None) if v else None)
     base["key"] = c
     return base
 
@@ -789,7 +797,7 @@ def _place_wall(it):
 def _room_space(house, room):
     kind = room.get("kind")
     if house.get("type") == "oneroom" and kind == "bedroom":
-        return "the main room of a Korean one-room studio apartment (officetel)"
+        return "a one-room studio in a 4-story Korean villa (빌라)"   # 오피스텔·아파트는 고층 창밖을 부른다
     if house.get("type") == "room":
         nm = room.get("name")
         return "a room in a Korean home{}".format(' used as "{}"'.format(nm) if nm else "")
@@ -974,6 +982,8 @@ def describe(sc, cam, cv, st, house, rules=()):
     W, H = cam.w, cam.h
     A = float(W * H)
     rooms = {r["id"]: r for r in house.get("rooms", [])}
+    con = concept_of(house)
+    curtains, view = con["curtains"], con["view"]
     room = sc.room
     rx0, ry0, rx1, ry1 = P.rr(room)
     byid = {it["id"]: it for it in sc.items}
@@ -1105,9 +1115,14 @@ def describe(sc, cam, cv, st, house, rules=()):
         rel = _wall_rel(m["side"], cam)
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
-            ops.append("a {} cm wide window on {} ({}), sill {} cm, sheer curtains".format(
-                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900))))
+            ops.append("a {} cm wide window on {} ({}), sill {} cm, {}{}".format(
+                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains,
+                ", " + view[0] if view else ""))
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
+            if view:
+                checks.append(view[1])
+                if view[2] and view[2] not in avoid:
+                    avoid.append(view[2])
         else:
             other = o.get("to") if o["room"] == room["id"] else o["room"]
             dest = "outside" if other == "outside" else ("the " + KIND_EN.get(rooms.get(other, {}).get("kind"), "next room"))
@@ -1336,6 +1351,12 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                                  url=(byid[pick["item"]].get("product") or {}).get("image")))
                 board = []
         warns = []
+        for v in vis:                             # 리뷰 제품을 글로만 그리지 않는다(2026-11-13 침대를 ref:false 로 뺐다 — 사용자 지적)
+            it, prod = v["it"], v["it"].get("product") or {}
+            if P.reviewable(it) and (prod.get("ref") is False or not (prod.get("ref_image") or prod.get("image"))):
+                warns.append("{}: 리뷰 제품인데 보드에 사진이 없어 글로만 그린다{}. 상세 이미지에서 그 제품만 찍힌 사진을 찾아 "
+                             "product.ref_image·ref_crop 으로 넣는다".format(
+                                 P.label_of(it), "(이 컷의 대상이다)" if it["id"] == s.get("target") else ""))
         if s["kind"] == "wide":
             for it, d, side in near_cuts(sc, cam, st):
                 warns.append("{}: 카메라에서 {:.1f}m, 화면 {} 끝에 잘려 걸린다. 생성 모델이 실제보다 크게 그리기 쉽다. "
@@ -1566,34 +1587,58 @@ def board(shots_path, images, out_dir=None):
 
 # ----------------------------------------------------------------------------- fix(틀린 제품만 고치기)
 
-def fix_prompt(items, has_board):
+def fix_prompt(items, has_board, scale=None, changes=()):
     """만든 사진(그림 1)에서 items 만 제품 사진(그림 2)대로 바꾸고 나머지는 그대로 두는 편집 프롬프트.
     OpenAI 이미지 가이드의 「change only X / keep everything else the same」 꼴과 가상 피팅 꼴(사람·배경을 잠그고
-    옷만 바꾼다)을 가구에 옮겼다. 출처: references/product-fidelity.md"""
+    옷만 바꾼다)을 가구에 옮겼다. 출처: references/product-fidelity.md
+
+    scale 을 주면 모양은 맞고 크기만 틀린 것으로 보고, 그림 1 의 지금 크기를 자로 삼아 그 배율로 줄이거나 키운다.
+    2026-11-13 gpt-image-2.6 은 cm 와 받침과의 비율을 적어도 손바닥만 한 조명을 생성마다 약 2배로 그렸다. 편집에서는
+    그림 속 지금 크기가 자가 된다. changes 는 사진을 만든 뒤 집에서 바뀐 것(뺀 러그·바꾼 침구)을 같은 편집에 싣는 영어 문장이다."""
     names = _and("the " + f["label"] for f in items)
-    out = ["Image 1 is a finished photo of a room. Edit it: change only {} and nothing else.".format(names)]
+    out = ["Image 1 is a finished photo of a room. Edit it: change only {}{}.".format(
+        names, " and make the other changes listed below; change nothing else" if changes else " and nothing else")]
     for f in items:
+        extra = " " + f["extra"] if f.get("extra") else ""
+        if scale:
+            t = ("The {} ({}) is drawn too {}. {} it to about {}% of its current height and width in image 1, so it is its "
+                 "true size, {} cm, on the same spot.{}").format(
+                f["label"], f["where"], "large" if scale < 1 else "small", "Shrink" if scale < 1 else "Enlarge",
+                round(scale * 100), f["size"], extra)
+            t += " Keep its shape and look: {}".format(f["keep"] if f.get("keep") else f["look"])
+            if f.get("ref") and has_board:
+                t += "; it stays the product shown in image 2"
+            t += "."
+            if scale < 1:
+                t += (" Fill the space it no longer covers with what is behind it in image 1, and shrink its glow and "
+                      "shadow with it.")
+            out.append(t)
+            continue
         t = "The {} ({}): make it {}".format(f["label"], f["where"], f["look"])
         if f.get("ref") and has_board:
             t += ", exactly the product shown in image 2"
-        t += ". Keep its place and true size: {} cm.{}".format(f["size"], " " + f["extra"] if f.get("extra") else "")
+        t += ". Keep its place and true size: {} cm.{}".format(f["size"], extra)
         if f.get("keep"):
             t += " Keep exactly: {}.".format(f["keep"])
         out.append(t)
+    for c in changes:
+        out.append("Also: {}".format(c.strip().rstrip(".") + "."))
     if has_board:
         out.append("Image 2 shows the actual product{0} on {1} own: copy {2} shape, proportions, color, finish and details "
                    "exactly; ignore its background and any other object or text in it.".format(
                        "s" if sum(1 for f in items if f.get("ref")) > 1 else "",
                        "their" if sum(1 for f in items if f.get("ref")) > 1 else "its",
                        "each one's" if sum(1 for f in items if f.get("ref")) > 1 else "its"))
-    out.append("Keep everything else in image 1 exactly as it is: camera angle, framing, perspective, walls, floor, window, "
+    out.append("Keep everything else in image 1 exactly as it is{}: camera angle, framing, perspective, walls, floor, window, "
                "curtains, light, shadows, colors, every other piece of furniture, the bedding and props. Match image 1's "
                "light, shadows and color temperature so {} look{} photographed in the room, not pasted in.".format(
-                   names, "" if len(items) > 1 else "s"))
+                   " apart from the changes above" if changes else "", names, "" if len(items) > 1 else "s"))
     return "\n".join(out)
 
 
-def fix(shots_path, shot_id, item_ids, images=None):
+def fix(shots_path, shot_id, item_ids, images=None, scale=None, changes=()):
+    if scale is not None and not (0.2 <= scale <= 3 and abs(scale - 1) >= 0.05):
+        raise SystemExit("--scale 은 0.2~3 사이, 1 이 아닌 값이다(그림 속 지금 크기에 곱할 배율): {}".format(scale))
     with open(shots_path, encoding="utf-8") as f:
         data = json.load(f)
     base = os.path.dirname(os.path.abspath(shots_path))
@@ -1612,11 +1657,16 @@ def fix(shots_path, shot_id, item_ids, images=None):
     if on_board:
         refs.append(dict(role="board", file=os.path.join("boards", "fix-" + tag + ".png"), items=[f["id"] for f in on_board],
                          crops={f["id"]: f["crop"] for f in on_board if f.get("crop")}))
-    prompt = fix_prompt(items, bool(on_board))
-    out = dict(shot=shot_id, items=item_ids, refs=refs, prompt=prompt, prompt_chars=len(prompt),
-               model=data.get("model"), quality=data.get("quality", "medium"),
-               checks=["{} — 제품 사진과 모양·비율·색·광택이 같다".format(have[i]["label"]) for i in item_ids] +
-                      ["카메라·벽·바닥·빛·다른 가구·침구가 그림 1 과 같다(바뀐 곳이 없다)"])
+    changes = [c for c in changes if c.strip()]
+    prompt = fix_prompt(items, bool(on_board), scale, changes)
+    checks = ["{} — 제품 사진과 모양·비율·색·광택이 같다".format(have[i]["label"]) for i in item_ids]
+    if scale:
+        checks += ["{} — 그림 1 의 약 {}% 크기다(실제 {} cm). 받침·곁 가구와 견주어 잰다".format(
+            have[i]["label"], round(scale * 100), have[i]["en"]["size"]) for i in item_ids]
+    checks += ["추가 변경이 들어갔다: {}".format(c) for c in changes]
+    checks += ["카메라·벽·바닥·빛·다른 가구·침구가 그림 1 과 같다(위 변경 말고는 바뀐 곳이 없다)"]
+    out = dict(shot=shot_id, items=item_ids, scale=scale, changes=changes, refs=refs, prompt=prompt,
+               prompt_chars=len(prompt), model=data.get("model"), quality=data.get("quality", "medium"), checks=checks)
     os.makedirs(os.path.join(base, "fixes"), exist_ok=True)
     path = os.path.join(base, "fixes", tag + ".json")
     with open(path, "w", encoding="utf-8") as f:
@@ -1659,6 +1709,8 @@ def main(argv=None):
     d.add_argument("shot")
     d.add_argument("items", nargs="+")
     d.add_argument("--images")
+    d.add_argument("--scale", type=float, help="모양은 맞고 크기만 틀렸을 때 그림 속 지금 크기에 곱할 배율(2배로 나왔으면 0.5)")
+    d.add_argument("--change", action="append", default=[], help="같은 편집에 실을 집의 변경(영어 문장, 여러 번 줄 수 있다)")
     args = ap.parse_args(argv)
     if args.cmd == "plan":
         house = P.load(args.house)
@@ -1687,7 +1739,7 @@ def main(argv=None):
         fetch(P.load(args.house), args.dest)
         return 0
     if args.cmd == "fix":
-        return fix(args.shots, args.shot, args.items, args.images)
+        return fix(args.shots, args.shot, args.items, args.images, args.scale, args.change)
     return board(args.shots, args.images, args.out)
 
 

@@ -93,7 +93,7 @@ democut_get_asset(asset_id)    → 서명 URL
 | 색 덩어리·회색 상자가 그대로 나온다 | 프롬프트의 스케치 문장 앞에 `Photorealistic interior photo.` 를 더한다. 그래도 나오면 그 컷은 스케치를 빼고(대표 컷·보드만) 만든다 |
 | 가구가 다른 자리에 있다 | 스케치를 다시 본다. 가려진 가구는 생성 모델도 놓친다. 3단계(`photo.shots`)로 카메라를 옮긴다 |
 | 제품이 다른 모양이다 | 먼저 보드를 연다. 다른 물건·다른 옵션·여러 개가 찍혔으면 `ref_image`·`ref_crop`·`ref: false` 로 고친다. 그다음 `keep` 에 다른 점을 적고 plan·board 를 다시 돌린다. 그 제품만 틀렸으면 아래 「틀린 제품만 고치기」 ([product-fidelity.md](product-fidelity.md)) |
-| 작은 소품이 실제보다 크다 | 그 품목 줄에 받침과의 비율(`about 1/4 that top's width …`)이 있는지 본다(`rests-on` 의 `on_scale`) |
+| 작은 소품이 실제보다 크다 | 먼저 그 품목 줄에 받침과의 비율(`about 1/4 that top's width …`)이 있는지 본다(`rests-on` 의 `on_scale`). 있는데도 크면 다시 만들어서는 고쳐지지 않는다(2026-11-13 세 번 모두 약 2배). 그 그림을 `fix --scale` 로 편집해 그것만 줄인다(아래 「틀린 제품만 고치기」, [product-fidelity.md](product-fidelity.md) 「크기만 틀렸을 때」) |
 | 목록 밖 가구·러그·TV 가 생겼다 | 그 물건을 `Avoid:` 줄에 이름으로 더한다 |
 | 식물·꽃이 생겼다 | `photo.plants` 가 꺼져 있는지 본다. 대표 컷에 식물이 있으면 레퍼런스 1번을 따라 다른 컷에도 생기므로 대표 컷부터 다시 만든다 |
 | 의자가 책상 밑에 들어가 있다·가구가 겹치거나 떠 있다 | 그 품목 줄에 「Pulled out in front of …, not under it」 이 있는지 본다. 없으면 house.json 의 `with`·높이(`size.h`)를 확인하고 plan 을 다시 돌린다. 대표 컷에 그렇게 그려졌으면 대표 컷부터 다시 만든다 |
@@ -111,9 +111,12 @@ democut_get_asset(asset_id)    → 서명 URL
 
 ## 틀린 제품만 고치기
 
-컷이 거의 맞고 제품 한두 개만 틀렸을 때. 전체를 다시 만들면 다른 곳이 틀어지기 쉽다.
+컷이 거의 맞고 제품 한두 개만 틀렸을 때(모양이든 크기든), 또는 그 컷을 만든 뒤 집에서 작은 것만 바뀌었을 때.
+전체를 다시 만들면 다른 곳이 틀어지기 쉽다.
 
 1. `shots.py fix photos/shots.json <컷> <품목…> --images <제품 사진 디렉터리>` → `fixes/<컷>--<품목>.json` 과 보드.
+   크기만 틀렸으면 `--scale <배율>`, 집에서 바뀐 것은 `--change "<영어 문장>"` 을 더한다
+   ([product-fidelity.md](product-fidelity.md) 「크기만 틀렸을 때」·「집에서 바뀐 것도 같은 편집에 싣기」).
 2. 보드(`boards/fix-….png`)를 1단계처럼 올린다.
 3. 같은 컷에서 `democut_get_cut` 으로 초안·rev 를 읽고 `image_prompt` 를 fix 프롬프트로, `reference_asset_ids` 를
    `[그 컷의 지금 image_asset_id, fix 보드]` 로 바꿔 `democut_put_cut_draft`.

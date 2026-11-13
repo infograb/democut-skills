@@ -66,8 +66,10 @@ fetch 로 받은 사진을 **눈으로 보고** 품목마다 정한다.
   `prs.ohou.se/…/descriptions/url/…` 로 나온다. 옵션 사진(색별 단독 컷)이 가장 깨끗한 경우가 많다.
 - `product.ref_crop` — `[왼, 위, 오른, 아래]`(사진 폭·높이에 대한 0~1 비율). 다른 제품·글자·사람을 잘라 낸다.
   긴 상세 이미지에서 그 제품 칸만 고를 때도 쓴다. 자른 뒤 `board` 결과를 Read 로 열어 확인한다.
-- `product.ref: false` — 그 제품만 찍힌 사진이 없고, 있는 사진이 배치와 부딪치면(다른 크기 옵션, 다른 조명이 함께 찍힌
-  침대 사진) 보드에서 뺀다. 그 품목은 `look`·`keep`·치수로만 그린다.
+- `product.ref: false` — 보드에서 뺀다. 그 품목은 `look`·`keep`·치수로만 그려져 실제 제품과 같다는 보장이 없다.
+  **리뷰 제품에는 쓰지 않는다**(`plan` 이 경고한다). 2026-11-13 침대 대표 사진에 다른 조명이 함께 찍혀 침대를 뺐는데,
+  상세 이미지에 매트리스만 올린 흰 벽 앞 컷과 프레임만 그린 제품 정보 그림이 있었다. 대표 사진이 오염됐으면 상세 이미지를
+  끝까지 내려 그런 컷을 찾고 `ref_crop` 으로 다른 물건(식물·조명)을 잘라 낸다.
 - `keep` — 그 제품을 그 제품이게 하는 특징을 영어 구 하나로. 모양·비율·부품의 자리·마감·개수를 적는다.
   크기 관계(더 넓다·튀어나온다)는 적지 않는다(SKILL.md 2단계). 길면 프롬프트 한도(4,000자)를 넘는다.
 
@@ -95,6 +97,34 @@ python3 -I <스킬>/scripts/shots.py fix photos/shots.json <컷 id> <품목 id> 
   temperature so … look photographed in the room, not pasted in」.
 - DemoCut 에서 하는 순서는 [democut-image.md](democut-image.md) 「틀린 제품만 고치기」.
 - 고친 그림도 확인 목록으로 본다. 다른 곳이 바뀌었으면 그 그림을 쓰지 않는다(이전 그림이 버전으로 남아 있다).
+
+### 크기만 틀렸을 때 (`--scale`)
+
+받침 위에 놓인 손바닥만 한 소품(조명·시계·디퓨저)은 모양이 맞아도 크게 나온다. 새로 만들어서는 고쳐지지 않았다.
+2026-11-13 gpt-image-2.6 은 8×8×10cm 조명을 cm, 받침과의 비율, 「머그잔만 하다」 를 다 적어도 생성마다 받침 높이의
+36~40%(실제 22%)로 그렸다. 편집에서는 그림 속 지금 크기를 자로 삼아 배율로 줄인다.
+
+1. 그림에서 그 소품과 받침(또는 곁 가구)의 높이·폭을 픽셀로 잰다. 배율은 (실제 비율) ÷ (그림 속 비율)이다.
+   예: 조명 높이가 스툴 높이의 36% 이고 실제는 10/45 = 22% 면 0.6 이다.
+2. `fix … <품목> --scale 0.6` 을 돌린다. 프롬프트가 「is drawn too large. Shrink it to about 60% of its current height and
+   width in image 1 … Fill the space it no longer covers with what is behind it」 로 바뀐다. 모양은 `keep` 과 보드로 붙잡는다.
+3. 고친 그림에서 다시 잰다. 2026-11-13 에 50% 를 요청했더니 높이는 80%, 폭은 73% 로 줄었다. 요청한 줄임의 절반쯤만
+   들어간 셈이다. 남은 차이가 크면 고친 그림을 레퍼런스 1번으로 두고 한 번 더 편집한다.
+
+### 집에서 바뀐 것도 같은 편집에 싣기 (`--change`)
+
+대표 컷을 만든 뒤 집에서 작은 것이 바뀌었으면(러그를 뺐다, 시트를 씌웠다) 대표 컷을 처음부터 다시 만들지 않는다.
+다시 만들면 맞춰 둔 제품과 창밖이 다시 틀어지기 쉽다. house.json 을 먼저 고치고 plan·board 를 다시 돌린 뒤, 그 변경을
+영어 문장으로 같은 편집에 싣는다.
+
+```bash
+python3 -I <스킬>/scripts/shots.py fix photos/shots.json wide-window bedlamp --scale 0.5 --images <제품 사진 디렉터리> \
+  --change "remove the oval cream rug from the floor; show the bare wood floor there" \
+  --change "put a white fitted sheet on the mattress, covering its top and sides, so no gray mattress fabric shows"
+```
+
+2026-11-13 에 조명 줄이기, 러그 지우기, 시트 씌우기를 한 번에 편집했고 나머지(가구·창밖·빛·침구)는 그대로였다.
+가구를 더하거나 옮기는 변경은 싣지 않는다. 스케치가 바뀌므로 그 컷은 다시 만든다.
 
 ## 옷 (사람이 입은 제품)
 

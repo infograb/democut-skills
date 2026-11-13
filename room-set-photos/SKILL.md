@@ -72,8 +72,10 @@ python3 -I <스킬>/scripts/shots.py fetch house.json <새 빈 디렉터리>/pro
   (부품의 자리·개수·비율·유광/무광). 품목 줄 끝에 `Keep exactly: …` 로 붙는다.
 - 받은 사진을 보고 **보드에 넣을 사진**을 정한다. 다른 제품·조명·사람·글자가 함께 찍혔거나 여러 개가 쌓였으면
   `product.ref_image`(그 제품만 찍힌 상세 이미지 주소)와 `product.ref_crop`(`[왼, 위, 오른, 아래]` 0~1 비율)을 적는다.
-  고른 옵션과 다른 크기를 찍은 사진뿐이면 `product.ref: false` 로 보드에서 뺀다. 모델은 사진 속 다른 물건과 여백까지
-  옮긴다(2026-11-12 침대 사진의 다른 조명이 협탁 조명 자리에 그려졌다). 자세한 기준: [`references/product-fidelity.md`](references/product-fidelity.md).
+  모델은 사진 속 다른 물건과 여백까지 옮긴다(2026-11-12 침대 사진의 다른 조명이 협탁 조명 자리에 그려졌다).
+  대표 사진이 오염돼 있어도 **리뷰 제품은 보드에서 빼지 않는다**. 상세 이미지에는 제품 정보 그림, 흰 바탕 컷, 다른 물건 없이
+  찍은 장면이 대개 있다. 빼면 그 제품은 글로만 그려지고 `plan` 이 경고한다(2026-11-13 침대를 뺐다가 사용자 지적).
+  `product.ref: false` 는 리뷰하지 않는 소품에만 쓴다. 자세한 기준: [`references/product-fidelity.md`](references/product-fidelity.md).
   `ref_image` 를 적었으면 fetch 를 새 빈 디렉터리에 다시 돌린다.
 
 ```json
@@ -148,6 +150,8 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).
+   받침 위 작은 소품이 크게 나오면 다시 만들어도 같다. 그림에서 재서 `fix --scale` 로 줄인다.
+   대표 컷을 만든 뒤 집에서 작은 것(러그·침구)만 바꿨으면 그것도 `fix --change` 로 같은 편집에 싣는다.
 
 ### 7. 보고
 
@@ -163,6 +167,9 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
   "ratio": "9:16",                 // 9:16 | 1:1 | 16:9 (DemoCut 프로젝트 비율)
   "walls": "white silk wallpaper", // 프리셋 값 덮어쓰기(선택): walls · floor · light · props · mood
   "plants": false,                 // 식물. 요청이 있을 때만 true 또는 영어 문장(기본: 넣지 않는다)
+  "curtains": "sheer curtains",    // 창에 거는 것(기본값). 암막이면 "beige blackout curtains pulled open"
+  "view": "facing …",              // 창밖(선택). 없으면 집 유형으로 정한다: 원룸은 건너편 빌라, 그 밖은 적지 않는다.
+                                   //   커튼을 친 방이면 false 로 두고 curtains 에 "… drawn closed" 를 적는다
   "model": "gpt-image-2.6-sunburst", // 이미지 모델(선택. 없으면 DemoCut 기본). democut_get_options 가 고를 수 있는 값을 말한다
   "quality": "medium",             // 품질(기본 medium)
   "ceiling": 2300,                 // 천장 높이 mm(기본 2300)
