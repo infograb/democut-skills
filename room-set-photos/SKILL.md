@@ -51,7 +51,8 @@ house.json 을 읽고 방·가구를 확인한다. house.json 맨 위에 `photo`
 - `ratio` — DemoCut 프로젝트 비율과 같아야 한다(`9:16` → 세로 1024×1536, `1:1`, `16:9` → 가로 1536×1024).
   숏폼이면 `9:16`.
 - `plants` — 식물은 사용자가 원할 때만 넣는다. 원하면 `true`(작은 화분 한두 개) 또는 영어 문장. 없으면 프롬프트가 식물·꽃을 막는다.
-- 그 밖의 키(`walls`·`floor`·`light`·`props`·`mood`·`ceiling`·`camera_height`·`shots`)는 아래 「house.json 에 더하는 것」.
+- 그 밖의 키(`walls`·`floor`·`light`·`props`·`mood`·`ceiling`·`camera_height`·`shots`·`skip_rooms`·`rooms`)는
+  아래 「house.json 에 더하는 것」.
 
 ### 2. 제품 사진을 받고 `look` 을 적는다
 
@@ -102,9 +103,13 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 | `sketch/<컷>.png` | 카메라 시점 덩어리 스케치(레퍼런스) |
 | `shots.svg` | 평면도에 카메라 자리와 화각(주황 = 전체 컷, 보라 = 제품 컷) |
 
-컷은 자동으로 정한다. 가구가 있는 방마다 **전체 컷 둘**(모서리·문간 후보 중 보이는 제품과 창이 많은
-자리, 서로 60° 이상 다른 방향)과 리뷰할 제품마다 **제품 컷 하나**(정면이나 3/4 방향, 제품이 화면의 약 30%).
-창이 보이는 전체 컷이 **대표 컷(★)** 이 된다.
+컷은 자동으로 정한다. 가구가 있는 방(침실·주방·욕실·현관)마다 **전체 컷 한두 장**(모서리·문간 후보 중 보이는 제품과
+창이 많은 자리, 서로 60° 이상 다른 방향)과 리뷰할 제품마다 **제품 컷 하나**(정면이나 3/4 방향, 제품이 화면의 약 30%).
+큰 가구가 렌즈 0.75m 안을 막는 자리는 점수를 깎고, 둘째 전체 컷은 가까운 큰 가구가 화면 끝에 걸리지 않을 때만 만든다.
+폭 2m 안팎의 주방·욕실은 둘째 자리가 대개 싱크대·변기에 렌즈를 붙인 그림이라 한 장만 나온다.
+창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
+맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
+따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
 
 출력 끝의 경고를 처리한다.
 
@@ -120,7 +125,9 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 
 - 앞 가구에 가려 주인공이 안 보인다, 벽만 보인다, 한 가구가 화면 절반을 덮는다
 - 넓은 컷의 화면 끝에 가까운 큰 가구의 모서리만 걸린다(위 경고)
-- 고치는 법: `photo.shots` 에 카메라를 직접 적는다(아래 형식). 자동 컷을 버리고 적은 컷만 쓴다.
+- 고치는 법: `photo.shots` 에 카메라를 직접 적는다(아래 형식). 컷을 적은 방은 그 방의 자동 컷 대신 적은 컷만 쓰고,
+  적지 않은 방은 자동 컷을 그대로 쓴다(2026-11-13 전에는 방 하나만 적어도 주방·욕실·현관이 통째로 빠졌다).
+  찍지 않을 방은 `photo.skip_rooms` 에 방 id 를 적는다.
 
 ### 4. 제품 보드를 만든다
 
@@ -174,11 +181,16 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
   "quality": "medium",             // 품질(기본 medium)
   "ceiling": 2300,                 // 천장 높이 mm(기본 2300)
   "camera_height": 1200,           // 전체 컷 카메라 높이 mm(기본 1200)
-  "shots": [                       // 선택. 적으면 자동 컷 대신 이것만 쓴다
+  "shots": [                       // 선택. 적은 방은 그 방의 자동 컷 대신 이것만 쓴다(다른 방은 자동)
     {"id": "wide-window", "room": "room", "x": 400, "y": 3600, "look_at": [3000, 300]},
     {"id": "hero-desk", "room": "room", "kind": "hero", "target": "desk",
      "x": 2400, "y": 1500, "h": 1300, "yaw": -135, "pitch": -25, "lens": 28}
-  ]
+  ],
+  "skip_rooms": ["entry"],         // 선택. 찍지 않을 방 id(없는 id 면 plan 이 멈춘다)
+  "rooms": {                       // 선택. 방 종류(kind) 또는 방 id 별 마감 덮어쓰기: walls · floor · details · props
+    "bathroom": {"floor": "dark gray hexagon mosaic floor tiles sloping to a floor drain"},
+    "kitchen": {"props": "a cutting board and a kettle on the counter"}
+  }
 },
 "items": [{"id": "desk", "look": "…", "label_en": "desk",
            "keep": "…",                                              // 지킬 특징(선택)
