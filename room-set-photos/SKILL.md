@@ -110,6 +110,11 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
+트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·가구 상자를 같은 카메라로 그려 넣고,
+프롬프트에는 그 방의 마감과 보이는 가구를 적는다(`Through the open doorway … Draw only these there`). 그 방의 첫 전체 컷이
+먼저 만들어지고 레퍼런스 칸이 남으면 그 사진도 넣는다(`role: neighbor`). 소품은 `Styling:` 에 적은 것만 놓이고 그 밖의
+받침 윗면과 바닥은 비운다. 둘 다 [`references/ohouse-look.md`](references/ohouse-look.md) 「문간 너머」·「소품은 적은 것만」.
+**`shots.md` 의 번호가 만드는 순서다.** 레퍼런스로 받는 컷은 언제나 앞 번호다.
 
 출력 끝의 경고를 처리한다.
 
@@ -120,6 +125,8 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
   생성 모델은 그 가구를 다른 가구보다 크고 높게 그린다. `photo.shots` 로 카메라를 옮겨 화면 밖으로 빼거나
   전체가 들어오게 한다. 그 가구는 제품 컷에서 보인다. 자동 컷은 이런 자리를 피한다.
 - `look 에 크기 관계 말이 있다` — 그 말을 빼고 모양·색·재질만 남긴다(2단계).
+- `프롬프트가 한도를 넘어 문간 너머 품목의 생김새를 뺐다` — 이 방의 글은 그대로이고 문간 너머 가구만 크기·자리로 적었다.
+  그 방 사진이 `role: neighbor` 로 붙으면 생김새는 사진이 맡는다. 붙지 않았는데 너머 가구가 크게 보이면 `look` 을 줄인다.
 
 스케치를 **반드시 열어 본다**(Read 로 PNG 를 본다). 이런 컷은 고친다.
 
@@ -153,7 +160,8 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
 2. 레퍼런스를 자산으로 올린다(스케치·보드는 로컬 파일 → `democut_create_upload_url` + `curl -T`).
 3. **대표 컷부터 한 장**: `democut_add_cut(mode=ai_image)` → `democut_estimate_cut_image` → 금액을 그대로 보여 주고 동의 →
    `democut_make_cut_image` → `democut_wait_jobs` → 그림을 받아 **눈으로 확인**(shots.md 의 확인 목록).
-4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤 만든다.
+4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤
+   `shots.md` 의 번호 순서대로 만든다. 레퍼런스에 다른 컷의 그림(`role: neighbor`)이 있는 컷은 그 그림이 나와 확인한 뒤 넣는다.
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).
