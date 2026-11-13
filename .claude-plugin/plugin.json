@@ -1,7 +1,7 @@
 {
   "name": "democut-skills",
-  "version": "0.3.0",
-  "description": "DemoCut 쓰임새 스킬 모음 — 오늘의집 제품으로 촬영용 방 세트를 꾸미는 room-set-planner, 그 방을 오늘의집 사진처럼 만드는 room-set-photos 등. InfoGrab 제공.",
+  "version": "0.4.0",
+  "description": "DemoCut 쓰임새 스킬 모음 — 오늘의집 제품으로 촬영용 방 세트를 꾸미는 room-set-planner, 그 방을 오늘의집 사진처럼 만드는 room-set-photos, 곡으로 뮤직비디오 콘티를 짜고 만드는 music-video 등. InfoGrab 제공.",
   "author": {
     "name": "InfoGrab",
     "email": "support@infograb.net"
