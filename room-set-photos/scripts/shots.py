@@ -53,6 +53,8 @@ THROUGH = 2000              # 문간 너머 방 품목의 그림 id 시작(이 �
 THROUGH_MIN = 0.01          # 문간 너머가 화면의 이만큼 안 되는 가는 띠면 그 방을 글로 적지 않는다(스케치에는 그린다)
 THROUGH_OP_MIN = 0.002      # 문간 너머 방의 창·문이 화면의 이만큼 넘게 보이면 글로 적는다
 WALL_WIDE = 0.9             # 트인 개구부가 그 벽 길이의 이만큼을 넘으면 「그 벽 전체가 트였다」 로 적는다
+SEAM_PAD = 50               # 한 면으로 이어진 벽의 가짜 모서리 선을 지울 때 두 방 벽 쪽으로 더 덮는 폭(mm)
+SIDE_BY_SIDE = 600          # 한 면으로 이어진 벽에 붙은 이 방 가구와 너머 가구가 이만큼(mm) 안쪽이면 「나란히」 로 적는다
 FILL_GAP = 30               # 벽에 붙은 가구가 그 벽보다 이만큼(mm) 안 되게 좁으면 「벽을 모서리까지 채운다」 로 적는다
 WIDE_CLOSE = 750            # 전체 컷에서 화면을 크게 차지한 가구가 이보다 가까우면 점수를 깎는다(mm)
 BIG_CUT = 600               # 그 검사를 받는 가구의 바닥 긴 변(mm)
@@ -467,12 +469,26 @@ def _draw(cv, cam, pts, color, iid=0):
         cv.line(p2[i], p2[(i + 1) % len(p2)], EDGE, lw)
 
 
+def _on_wall(o, u, v, z):
+    """개구부 o 의 벽 좌표 → 집 좌표. u: 벽을 따라, v: 벽을 가로질러."""
+    return (u, v, z) if o["axis"] == "x" else (v, u, z)
+
+
+def _seam_sides(sc, nb, o):
+    """개구부가 모서리에 붙어 있고 그쪽 옆 벽이 너머 방 벽과 한 면(좌표가 같다)인 쪽: [(벽 이름, 벽을 따른 좌표)].
+    그 자리에는 모서리가 없다. 두 방의 옆 벽과 벽 두께 면이 한 벽이다."""
+    hr, nr = P.rr(sc.room), P.rr(nb.room)
+    lo, hi = min(o["a"], o["b"]), max(o["a"], o["b"])
+    ends = (("w", 0, lo), ("e", 2, hi)) if o["axis"] == "x" else (("n", 1, lo), ("s", 3, hi))
+    return [(side, u) for side, k, u in ends if abs(u - hr[k]) <= 1 and abs(u - nr[k]) <= 1]
+
+
 def _reveal(o, top):
     """문간이 벽 두께를 지나는 네 면(양 옆·바닥·위). 두 방의 벽 선(line·other_line) 사이다."""
     l0, l1, a, b = o["line"], o["other_line"], o["a"], o["b"]
 
-    def pt(u, v, z):                # u: 벽을 따라, v: 벽을 가로질러
-        return (u, v, z) if o["axis"] == "x" else (v, u, z)
+    def pt(u, v, z):
+        return _on_wall(o, u, v, z)
     return [([pt(u, l0, 0), pt(u, l1, 0), pt(u, l1, top), pt(u, l0, top)], WALLS["w"]) for u in (a, b)] + [
         ([pt(a, l0, z), pt(b, l0, z), pt(b, l1, z), pt(a, l1, z)], col) for z, col in ((0, FLOOR), (top, CEIL))]
 
@@ -627,6 +643,21 @@ def see_through(sc, cam, cv):
                 c = ops.setdefault(v, [0, 0])
                 c[0] += 1
                 c[1] += i % cv.w
+        # 개구부가 모서리에 붙고 그 옆 벽이 너머 방 벽과 한 면이면 그 자리에 모서리가 없다. 그런데 이 방 벽의 끝, 문간 테두리,
+        # 벽 두께 면, 너머 방 벽의 끝이 저마다 선을 그어 세로줄 둘이 남는다. 모델은 그것을 튀어나온 벽 토막으로 읽고 세웠다
+        # (2026-11-13 현관: 신발장 벽과 주방 벽 사이에 옆면·끝면 달린 벽을 세우고 주방 벽을 뒤로 물렸다). 그 면을 벽 색으로
+        # 다시 칠한다. 가구(id 가 다른 픽셀)와 창·문(색이 다른 픽셀)은 건드리지 않는다
+        top = min(DOOR_H, sc.ceil - 100)
+        v0, v1 = sorted((o["line"], o["other_line"]))
+        for side, u in _seam_sides(sc, nb, o):
+            mask = Canvas(cv.w, cv.h)
+            _draw(mask, cam, [_on_wall(o, u, v0 - SEAM_PAD, 0), _on_wall(o, u, v1 + SEAM_PAD, 0),
+                              _on_wall(o, u, v1 + SEAM_PAD, top), _on_wall(o, u, v0 - SEAM_PAD, top)], BG, 1)
+            wall = bytes(WALLS[side])
+            plain = {bytes(EDGE), bytes(WALLS["w"]), wall}     # 선 · 벽 두께 면(늘 w 색) · 그 벽
+            for i, v in enumerate(mask.ids):
+                if v and cv.ids[i] in (0, oid) and bytes(px[i * 3:i * 3 + 3]) in plain:
+                    px[i * 3:i * 3 + 3] = wall
     return cv
 
 
@@ -1177,8 +1208,9 @@ def _depth(d):
     return "foreground" if d < 1200 else "middle ground" if d < 2600 else "background"
 
 
-def describe_through(sc, cam, cv, st, house, n0):
+def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
     """문간 너머로 보이는 옆 방(see_through 가 그려 넣은 것)을 문간마다 정리한다. 품목 번호는 n0+1 부터 잇는다.
+    seen_here: 이 컷에 보이는 이 방 품목(한 면으로 이어진 벽에 나란히 붙은 이 방 가구·너머 가구를 짝지어 적는다).
     너머 방의 벽·바닥은 그 방 종류의 마감(room_finish)이다 — 그 방 컷과 같은 말로 적어야 같은 방으로 나온다.
     소품은 적지 않는다. 그 방 전체의 소품이라 문간에 안 보이는 가구(책상 위 노트북)까지 불러온다."""
     W, H = cam.w, cam.h
@@ -1255,17 +1287,46 @@ def describe_through(sc, cam, cv, st, house, n0):
             _opening(sc, m, cam)["the"], label, "same as here" if fin["walls"] == here["walls"] else fin["walls"],
             "same as here" if fin["floor"] == here["floor"] else fin["floor"])
         # 이 방 벽과 한 줄로 이어지는 너머 방 벽(개구부 벽에 수직인 두 벽 중 좌표가 같은 것). 안 적으면 모델은 너머 방을
-        # 더 깊게 지어 이 방 벽보다 뒤에 그 방의 벽을 세운다(2026-11-13 현관: 신발장 벽과 한 줄인 주방 벽을 뒤로 물렸다)
+        # 더 깊게 지어 이 방 벽보다 뒤에 그 방의 벽을 세운다(2026-11-13 현관: 신발장 벽과 한 줄인 주방 벽을 뒤로 물렸다).
+        # 개구부가 그 모서리에 붙어 있으면(_seam_sides) 두 벽은 한 면이다. 「한 줄」 이라고만 적었을 때 모델은 그 자리에
+        # 벽 토막을 세우고 주방 벽을 여전히 물렸다(같은 날 두 번째) — 한 면이라고 적고, 그 벽에 붙은 이 방 가구와 너머
+        # 가구가 가까우면 둘을 이름으로 잇는다
         nr, hr = P.rr(nb.room), P.rr(sc.room)
-        lined = []
+        seam = {side for side, _ in _seam_sides(sc, nb, m["op"])}
+        lined, ko_lined = [], []        # (벽 문장, 짝 문장) — 짝은 그 벽 문장 바로 뒤에 와야 「it」 이 그 벽이다
         for side in (("w", "e") if m["side"] in "ns" else ("n", "s")):
             k = {"w": 0, "n": 1, "e": 2, "s": 3}[side]      # P.rr 의 (x0, y0, x1, y1) 자리
             rel = _wall_rel(side, cam)
-            if abs(nr[k] - hr[k]) <= 1 and not rel.startswith("near"):
-                lined.append(rel)
-        for rel in lined:
+            if abs(nr[k] - hr[k]) > 1 or rel.startswith("near"):
+                continue
             w = REL_EN[rel][len("the "):]
-            head += " Its {0} is in line with this room's {0}.".format(w)
+            if side not in seam:
+                lined.append((" Its {0} is in line with this room's {0}.".format(w), ""))
+                ko_lined.append("{}이 이 방 {}과 한 줄".format(WALL_KO[rel], WALL_KO[rel]))
+                continue
+            ko_lined.append("{}이 이 방 {}과 한 면(튀어나온 벽 없음)".format(WALL_KO[rel], WALL_KO[rel]))
+            ax = (1, 3) if side in "we" else (0, 2)          # 그 벽을 따르는 축의 rect 자리
+
+            def on_wall(ctx, it):
+                if _place_wall(it) != side or it.get("on") or P.CAT.get(it.get("category"), {}).get("floor"):
+                    return None
+                r = ctx.geo[it["id"]]["rect"]
+                return r[ax[0]], r[ax[1]]
+            best = None
+            for a in seen_here:
+                ra = on_wall(sc.ctx, a)
+                for _, _, b, _ in vis:
+                    rb = ra and on_wall(nb.ctx, b)
+                    if rb:
+                        gap = max(ra[0] - rb[1], rb[0] - ra[1], 0)
+                        if gap <= SIDE_BY_SIDE and (best is None or gap < best[0]):
+                            best = (gap, a, b)
+            lined.append((" Its {0} continues this room's {0} as one flat wall.".format(w),
+                          best and " The {} and the {} stand side by side against it.".format(
+                              _label_en(best[1]), _label_en(best[2])) or ""))
+            if best:
+                ko_lined.append("그 벽에 {}·{} 나란히".format(P.label_of(best[1]), P.label_of(best[2])))
+        start, head = head, ""
         # 너머 방의 창·문. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을 문간에 옮겨 그렸다(2026-11-13
         # 주방 컷: 문간 너머는 옷장 옆 벽뿐이다). 가구만 적으면 창은 여전히 글에 없는 자리라, 보이는 창·문은 자리와 함께,
         # 창이 있는 방인데 안 보이면 안 보인다고 적는다
@@ -1297,13 +1358,16 @@ def describe_through(sc, cam, cv, st, house, n0):
         if not win_seen and any(nm["op"]["type"] == "window" for nm in nb.ops.values()):
             head += " No window shows there."
             ko_ops.append("창은 안 보인다")
-        head += " Draw only these there:" if lines else " No furniture shows there."
+        tail = " Draw only these there:" if lines else " No furniture shows there."
+        # 짝 문장은 프롬프트가 한도를 넘으면 빼는 첫째다(build_prompt 의 no_pair). 한 면이라는 문장은 남는다
+        head, head_nopair = (start + "".join(a + b for a, b in lined) + head + tail,
+                             start + "".join(a for a, _ in lined) + head + tail)
         check = "문간 너머 {} — {}".format(label_ko, "·".join(labels) + " 만 보인다" if labels else "가구 없이 벽·바닥만 보인다")
-        ko_ops = ["{}이 이 방 {}과 한 줄".format(WALL_KO[r], WALL_KO[r]) for r in lined] + ko_ops
+        ko_ops = ko_lined + ko_ops
         if ko_ops:
             check += " · " + " · ".join(ko_ops)
         out.append(dict(oid=oid, room=nb.room["id"], label=label, label_ko=label_ko, share=area / A,
-                        head=head, lines=lines, short=short, check=check, items=facts))
+                        head=head, head_nopair=head_nopair, lines=lines, short=short, check=check, items=facts))
     return out
 
 
@@ -1478,7 +1542,7 @@ def describe(sc, cam, cv, st, house, rules=()):
             dest = "outside" if other == "outside" else ("the " + KIND_EN.get(rooms.get(other, {}).get("kind"), "next room"))
             ops.append("a door to {} on {} ({})".format(dest, REL_EN[rel], hp))
             checks.append("문 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
-    thru = describe_through(sc, cam, cv, st, house, len(vis))
+    thru = describe_through(sc, cam, cv, st, house, len(vis), [v["it"] for v in vis])
     checks.extend(t["check"] for t in thru)
     return vis, lines, ops, checks, board, avoid, facts, thru
 
@@ -1514,7 +1578,7 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
     out.append("Styling: {}; nothing else on any surface.".format(props) if props else
                "Styling: nothing on any surface.")
     for t in thru:
-        out.append(t["head"])
+        out.append(t["head_nopair"] if view.get("no_pair") else t["head"])
         out.extend(t["short"] if view.get("short_through") else t["lines"])
     rt = []
     bidx = [i for i, ref in enumerate(refs, 1) if ref["role"] == "board"]
@@ -1803,6 +1867,10 @@ def plan(house, out_dir, max_hero=6, ratio=None):
             view["short_through"] = True
             prompt = build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
             warns.append("프롬프트가 한도를 넘어 문간 너머 품목의 생김새를 뺐다(크기·자리만 적는다)")
+        if len(prompt) > PROMPT_MAX and thru:     # 그래도 넘으면 이어진 벽의 가구 짝 문장을 뺀다
+            view["no_pair"] = True
+            prompt = build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
+            warns.append("프롬프트가 한도를 넘어 이어진 벽에 나란히 붙은 가구 짝 문장을 뺐다")
         if light_ko:
             checks.append("빛 — " + light_ko)
         checks.append("목록·소품 밖 물건(가구·가전·조명·장식·러그·액자)이 없다")

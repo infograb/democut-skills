@@ -79,7 +79,7 @@ not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같�
 
 ```text
 In view: the right wall is fully open to the kitchen, with no door frame (far right); a door to outside on the left wall (far left).
-Through the open right wall is the kitchen (walls: …; floor: …). Its far wall is in line with this room's far wall. Draw only these there:
+Through the open right wall is the kitchen (walls: …; floor: …). Its far wall continues this room's far wall as one flat wall. The shoe cabinet and the fridge stand side by side against it. Draw only these there:
 3. Fridge (purple box): a small white two-door fridge … 48x50x85 cm. Lower far right, foreground; back to the far wall; front faces camera.
 ```
 
@@ -95,12 +95,19 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   한 줄로 이어지는 벽(개구부 벽에 수직이고 좌표가 같은 벽)은 「Its far wall is in line with this room's far wall.」 로 적는다.
   안 적었을 때 모델은 신발장 벽과 한 줄인 주방 벽을 뒤로 물리고, 그 벽에 붙은 냉장고를 문간 앞으로 내놓은 뒤 그 뒤에 싱크대를
   그렸다(2026-11-13 현관). 확인 목록에는 「정면 벽이 이 방 정면 벽과 한 줄」 이 붙는다.
+- 개구부가 그 모서리에 붙어 있으면 두 벽은 한 면이다. 이때는 「continues this room's far wall as one flat wall」 로 적고,
+  그 벽에 붙은 이 방 가구와 너머 가구가 60cm 안쪽이면 둘을 이름으로 잇는다(「The shoe cabinet and the fridge stand side by
+  side against it.」). 「한 줄」 만 적었을 때 모델은 그 모서리에 옆면·끝면 달린 벽 토막을 세우고 주방 벽을 냉장고 깊이만큼
+  여전히 물렸다(2026-11-13 현관 두 번째). 스케치도 그 자리에 이 방 벽 끝·문간 테두리·벽 두께 면의 선이 세로줄 둘로 남아
+  벽 토막처럼 보였다. 지금은 그 면을 벽 색으로 다시 칠해 한 벽으로 그린다. 확인 목록은 「…과 한 면(튀어나온 벽 없음)」·
+  「그 벽에 신발장·냉장고 나란히」 다. 프롬프트가 한도를 넘으면 너머 가구 생김새 다음으로 이 짝 문장을 뺀다.
 - 너머 방 마감이 이 방과 같으면 「same as here」 로 적는다. 이어진 한 바닥이라는 말이 되고 글자도 아낀다.
 - 너머 방 머리 줄은 화면 자리를 다시 적지 않는다. In view 줄이 적었고, 벽 이름으로 그 개구부를 가리킨다.
 - 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.
 - 너머가 화면의 1% 안 되는 가는 띠면 스케치에만 그리고 글로 적지 않는다. 가구가 없는 방이면 「No furniture shows there」 다.
 - 스케치 범례는 실제로 칠해진 색만 적는다. 너머 방이 그려진 문간은 짙은 회색이 아니다.
-- 프롬프트가 한도(4,000자)를 넘으면 너머 가구의 생김새를 빼고 크기·자리만 적는다(경고가 나온다).
+- 프롬프트가 한도(4,000자)를 넘으면 너머 가구의 생김새를 빼고 크기·자리만 적는다. 그래도 넘으면 이어진 벽의 가구 짝
+  문장을 뺀다(둘 다 경고가 나온다).
 - 너머 방이 화면의 3% 넘게 보이고, 그 방의 첫 전체 컷이 먼저 만들어지고, 레퍼런스 칸이 남으면 그 그림을 `role: neighbor`
   로 넣는다. 소품과 제품 생김새까지 같아진다. 칸은 제품 보드가 먼저 쓴다. `shots.md` 는 그 컷을 앞 번호로 당기고, 두 방이
   서로 들여다보면 기본 순서(대표 컷 → 전체 컷 → 제품 컷)에서 앞선 컷이 먼저이고 그 컷은 글과 스케치로만 받는다.
