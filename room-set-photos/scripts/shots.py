@@ -1481,7 +1481,7 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
            "Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
                view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]),
            ("Light: {}. {}".format(concept["light"], light_dir) if light_dir else
-            "Light: soft even light from the LED ceiling light, with a little daylight from the doorway."),
+            "Light: soft even light from the LED ceiling light, with a little daylight from the opening."),
            "View: {}.".format(kind_txt)]
     if ops:
         out.append("In view: " + "; ".join(ops) + ".")
