@@ -79,6 +79,10 @@ democut_get_asset(asset_id)    → 서명 URL
 대표 컷이 통과하면 그 그림의 asset_id(`image_asset_id`)를 나머지 컷의 레퍼런스 1번(`role: master`)으로 쓴다.
 대표 컷이 틀린 채로 넘어가면 그 틀림이 모든 컷에 퍼진다.
 
+`role: neighbor` 레퍼런스는 트인 문간 너머로 보이는 방의 첫 전체 컷이다(`shot`). 그 컷을 먼저 만들어 확인하고, 그 그림의
+asset_id 를 이 컷의 레퍼런스 3번에 넣는다. 견적은 레퍼런스 장수와 프롬프트 길이로 정해지므로, 그 그림이 나오기 전에 받은 견적과
+넣은 뒤 받은 견적은 같아야 한다. 다르면 새 금액으로 다시 동의를 받는다.
+
 1. 남은 컷을 2단계처럼 `democut_add_cut` 으로 만든다.
 2. 컷마다 `democut_estimate_cut_image` 를 받아 **표로 모으고 합계**를 보여 준다. 동의한 컷만 만든다.
 3. 컷마다 `democut_make_cut_image` 에 그 컷의 견적 금액·rate_version 을 싣는다. `democut_wait_jobs` 로 함께 기다린다.

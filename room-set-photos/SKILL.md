@@ -109,7 +109,9 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 폭 2m 안팎의 주방·욕실은 둘째 자리가 대개 싱크대·변기에 렌즈를 붙인 그림이라 한 장만 나온다.
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
-따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
+따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다. 트인 문간 너머로 다른 방이 화면의 3% 넘게 보이고 레퍼런스 칸이
+남으면, 그 방의 첫 전체 컷을 3번(`role: neighbor`)으로 넣어 문간 너머를 그 사진대로 그리게 한다. 그래서 그 컷을 먼저 만든다
+(2026-11-13 현관 컷이 문간 너머에 없는 상부장 주방을 지어 그렸다).
 
 출력 끝의 경고를 처리한다.
 
@@ -154,6 +156,7 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
 3. **대표 컷부터 한 장**: `democut_add_cut(mode=ai_image)` → `democut_estimate_cut_image` → 금액을 그대로 보여 주고 동의 →
    `democut_make_cut_image` → `democut_wait_jobs` → 그림을 받아 **눈으로 확인**(shots.md 의 확인 목록).
 4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤 만든다.
+   레퍼런스에 `role: neighbor` 가 있는 컷은 그 `shot` 을 먼저 만들어 확인하고, 그 그림을 넣은 뒤 만든다.
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).

@@ -70,6 +70,17 @@ SS 침대 프레임(110×204cm, SS 매트리스와 거의 같은 크기)의 대�
 받을 때 벽이나 바닥이 다르면 「use the same window frames, door and trim colors and light; the floor follows the text above,
 not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같은 집」 이라는 말만 들으면 침실의 강마루를 욕실에 깐다.
 
+## 문간 너머
+
+트인 문간(문짝 없는 개구부)은 스케치에서 짙은 회색이고, 그 너머는 그리지 않는다. 모델은 문간 너머 방을 모르는 채로 지어
+그린다. 2026-11-13 현관 컷은 문간 너머에 상부장과 주전자가 있는 주방을 그렸는데, 같은 집 주방 컷에는 상부장이 없었다.
+그래서 문간이 화면의 3% 넘게 보이고 그 너머 방의 첫 전체 컷이 이 컷보다 먼저 만들어지면, 그 그림을 레퍼런스로 넣고
+「what shows through the open doorway is that room, so match it … and add nothing that is not in it」 이라고 적는다.
+닫힌 문(갈색)은 너머가 보이지 않으므로 넣지 않는다.
+
+같은 날 현관 컷은 「Small soft props only」 만 적힌 신발장 위에 켜진 작은 조명과 나무 상자를 올렸다. 현관 소품 문장은
+「nothing else: bare cabinet tops」 로 끝나고, `Avoid:` 의 목록 밖 물건에 조명(`lamp`)을 넣었다.
+
 ## 빛 디렉팅
 
 빛은 두 겹으로 적는다. 프롬프트의 `Light:` 줄이 둘을 잇는다.

@@ -48,6 +48,7 @@ import planner as P  # noqa: E402
 
 NEAR = 60.0                 # 카메라 앞 이보다 가까운 면은 자른다(mm)
 NEAR_CUT = 1500             # 넓은 컷에서 이보다 가까운 큰 가구가 화면 끝에 잘려 걸리면 크기가 틀어진다(mm)
+NEIGHBOR_SHARE = 0.03       # 트인 문간이 화면의 이만큼 넘게 보이면 그 너머 방의 컷을 레퍼런스로 넣는다
 WIDE_CLOSE = 750            # 전체 컷에서 화면을 크게 차지한 가구가 이보다 가까우면 점수를 깎는다(mm)
 BIG_CUT = 600               # 그 검사를 받는 가구의 바닥 긴 변(mm)
 NEAR_GAP = 100              # 바닥 가구 둘 사이가 이보다 좁으면 사이를 적는다. 안 적으면 붙거나 한쪽이 밑으로 파고든다(mm)
@@ -102,7 +103,7 @@ KIND_FINISH = {
         props="a white towel on a wall hook, a soap dispenser and a toothbrush cup by the basin"),
     "entrance": dict(
         floor="gray porcelain floor tiles, one step below the next room's floor",
-        props="one pair of white sneakers on the floor tiles"),
+        props="one pair of white sneakers on the floor tiles and nothing else: bare cabinet tops"),
     "kitchen": dict(
         walls="{walls}, with white ceramic tiles on the wall behind the counter",
         props="a few dishes in the dish rack, a white electric kettle, a folded dish towel"),
@@ -116,7 +117,7 @@ def negative(concept, extra=()):
     # 「glossy」 를 막으면 유광 제품(일광전구 스노우맨 갓)도 무광으로 바뀐다 — 광고 사진 같은 광만 막는다(2026-11-13)
     return ("Avoid: people, pets, text, logos, watermarks, fisheye distortion, CGI look, HDR glow, oversaturated colors, "
             "a glossy ad look, sharp sun patches or light rays, {}furniture floating, intersecting or squeezed under something "
-            "lower, {}and any furniture, appliance, rug or wall art that is not listed.").format(
+            "lower, {}and any furniture, appliance, lamp, rug or wall art that is not listed.").format(
                 "" if concept.get("plants") else "plants or flowers, ", "".join(a + ", " for a in extra))
 
 
@@ -1269,6 +1270,10 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
                       "and trim colors and light; the {} {} the text above, not that photo.".format(
                           i, "".join(k.rstrip("s") + " finish, " for k in same), _and(differ),
                           "follows" if differ == ["floor"] else "follow"))
+        elif ref["role"] == "neighbor":
+            rt.append("Reference image {} is a photo of the {} next to this room: what shows through the open doorway is "
+                      "that room, so match it (same furniture, appliances and finishes) and add nothing that is not in "
+                      "it.".format(i, ref["label"]))
         elif ref["role"] == "sketch":
             legend = [txt for key, txt in OPENING_LEGEND if any(key in o for o in ops)]   # 화면에 있는 창·문만
             rt.append("Reference image {} is a massing sketch of this exact view: match its perspective and each colored "
@@ -1420,7 +1425,7 @@ def plan(house, out_dir, max_hero=6, ratio=None):
     global_master = global_master or specs[0]["id"]
     master_finish = room_finish(house, concept, ctx.rooms[next(s["room"] for s in specs if s["id"] == global_master)])
     has_ffmpeg = bool(shutil.which("ffmpeg"))
-    shots = []
+    shots, made = [], set()
     for s in specs:
         room = ctx.rooms[s["room"]]
         sc = Scene(ctx, room, ceil)
@@ -1463,6 +1468,25 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                 refs.append(dict(role="product", item=pick["item"], n=pick["n"], label=pick["label"],
                                  url=(byid[pick["item"]].get("product") or {}).get("image")))
                 board = []
+        # 트인 문간 너머로 다른 방이 보이면 그 방의 첫 전체 컷을 남는 레퍼런스 칸에 넣는다. 모델은 문간 너머를 모르는
+        # 채로 지어 그린다(2026-11-13 현관 컷: 문간 너머 주방에 없는 상부장·주전자를 그렸다). 이 컷보다 먼저 만드는 컷만 쓴다
+        if len(refs) < 3:
+            A = float(cam.w * cam.h)
+            near = []
+            for k, v in st.items():
+                if k < 1000 or sc.ops[k]["op"]["type"] != "opening" or v[0] / A < NEIGHBOR_SHARE:
+                    continue
+                o = sc.ops[k]["op"]
+                other = o.get("to") if o["room"] == room["id"] else o["room"]
+                nb = master_of_room.get(other)
+                if nb and nb in made and all(r.get("shot") != nb for r in refs):
+                    near.append((v[0], other, nb))
+            if near:
+                _, other, nb = max(near)
+                kind = ctx.rooms[other].get("kind")
+                refs.append(dict(role="neighbor", shot=nb, room=other, label=KIND_EN.get(kind, "next room"),
+                                 label_ko=P.KIND_KO.get(kind or "", "옆 방")))
+        made.add(s["id"])
         warns = []
         for v in vis:                             # 리뷰 제품을 글로만 그리지 않는다(2026-11-13 침대를 ref:false 로 뺐다 — 사용자 지적)
             it, prod = v["it"], v["it"].get("product") or {}
@@ -1487,6 +1511,9 @@ def plan(house, out_dir, max_hero=6, ratio=None):
             checks.append("제품 모양·비율·색·광택이 보드와 같다 — 다르면 `shots.py fix` 로 그 제품만 고친다")
         if not is_master:
             checks.append("벽지·바닥·창틀·커튼·빛이 대표 컷과 같다")
+        for r in refs:
+            if r["role"] == "neighbor":
+                checks.append("트인 문간 너머 {} — `{}` 그림과 같다".format(r["label_ko"], r["shot"]))
         shots.append(dict(
             id=s["id"], kind=s["kind"], room=s["room"], master=is_master, title=ko,
             camera=dict(x=int(round(s["x"])), y=int(round(s["y"])), height=int(round(s["z"])),
@@ -1535,6 +1562,8 @@ def shots_md(data):
         for k, r in enumerate(s["refs"], 1):
             if r["role"] == "master":
                 refs.append("{}) `{}` 에서 만든 그림({})".format(k, r["shot"], "같은 방" if r.get("same_room") else "같은 집"))
+            elif r["role"] == "neighbor":
+                refs.append("{}) `{}` 에서 만든 그림(문간 너머 {} — 그 컷을 먼저 만든다)".format(k, r["shot"], r["label_ko"]))
             elif r["role"] == "product":
                 refs.append("{}) 제품 사진 {}".format(k, r.get("url")))
             else:
