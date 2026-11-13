@@ -72,14 +72,32 @@ not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같�
 
 ## 문간 너머
 
-트인 문간(문짝 없는 개구부)은 스케치에서 짙은 회색이고, 그 너머는 그리지 않는다. 모델은 문간 너머 방을 모르는 채로 지어
-그린다. 2026-11-13 현관 컷은 문간 너머에 상부장과 주전자가 있는 주방을 그렸는데, 같은 집 주방 컷에는 상부장이 없었다.
-그래서 문간이 화면의 3% 넘게 보이고 그 너머 방의 첫 전체 컷이 이 컷보다 먼저 만들어지면, 그 그림을 레퍼런스로 넣고
-「what shows through the open doorway is that room, so match it … and add nothing that is not in it」 이라고 적는다.
-닫힌 문(갈색)은 너머가 보이지 않으므로 넣지 않는다.
+트인 문간(문짝 없는 개구부)을 비워 두면 모델은 그 너머 방을 모르는 채로 지어 그린다. 같은 집의 그 방 컷과 다른 가구·마감이
+나온다(2026-11-13 현관 컷의 문간 너머에 그 집 주방에 없는 상부장이 그려졌다). 그래서 `shots.py` 는 문간 자리에 너머 방을 같은
+카메라로 그려 넣는다. 벽 두께 면, 너머 방의 벽·바닥, 그 방 가구의 상자다. 프롬프트에는 문간마다 그 방의 벽·바닥 마감(그 방
+종류의 값, 위 「방 종류별 마감」)을 적고, 보이는 가구를 이 방 가구에 이어지는 번호로 적는다.
 
-같은 날 현관 컷은 「Small soft props only」 만 적힌 신발장 위에 켜진 작은 조명과 나무 상자를 올렸다. 현관 소품 문장은
-「nothing else: bare cabinet tops」 로 끝나고, `Avoid:` 의 목록 밖 물건에 조명(`lamp`)을 넣었다.
+```text
+Through the open doorway on the right wall (far right) is the kitchen (walls: …; floor: …). Draw only these there, at true scale:
+3. Fridge (purple box): a small white two-door fridge … 48x50x85 cm. Lower far right, foreground; front faces camera.
+```
+
+- 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.
+- 너머가 화면의 1% 안 되는 가는 띠면 스케치에만 그리고 글로 적지 않는다. 가구가 없는 방이면 「No furniture shows there」 다.
+- 스케치 범례는 실제로 칠해진 색만 적는다. 너머 방이 그려진 문간은 짙은 회색이 아니다.
+- 프롬프트가 한도(4,000자)를 넘으면 너머 가구의 생김새를 빼고 크기·자리만 적는다(경고가 나온다).
+- 너머 방이 화면의 3% 넘게 보이고, 그 방의 첫 전체 컷이 먼저 만들어지고, 레퍼런스 칸이 남으면 그 그림을 `role: neighbor`
+  로 넣는다. 소품과 제품 생김새까지 같아진다. 칸은 제품 보드가 먼저 쓴다. `shots.md` 는 그 컷을 앞 번호로 당기고, 두 방이
+  서로 들여다보면 기본 순서(대표 컷 → 전체 컷 → 제품 컷)에서 앞선 컷이 먼저이고 그 컷은 글과 스케치로만 받는다.
+- 문(갈색)은 닫힌 것으로 그리므로 너머를 그리지 않는다.
+
+## 소품은 적은 것만
+
+`Styling:` 줄은 「{소품}; nothing else on any surface.」 로 끝나고, 소품이 없는 방은 「Styling: nothing on any surface.」 다.
+`Avoid:` 줄은 「any object that is not listed」 로 끝난다. 소품의 종류만 적으면(전에 쓰던 「Small soft props only」) 모델은
+그런 소품을 더 지어 받침 위에 올린다(2026-11-13 수납장 위에 목록에 없는 켜진 조명과 상자가 생겼다). 금지할 물건을 하나씩
+이름으로 더하는 대신 「적은 것 말고는 없다」 를 모든 방에 같은 문장으로 건다. 방마다 놓을 소품은
+`photo.rooms.<종류 또는 방 id>.props` 로 바꾼다.
 
 ## 빛 디렉팅
 
