@@ -1351,6 +1351,12 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                                  url=(byid[pick["item"]].get("product") or {}).get("image")))
                 board = []
         warns = []
+        for v in vis:                             # 리뷰 제품을 글로만 그리지 않는다(2026-11-13 침대를 ref:false 로 뺐다 — 사용자 지적)
+            it, prod = v["it"], v["it"].get("product") or {}
+            if P.reviewable(it) and (prod.get("ref") is False or not (prod.get("ref_image") or prod.get("image"))):
+                warns.append("{}: 리뷰 제품인데 보드에 사진이 없어 글로만 그린다{}. 상세 이미지에서 그 제품만 찍힌 사진을 찾아 "
+                             "product.ref_image·ref_crop 으로 넣는다".format(
+                                 P.label_of(it), "(이 컷의 대상이다)" if it["id"] == s.get("target") else ""))
         if s["kind"] == "wide":
             for it, d, side in near_cuts(sc, cam, st):
                 warns.append("{}: 카메라에서 {:.1f}m, 화면 {} 끝에 잘려 걸린다. 생성 모델이 실제보다 크게 그리기 쉽다. "
