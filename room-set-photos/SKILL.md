@@ -110,10 +110,12 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
-트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·가구 상자를 같은 카메라로 그려 넣고,
-프롬프트에는 그 방의 마감과 보이는 가구를 적는다(`Through the open doorway … Draw only these there`). 그 방의 첫 전체 컷이
-먼저 만들어지고 레퍼런스 칸이 남으면 그 사진도 넣는다(`role: neighbor`). 소품은 `Styling:` 에 적은 것만 놓이고 그 밖의
-받침 윗면과 바닥은 비운다. 둘 다 [`references/ohouse-look.md`](references/ohouse-look.md) 「문간 너머」·「소품은 적은 것만」.
+트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·창·문·가구 상자를 같은 카메라로 그려 넣고,
+프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 개구부로 보이는 창·문(창이 있는 방인데
+안 보이면 안 보인다는 말), 보이는 가구를 적는다(`Through the open right wall … Draw only these there`). 그 방의 첫 전체 컷이
+먼저 만들어지고 레퍼런스 칸이 남으면 그 사진도 넣는다(`role: neighbor`). 벽을 다 채우는 가구는 비율 대신 「모서리까지 채운다」
+로 적는다. 소품은 `Styling:` 에 적은 것만 놓이고 그 밖의 받침 윗면과 바닥은 비운다.
+모두 [`references/ohouse-look.md`](references/ohouse-look.md) 「문간 너머」·「벽을 채우는 가구」·「소품은 적은 것만」.
 **`shots.md` 의 번호가 만드는 순서다.** 레퍼런스로 받는 컷은 언제나 앞 번호다.
 
 출력 끝의 경고를 처리한다.

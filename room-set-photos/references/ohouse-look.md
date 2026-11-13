@@ -74,14 +74,24 @@ not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같�
 
 트인 문간(문짝 없는 개구부)을 비워 두면 모델은 그 너머 방을 모르는 채로 지어 그린다. 같은 집의 그 방 컷과 다른 가구·마감이
 나온다(2026-11-13 현관 컷의 문간 너머에 그 집 주방에 없는 상부장이 그려졌다). 그래서 `shots.py` 는 문간 자리에 너머 방을 같은
-카메라로 그려 넣는다. 벽 두께 면, 너머 방의 벽·바닥, 그 방 가구의 상자다. 프롬프트에는 문간마다 그 방의 벽·바닥 마감(그 방
-종류의 값, 위 「방 종류별 마감」)을 적고, 보이는 가구를 이 방 가구에 이어지는 번호로 적는다.
+카메라로 그려 넣는다. 벽 두께 면, 너머 방의 벽·바닥·창·문, 그 방 가구의 상자다. 프롬프트에는 문간마다 그 방의 벽·바닥 마감(그 방
+종류의 값, 위 「방 종류별 마감」)과 문간으로 보이는 창·문을 적고, 보이는 가구를 이 방 가구에 이어지는 번호로 적는다.
 
 ```text
-Through the open doorway on the right wall (far right) is the kitchen (walls: …; floor: …). Draw only these there, at true scale:
+In view: the right wall is fully open to the kitchen, with no door frame (far right); a door to outside on the left wall (far left).
+Through the open right wall is the kitchen (walls: …; floor: …). Draw only these there, at true scale:
 3. Fridge (purple box): a small white two-door fridge … 48x50x85 cm. Lower far right, foreground; front faces camera.
 ```
 
+- 개구부는 크기로 부른다. 「an open doorway」 라고만 적으면 모델은 그 자리에 벽을 세우고 문틀 달린 좁은 문을 낸다
+  (2026-11-13 주방·현관: 벽 전체 162cm 가 트인 자리에 벽과 문틀이 섰고, 현관은 그 벽만큼 넓어졌다). 벽 길이의 90% 넘게
+  트였으면 「the right wall is fully open to …, with no door frame」, 그보다 좁으면 「a 90 cm wide, 210 cm high open doorway
+  to … on …」 이다(폭 120cm 부터는 opening). 확인 목록은 「벽 전체가 트였다(폭 …cm, 벽·문틀 없음)」·「트인 문간(폭 …cm)」 이다.
+- 너머 방의 창·문도 적는다(`Visible there: a 180 cm wide window on the far wall …, sill 90 cm, {커튼}`). 창이 있는 방인데
+  문간으로 안 보이면 「No window shows there.」 를 적는다. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을
+  문간에 옮겨 그렸다(2026-11-13 주방 컷: 문간 너머는 옷장 옆 벽뿐이다). 가구만 적으면 창은 여전히 글에 없는 자리라 보이는지
+  안 보이는지도 적는다. 화면의 0.2% 넘게 보이는 창·문만 적고, 너머 방의 또 다른 개구부(그 너머 현관 등)도 같은 말로 적는다.
+- 너머 방 머리 줄은 화면 자리를 다시 적지 않는다. In view 줄이 적었고, 벽 이름으로 그 개구부를 가리킨다.
 - 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.
 - 너머가 화면의 1% 안 되는 가는 띠면 스케치에만 그리고 글로 적지 않는다. 가구가 없는 방이면 「No furniture shows there」 다.
 - 스케치 범례는 실제로 칠해진 색만 적는다. 너머 방이 그려진 문간은 짙은 회색이 아니다.
@@ -90,6 +100,13 @@ Through the open doorway on the right wall (far right) is the kitchen (walls: �
   로 넣는다. 소품과 제품 생김새까지 같아진다. 칸은 제품 보드가 먼저 쓴다. `shots.md` 는 그 컷을 앞 번호로 당기고, 두 방이
   서로 들여다보면 기본 순서(대표 컷 → 전체 컷 → 제품 컷)에서 앞선 컷이 먼저이고 그 컷은 글과 스케치로만 받는다.
 - 문(갈색)은 닫힌 것으로 그리므로 너머를 그리지 않는다.
+
+## 벽을 채우는 가구
+
+벽에 붙은 가구는 「back to the far wall (74% of its 190 cm)」 처럼 그 벽 길이에 대한 비율을 적는다. 가구가 그 벽을 다
+채우면(남는 폭 3cm 이하) 비율 대신 「filling that 60 cm wall from corner to corner with no wall showing beside it」 이다.
+「100% of its 60 cm」 로 적었을 때 모델은 벽을 넓혀 가구 옆에 빈자리를 지었다(2026-11-13 현관: 폭 60cm 끝 벽을 채운 신발장
+옆에 바닥을 내고 운동화를 놓았다). 확인 목록에는 「붙은 벽을 모서리부터 모서리까지 채운다」 가 붙는다.
 
 ## 소품은 적은 것만
 
