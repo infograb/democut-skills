@@ -1216,6 +1216,12 @@ def describe_through(sc, cam, cv, st, house, n0):
                 d = math.hypot(max(x0 - cam.x, 0, cam.x - x1), max(y0 - cam.y, 0, cam.y - y1))
             hpos, vp = _hpos(hx), _vpos(s[2] / s[0] / H)
             parts = ["{}, {}".format(hpos if vp == "middle" else "{} {}".format(vp, hpos), _depth(d)), _orient(cam, it, g)]
+            # 붙은 벽. 안 적으면 모델은 너머 가구를 벽에서 떼어 문간 앞으로 내놓고, 그 뒤 먼 벽에 그 방 사진의 다른 가구를
+            # 그린다(2026-11-13 현관: 서쪽 벽에 붙은 냉장고를 앞으로 내고 뒤에 싱크대를 그렸다)
+            pw = _place_wall(it)
+            if pw and not it.get("on") and not P.CAT.get(it.get("category"), {}).get("floor"):
+                parts.insert(1, "{} to {}".format("head end" if it.get("category") == "bed" else "back",
+                                                  REL_EN[_wall_rel(pw, cam)]))
             if s[3] <= 0 or s[4] >= W - 1:
                 parts.append("cut off at the {} edge".format("left" if s[3] <= 0 else "right"))
             dims = "{}x{}x{} cm. {}.".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
@@ -1241,11 +1247,25 @@ def describe_through(sc, cam, cv, st, house, n0):
                               en=dict(id=it["id"], label=_label_en(it), look=_look(it), where="; ".join(parts))))
         m = sc.ops[oid]
         kind = nb.room.get("kind")
-        fin = room_finish(house, con, nb.room)
+        fin, here = room_finish(house, con, nb.room), room_finish(house, con, sc.room)
         label, label_ko = KIND_EN.get(kind, "next room"), P.KIND_KO.get(kind or "", "옆 방")
-        # 화면 자리(hp)는 In view 줄이 이미 적었다. 벽 이름으로 그 개구부를 가리킨다
+        # 화면 자리(hp)는 In view 줄이 이미 적었다. 벽 이름으로 그 개구부를 가리킨다. 마감이 이 방과 같으면 「same as here」
+        # (이어진 한 바닥이라는 말이기도 하고, 프롬프트 한도 가까운 컷의 글자를 아낀다)
         head = "Through {} is the {} (walls: {}; floor: {}).".format(
-            _opening(sc, m, cam)["the"], label, fin["walls"], fin["floor"])
+            _opening(sc, m, cam)["the"], label, "same as here" if fin["walls"] == here["walls"] else fin["walls"],
+            "same as here" if fin["floor"] == here["floor"] else fin["floor"])
+        # 이 방 벽과 한 줄로 이어지는 너머 방 벽(개구부 벽에 수직인 두 벽 중 좌표가 같은 것). 안 적으면 모델은 너머 방을
+        # 더 깊게 지어 이 방 벽보다 뒤에 그 방의 벽을 세운다(2026-11-13 현관: 신발장 벽과 한 줄인 주방 벽을 뒤로 물렸다)
+        nr, hr = P.rr(nb.room), P.rr(sc.room)
+        lined = []
+        for side in (("w", "e") if m["side"] in "ns" else ("n", "s")):
+            k = {"w": 0, "n": 1, "e": 2, "s": 3}[side]      # P.rr 의 (x0, y0, x1, y1) 자리
+            rel = _wall_rel(side, cam)
+            if abs(nr[k] - hr[k]) <= 1 and not rel.startswith("near"):
+                lined.append(rel)
+        for rel in lined:
+            w = REL_EN[rel][len("the "):]
+            head += " Its {0} is in line with this room's {0}.".format(w)
         # 너머 방의 창·문. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을 문간에 옮겨 그렸다(2026-11-13
         # 주방 컷: 문간 너머는 옷장 옆 벽뿐이다). 가구만 적으면 창은 여전히 글에 없는 자리라, 보이는 창·문은 자리와 함께,
         # 창이 있는 방인데 안 보이면 안 보인다고 적는다
@@ -1277,8 +1297,9 @@ def describe_through(sc, cam, cv, st, house, n0):
         if not win_seen and any(nm["op"]["type"] == "window" for nm in nb.ops.values()):
             head += " No window shows there."
             ko_ops.append("창은 안 보인다")
-        head += " Draw only these there, at true scale:" if lines else " No furniture shows there."
+        head += " Draw only these there:" if lines else " No furniture shows there."
         check = "문간 너머 {} — {}".format(label_ko, "·".join(labels) + " 만 보인다" if labels else "가구 없이 벽·바닥만 보인다")
+        ko_ops = ["{}이 이 방 {}과 한 줄".format(WALL_KO[r], WALL_KO[r]) for r in lined] + ko_ops
         if ko_ops:
             check += " · " + " · ".join(ko_ops)
         out.append(dict(oid=oid, room=nb.room["id"], label=label, label_ko=label_ko, share=area / A,

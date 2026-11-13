@@ -79,8 +79,8 @@ not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같�
 
 ```text
 In view: the right wall is fully open to the kitchen, with no door frame (far right); a door to outside on the left wall (far left).
-Through the open right wall is the kitchen (walls: …; floor: …). Draw only these there, at true scale:
-3. Fridge (purple box): a small white two-door fridge … 48x50x85 cm. Lower far right, foreground; front faces camera.
+Through the open right wall is the kitchen (walls: …; floor: …). Its far wall is in line with this room's far wall. Draw only these there:
+3. Fridge (purple box): a small white two-door fridge … 48x50x85 cm. Lower far right, foreground; back to the far wall; front faces camera.
 ```
 
 - 개구부는 크기로 부른다. 「an open doorway」 라고만 적으면 모델은 그 자리에 벽을 세우고 문틀 달린 좁은 문을 낸다
@@ -91,6 +91,11 @@ Through the open right wall is the kitchen (walls: …; floor: …). Draw only t
   문간으로 안 보이면 「No window shows there.」 를 적는다. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을
   문간에 옮겨 그렸다(2026-11-13 주방 컷: 문간 너머는 옷장 옆 벽뿐이다). 가구만 적으면 창은 여전히 글에 없는 자리라 보이는지
   안 보이는지도 적는다. 화면의 0.2% 넘게 보이는 창·문만 적고, 너머 방의 또 다른 개구부(그 너머 현관 등)도 같은 말로 적는다.
+- 너머 방의 깊이도 적는다. 너머 가구는 이 방 가구처럼 붙은 벽(`back to the far wall`)을 적고, 너머 방 벽 가운데 이 방 벽과
+  한 줄로 이어지는 벽(개구부 벽에 수직이고 좌표가 같은 벽)은 「Its far wall is in line with this room's far wall.」 로 적는다.
+  안 적었을 때 모델은 신발장 벽과 한 줄인 주방 벽을 뒤로 물리고, 그 벽에 붙은 냉장고를 문간 앞으로 내놓은 뒤 그 뒤에 싱크대를
+  그렸다(2026-11-13 현관). 확인 목록에는 「정면 벽이 이 방 정면 벽과 한 줄」 이 붙는다.
+- 너머 방 마감이 이 방과 같으면 「same as here」 로 적는다. 이어진 한 바닥이라는 말이 되고 글자도 아낀다.
 - 너머 방 머리 줄은 화면 자리를 다시 적지 않는다. In view 줄이 적었고, 벽 이름으로 그 개구부를 가리킨다.
 - 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.
 - 너머가 화면의 1% 안 되는 가는 띠면 스케치에만 그리고 글로 적지 않는다. 가구가 없는 방이면 「No furniture shows there」 다.
