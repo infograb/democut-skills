@@ -302,6 +302,33 @@ def label_of(it):
     return it.get("label") or CAT.get(it.get("category"), CAT["other"])["label"]
 
 
+def z_span(ctx, it, depth=0):
+    """바닥에서 잰 (아래, 위) 높이 mm. 높이를 모르면 None. 올려 둔 것은 받침 위에서 시작한다."""
+    h = (it.get("size") or {}).get("h") or 0
+    if not h:
+        return None
+    if "z" in it:
+        base = it["z"]
+    elif it.get("on") and depth < 5:
+        parent = next((x for x in ctx.items if x["id"] == it["on"]), None)
+        ps = z_span(ctx, parent, depth + 1) if parent else None
+        if ps is None:
+            return None
+        base = ps[1]
+    else:
+        base = 0
+    return base, base + h
+
+
+def on_chain(ctx, it):
+    """it 를 받치는 가구 id 들(올려 둔 사슬)."""
+    out, cur = set(), it
+    while cur and cur.get("on") and cur["on"] not in out and len(out) < 5:
+        out.add(cur["on"])
+        cur = next((x for x in ctx.items if x["id"] == cur["on"]), None)
+    return out
+
+
 def is_obstacle(it):
     if it.get("on") or it.get("with"):
         return False
@@ -656,8 +683,26 @@ def check(house):
             parent = ctx.geo.get(it["on"])
             if not parent:
                 ctx.add("error", "on_missing", "{}: 올려 둘 가구 '{}' 가 없다".format(nm, it["on"]), [it["id"]])
+            elif not inside(((g["rect"][0] + g["rect"][2]) / 2.0, (g["rect"][1] + g["rect"][3]) / 2.0) * 2, parent["rect"]):
+                ctx.add("error", "on_floating", "{}: 가운데가 {} 위에 있지 않다 — 받침 밖으로 떨어진다".format(nm, it["on"]),
+                        [it["id"]])
             elif not inside(g["rect"], parent["rect"], tol=50):
                 ctx.add("warning", "on_overhang", "{}: {} 밖으로 삐져나온다".format(nm, it["on"]), [it["id"]])
+        # 짝(with) — 짝 밑으로 들어가려면 짝의 상판보다 낮아야 한다(의자 등받이는 책상 밑에 못 들어간다)
+        if it.get("with"):
+            partner = next((x for x in ctx.items if x["id"] == it["with"]), None)
+            if not partner:
+                ctx.add("error", "with_missing", "{}: 짝 가구 '{}' 가 없다".format(nm, it["with"]), [it["id"]])
+            else:
+                c = inter(g["rect"], ctx.geo[partner["id"]]["rect"])
+                me, pz = z_span(ctx, it), z_span(ctx, partner)
+                if c and (me is None or pz is None):
+                    ctx.add("warning", "with_unknown", "{}: {} 와 {}×{}mm 겹치는데 높이를 몰라 그 밑에 들어가는지 확인하지 못한다".format(
+                        nm, ctx.iname(partner), fmt(c[2] - c[0]), fmt(c[3] - c[1])), [it["id"], partner["id"]])
+                elif c and me[1] >= pz[1]:
+                    ctx.add("error", "with_under", "{}: 높이 {}mm 라 {}(높이 {}mm) 밑에 들어가지 않는데 {}×{}mm 겹친다 — 겹치지 않게 앞으로 뺀다".format(
+                        nm, fmt(me[1]), ctx.iname(partner), fmt(pz[1]), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
+                        [it["id"], partner["id"]])
         # 벽에 붙이는 품목
         cat = CAT.get(it.get("category"), CAT["other"])
         if cat.get("wall") and is_obstacle(it):
@@ -680,6 +725,26 @@ def check(house):
             if c:
                 ctx.add("error", "overlap", "{} 와 {} 가 겹친다({}×{}mm)".format(
                     ctx.iname(a), ctx.iname(b), fmt(c[2] - c[0]), fmt(c[3] - c[1])), [a["id"], b["id"]])
+    # 높이까지 본 겹침 — 바닥 가구끼리는 위에서 봤다. 짝·올려 둔·벽에 단 품목이 다른 가구를 뚫지 않나
+    solid = [it for it in ctx.items if not CAT.get(it.get("category"), {}).get("floor")]
+    for i in range(len(solid)):
+        for j in range(i + 1, len(solid)):
+            a, b = solid[i], solid[j]
+            if a["room"] != b["room"] or (is_obstacle(a) and is_obstacle(b)):
+                continue
+            if b["id"] in on_chain(ctx, a) or a["id"] in on_chain(ctx, b):
+                continue  # 받침 위에 올려 둔 것
+            if a.get("with") == b["id"] or b.get("with") == a["id"]:
+                continue  # 짝 검사(with_under)가 본다
+            c = inter(ctx.geo[a["id"]]["rect"], ctx.geo[b["id"]]["rect"])
+            za, zb = z_span(ctx, a), z_span(ctx, b)
+            if not c or za is None or zb is None:
+                continue
+            lo, hi = max(za[0], zb[0]), min(za[1], zb[1])
+            if hi > lo:
+                ctx.add("error", "collide", "{} 와 {} 가 부딪친다(바닥에서 {}~{}mm 높이에서 {}×{}mm 겹친다)".format(
+                    ctx.iname(a), ctx.iname(b), fmt(lo), fmt(hi), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
+                    [a["id"], b["id"]])
 
     # 문
     for o in ctx.ops:
@@ -779,9 +844,51 @@ def check(house):
                 "({})".format("·".join(ctx.rname(r) for r in rest)) if rest else ""),
                 [near["id"]] if near else [])
 
+    check_budget(ctx)
     order = {"error": 0, "warning": 1, "info": 2}
     ctx.issues.sort(key=lambda x: order.get(x["level"], 3))
     return ctx, zone_results
+
+
+def check_budget(ctx):
+    """전체 예산(house.budget)과 품목 예산(items[].budget, 수량 포함 원). 둘 다 선택이다."""
+    budget = ctx.h.get("budget")
+    total, open_, unpriced = 0, [], []
+    for it in ctx.items:
+        if it.get("owned"):
+            continue
+        p, cap = price_of(it), it.get("budget")
+        if p is not None:
+            total += p
+            if cap is not None and p > cap:
+                ctx.add("error", "item_over_budget", "{}: {}원 — 품목 예산 {}원을 {}원 넘는다(더 싼 제품으로 바꾼다)".format(
+                    ctx.iname(it), fmt(p), fmt(cap), fmt(p - cap)), [it["id"]])
+        elif it.get("placeholder"):
+            open_.append(it)
+        else:
+            unpriced.append(it)
+    if not budget:
+        return
+    if total > budget:
+        ctx.add("error", "budget_over", "합계 {}원이 예산 {}원을 {}원 넘는다 — 비싼 품목을 더 싼 제품으로 바꾸거나 품목을 뺀다".format(
+            fmt(total), fmt(budget), fmt(total - budget)))
+    if unpriced:
+        ctx.add("warning", "price_unknown", "가격을 모르는 품목 {}개({}) — 예산 판정에서 빠졌다".format(
+            len(unpriced), ", ".join(ctx.iname(it) for it in unpriced)), [it["id"] for it in unpriced])
+    if open_:
+        rest = budget - total
+        caps = sum(it.get("budget") or 0 for it in open_)
+        no_cap = [it for it in open_ if it.get("budget") is None]
+        if caps > rest:
+            ctx.add("warning", "budget_split", "아직 고르지 않은 품목의 예산 합계 {}원이 남은 예산 {}원보다 크다 — 품목 예산을 줄인다".format(
+                fmt(caps), fmt(rest)), [it["id"] for it in open_])
+        ctx.add("info", "budget_left", "남은 예산 {}원으로 고를 품목 {}개: {}".format(
+            fmt(rest), len(open_), ", ".join("{}({})".format(ctx.iname(it), "{}원".format(fmt(it["budget"]))
+                                                             if it.get("budget") is not None else "품목 예산 없음")
+                                            for it in open_)), [it["id"] for it in open_])
+        if no_cap and rest > 0:
+            ctx.add("warning", "budget_split", "품목 예산이 없는 품목 {}개 — 남은 예산을 품목마다 나눠 items[].budget 에 적는다".format(
+                len(no_cap)), [it["id"] for it in no_cap])
 
 
 LEVEL_KO = {"error": "오류", "warning": "주의", "info": "정보"}

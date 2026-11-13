@@ -21,7 +21,7 @@ npx skills add infograb/democut-skills
 
 ```bash
 git clone https://github.com/infograb/democut-skills.git
-cp -r democut-skills/room-set-planner ~/.claude/skills/
+cp -r democut-skills/room-set-planner democut-skills/room-set-photos ~/.claude/skills/
 ```
 
 ### 그 외 에이전트
@@ -34,6 +34,7 @@ cp -r democut-skills/room-set-planner ~/.claude/skills/
 | 스킬 | 필요한 것 |
 |---|---|
 | `room-set-planner` | Python 3.8 이상(표준 라이브러리만). 오늘의집 페이지를 읽으려면 에이전트에 Tavily MCP(`tavily-search`, `tavily-extract`)가 연결돼 있어야 한다 — 오늘의집은 직접 요청을 403 으로 막는다 |
+| `room-set-photos` | `room-set-planner` 가 같은 스킬 디렉토리에 있어야 한다(도면 계산을 가져다 쓴다). Python 3.8 이상, ffmpeg(제품 보드. 없으면 제품 사진 한 장으로 대신한다), DemoCut MCP 연결(이미지 생성은 유료) |
 
 ## 확인
 

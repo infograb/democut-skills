@@ -1,0 +1,126 @@
+# 제품을 사진에 실제와 같게 넣기
+
+가구·소품·옷을 생성 그림에 **고른 제품 그대로** 넣는 방법. 2026-11-13 조사와 v8 방 사진의 실패에서 나왔다.
+`shots.py` 가 아래 대부분을 자동으로 하고, 사람이 정할 것은 house.json 품목의 `keep`·`product.ref_image`·
+`product.ref_crop`·`product.ref` 다.
+
+## 왜 틀리게 나오나 (v8 에서 본 것)
+
+2026-11-12 대표 컷 7·8번째에서 조명은 두 단 갓이 한 단 돔으로, 스툴은 다리 자리와 X 살이, 침대는 매트리스 둘레의
+받침이 틀렸다. 보드(모델이 받은 제품 사진)를 열어 보니 원인은 대부분 **레퍼런스 사진**에 있었다.
+
+| 원인 | 본 것 |
+|---|---|
+| 제품 사진 속 **다른 물건** | 침대 사진과 의자 사진에 한 단 돔 조명이 함께 찍혀 있었다. 모델은 그 조명을 옮겼다 |
+| 고른 것과 **다른 옵션**의 사진 | 침대 사진은 매트리스보다 넓은 받침(큰 옵션)이었다. 모델은 그 받침 여백을 옮겼다 |
+| 여러 개·소품이 함께 찍힌 사진 | 스툴 대표 사진은 스툴 다섯 개가 쌓여 있고 꽃병이 올라가 있었다 |
+| 보드 축소 | 여섯 칸 보드(1536×1024)를 DemoCut 이 긴 변 1024 로 줄여 칸이 약 340px, 조명은 60~80px 였다 |
+| 사진 속 글자 | 조명 옵션 사진 밑에 「White (Shade : White)」 가 찍혀 있었다 |
+| 칸 순서로 가리키기 | 「items … in reading order」 — 모델은 보드 칸 순서를 잘 따르지 않는다 |
+| 이름만 있는 생김새 | look 이 「two-tier round shade」 처럼 짧아 무엇을 지켜야 하는지가 약했다 |
+| 부딪치는 금지어 | Avoid 의 「glossy」 가 유광 갓과 부딪쳤다 |
+| 작은 소품의 크기 | 8×8×10 cm 를 cm 로만 적었더니 1.5배쯤 크게 나왔다 |
+
+## 조사에서 가져온 원칙
+
+1. **레퍼런스는 그 제품만 또렷이.** 흰·단색 바탕, 제품 전체가 보이고, 정면이나 3/4 방향, 다른 물건·사람·글자 없음.
+   생성 결과는 레퍼런스의 깨끗함을 넘지 못한다([getimg](https://getimg.ai/blog/how-to-create-product-photos-with-ai),
+   [The New Black](https://thenewblack.ai/blog/virtual-try-on-ai), [Krea](https://www.krea.ai/blog/ai-product-photography-in-2026-tools-prompts-pipeline)).
+2. **레퍼런스는 번호보다 내용으로 가리킨다.** 배열 순서는 믿을 만하지 않다. 「the product photos of the lamp and the
+   stool」 처럼 무엇이 찍혔는지로 말하고 품목 줄과는 생김새로 짝짓게 한다
+   ([Runware — GPT-Image-2.5 Flare subject consistency](https://runware.ai/docs/models/openai-gpt-image-2-5-flare/guides/subject-consistency.md),
+   [OpenAI 이미지 프롬프트 가이드](https://developers.openai.com/cookbook/examples/multimodal/image-gen-models-prompting-guide)).
+3. **지킬 특징을 이름으로 적는다(preserve clause).** 「Keep exactly: …」 에 모양·비율·부품 자리·마감(유광/무광)을 적는다.
+   물건 이름만으로는 비슷한 다른 것이 나온다. 장면 설명 뒤에, 짧게 둔다(Runware).
+4. **불변 조건을 매번 다시 적는다.** 편집할 때 「change only X」 와 「keep everything else the same」 을 함께, 매 반복마다
+   (OpenAI 가이드의 interior swap·multi-image compositing 꼴).
+5. **한 번에 하나씩 고친다.** 전체를 다시 만들기보다 틀린 제품만 편집으로 고친다([Krea](https://www.krea.ai/blog/ai-product-photography-in-2026-tools-prompts-pipeline) 의
+   「생성 → 틀린 부분만 지역 편집」, OpenAI 가이드의 작은 단일 변경 반복).
+6. **정확함은 보장되지 않는다.** gpt-image 계열의 레퍼런스 충실도는 높아졌지만 닮음이지 복제가 아니다. 로고·글자·정확한
+   비율이 꼭 맞아야 하면 합성(실제 제품 사진을 잘라 붙이기)이 답이다
+   ([OpenAI 포럼 — high fidelity 로도 어긋난다](https://community.openai.com/t/inconsistent-character-images-despite-input-fidelity-high/1354610),
+   [Runware](https://runware.ai/docs/models/openai-gpt-image-2-5-flare/guides/subject-consistency.md)).
+
+참고: `input_fidelity` 옵션은 gpt-image-1 계열의 것이고 gpt-image-2 이후로는 기본이 높은 충실도라 꺼져 있다
+([OpenAI images.edit](https://developers.openai.com/api/reference/resources/images/methods/edit),
+[high input fidelity 쿡북](https://developers.openai.com/cookbook/examples/generate_images_with_high_input_fidelity)).
+DemoCut 도 이 값을 보내지 않는다. 충실도는 레퍼런스와 프롬프트로 끌어올린다.
+
+## 이 스킬에서 하는 일
+
+| 무엇 | 어디서 |
+|---|---|
+| 보드 한 장은 2×2(512px 칸, 1024px). DemoCut 의 레퍼런스 상자(긴 변 1024)에서 줄지 않는다. 대표 컷은 보드 두 장(8칸)까지 | `shots.py plan`·`board` |
+| 보드 문장은 「Reference images 2 and 3 show product photos of the chair, …: copy each exactly …, matched to its line by look; ignore anything else in them」 | `build_prompt` |
+| 품목 줄 끝에 `Keep exactly: <keep>` | house.json `items[].keep` |
+| 받침 위 소품은 받침과의 비율 「about 1/4 that top's width and 1/5 the nightstand's height」 | 가구별 규칙 `rests-on`(`on_scale`) |
+| Avoid 는 「glossy」 대신 「a glossy ad look」 | `negative` |
+| 틀린 제품만 고치는 편집 프롬프트 | `shots.py fix` |
+
+### 사람이 정하는 것: 제품 사진 고르기
+
+fetch 로 받은 사진을 **눈으로 보고** 품목마다 정한다.
+
+- `product.ref_image` — 대표 사진에 다른 물건이 많거나 여러 개가 찍혔으면, 상세 이미지에서 **그 제품만 찍힌 사진**의
+  주소를 적는다. 상세 이미지 주소는 `m.ohou.se/productions/<id>/selling` 을 Tavily extract 로 받으면 「상품정보」 아래
+  `prs.ohou.se/…/descriptions/url/…` 로 나온다. 옵션 사진(색별 단독 컷)이 가장 깨끗한 경우가 많다.
+- `product.ref_crop` — `[왼, 위, 오른, 아래]`(사진 폭·높이에 대한 0~1 비율). 다른 제품·글자·사람을 잘라 낸다.
+  긴 상세 이미지에서 그 제품 칸만 고를 때도 쓴다. 자른 뒤 `board` 결과를 Read 로 열어 확인한다.
+- `product.ref: false` — 그 제품만 찍힌 사진이 없고, 있는 사진이 배치와 부딪치면(다른 크기 옵션, 다른 조명이 함께 찍힌
+  침대 사진) 보드에서 뺀다. 그 품목은 `look`·`keep`·치수로만 그린다.
+- `keep` — 그 제품을 그 제품이게 하는 특징을 영어 구 하나로. 모양·비율·부품의 자리·마감·개수를 적는다.
+  크기 관계(더 넓다·튀어나온다)는 적지 않는다(SKILL.md 2단계). 길면 프롬프트 한도(4,000자)를 넘는다.
+
+```json
+{"id": "bedlamp", "look": "a small white cordless lamp, glowing warm",
+ "keep": "two stacked glossy white shade tiers (a wide flat brim under a smaller dome) on a short, narrower matte white cylinder",
+ "product": {"image": "https://…/v1-479413302362176.jpg?w=640&h=640&c=c", "ref_crop": [0.35, 0.33, 0.65, 0.68]}}
+```
+
+`look` 은 무엇인지(「a round light rubberwood stool」), `keep` 은 그것을 다른 스툴과 가르는 것
+(「four round legs outside the round top's rim, their ends rising just above it; a cross brace right under the top, none lower」)이다.
+
+## 틀린 제품만 고치기 (`fix`)
+
+전체를 다시 만들면 고친 곳 대신 다른 곳이 틀어지기 쉽다. 대표 컷이 거의 맞고 제품 한두 개만 틀렸으면 편집으로 고친다.
+
+```bash
+python3 -I <스킬>/scripts/shots.py fix photos/shots.json <컷 id> <품목 id> [<품목 id> …] --images <제품 사진 디렉터리>
+```
+
+- `photos/fixes/<컷>--<품목>.json`(프롬프트·레퍼런스·확인 목록)과 `photos/boards/fix-<컷>--<품목>.png` 가 나온다.
+- 레퍼런스 1번은 **그 컷에서 만든 그림**(DemoCut 자산), 2번은 고칠 제품의 보드다.
+- 프롬프트 꼴: 「Image 1 is a finished photo … change only the X and nothing else」 → 품목마다 생김새·`keep`·자리·크기 →
+  「Keep everything else in image 1 exactly as it is: camera angle, framing, … Match image 1's light, shadows and color
+  temperature so … look photographed in the room, not pasted in」.
+- DemoCut 에서 하는 순서는 [democut-image.md](democut-image.md) 「틀린 제품만 고치기」.
+- 고친 그림도 확인 목록으로 본다. 다른 곳이 바뀌었으면 그 그림을 쓰지 않는다(이전 그림이 버전으로 남아 있다).
+
+## 옷 (사람이 입은 제품)
+
+이 스킬의 방 사진에는 사람이 없지만, 같은 원칙을 옷에 쓰는 꼴을 적어 둔다(조사: [The New Black](https://thenewblack.ai/blog/virtual-try-on-ai),
+OpenAI 가이드의 virtual try-on 꼴).
+
+- 레퍼런스: 옷만 찍은 사진(바닥에 펼친 사진이나 마네킹 컷, 앞면 전체, 단색 바탕). 모델이 입은 착용 컷은 그 모델의 얼굴·자세가 섞인다.
+- 사람: DemoCut 의 캐릭터(`reference_character_ids`)로 얼굴·체형을 잠근다. 레퍼런스는 캐릭터와 합쳐 4장까지다.
+- 프롬프트: 「Dress the person from image 1 in the exact garment from image 2. Keep exactly: <무늬·단추 수·목선·소매 길이·
+  기장·소재의 질감>. Change only the clothes: keep the face, hair, body, pose, background and light exactly as in image 1.
+  Match the light so the fabric drapes and folds naturally.」
+- 무늬·로고·글자가 꼭 맞아야 하면 생성이 아니라 합성을 쓴다(원칙 6).
+
+## 출처
+
+읽은 범위를 적는다. OpenAI 쿡북은 편집·합성·가상 피팅 절을 읽었고 전문을 다 읽지는 않았다.
+
+- [OpenAI — Image generation models prompting guide](https://developers.openai.com/cookbook/examples/multimodal/image-gen-models-prompting-guide)
+- [OpenAI — Generate images with high input fidelity](https://developers.openai.com/cookbook/examples/generate_images_with_high_input_fidelity)
+- [OpenAI API — images.edit](https://developers.openai.com/api/reference/resources/images/methods/edit)
+- [Runware — GPT-Image-2.5 Flare subject consistency](https://runware.ai/docs/models/openai-gpt-image-2-5-flare/guides/subject-consistency.md)
+- [OpenAI 커뮤니티 — Inconsistent character images despite input_fidelity high](https://community.openai.com/t/inconsistent-character-images-despite-input-fidelity-high/1354610)
+- [Krea — AI product photography in 2026](https://www.krea.ai/blog/ai-product-photography-in-2026-tools-prompts-pipeline)
+- [motiful/product-shots](https://github.com/motiful/product-shots) — 제품 정체를 지키는 「identity anchor」 꼴
+- [getimg — How to create product photos with AI](https://getimg.ai/blog/how-to-create-product-photos-with-ai)
+- [The New Black — Virtual try-on AI](https://thenewblack.ai/blog/virtual-try-on-ai)
+- [Scenario — GPT Image 2: the essentials](https://help.scenario.com/articles/8473821828-gpt-image-2-the-essentials)
+- [Magnific — GPT Image 2 edit API](https://docs.magnific.com/api-reference/text-to-image/gpt-image-2-edit/edit.md)
+- [fal — GPT Image 1.5 edit](https://fal.ai/models/fal-ai/gpt-image-1.5/edit/llms.txt)
