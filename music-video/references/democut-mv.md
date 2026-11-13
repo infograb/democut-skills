@@ -72,7 +72,8 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 
 ### 입을 맞춰 부르는 줄(단독샷)
 
-화면 구성은 콘티의 립싱크 칸이 정한다.
+화면 구성은 콘티의 립싱크 칸이 정한다. 기본은 「없음」이다. 될 수 있으면 입모양 없이 안무에 집중하고,
+꼭 입을 보여야 하는 줄만 단독샷으로 만든다.
 
 | 립싱크 칸 | 화면 | 프롬프트에 넣는 것 |
 |---|---|---|
@@ -84,15 +85,15 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 - 단체샷에서 부르지 않는 멤버에게 입을 다물라고 적었는데도 그 멤버가 입을 벌린 프레임이 나왔다(한 번).
   입 다문 단체샷도 만든 뒤 「5. 확인과 자르기」의 확인용 파일로 입을 본다.
 
-입 문장(단독샷의 예. 멤버 자리와 가사는 그 줄의 것으로 바꾼다):
+입 문장(단독샷의 예. 멤버 자리와 가사는 그 줄의 것으로 바꾼다). 입을 크게 벌려 음절마다 또렷하게 맞추라고 적지 않는다.
+작고 자연스럽게 따라 부르는 정도로 적는다:
 
 ```text
-Solo shot, only one performer in frame: the CENTER member alone. She sings every vocal in the reference audio
-straight into the lens, and her lips follow that vocal syllable by syllable: the mouth opens on each sung syllable,
-shapes the vowel, and closes when the vocal pauses.
+Solo shot, only one performer in frame: the CENTER member alone. She sings along softly with relaxed, natural lip
+movement, small mouth openings that follow the rhythm, never exaggerated or wide open.
 Camera: locked-off frontal medium shot from the waist up, eye level, her face large, sharp and evenly lit,
 head facing the lens, both hands always inside the frame.
-0.0-0.9s: she sings "<그 줄의 첫 구>" while <그 박의 동작>.
+0.0-0.9s: <그 박의 동작>, softly singing along.
 ```
 
 - 미확인: 단독샷으로 바꾼 줄의 입이 가사와 맞는지, 「아무도 노래하지 않는다」고 적은 단체샷이 입을 다무는지.

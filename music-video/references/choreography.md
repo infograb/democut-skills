@@ -61,9 +61,10 @@
 4. 동작 크기: `small, cute upper-body and hand moves because the intro beat is light`
 5. 끝 자세: `on the final beat a knee bend into a crouch, ready for the beat drop`
 
-가사 줄이 영어가 아니면 가사를 따옴표로 넣지 말고 「second line」처럼 차례로 부른다. 입을 맞추는 줄은
-[`democut-mv.md`](democut-mv.md) 「입을 맞춰 부르는 줄(단독샷)」대로 부르는 멤버의 단독샷으로 만들고, 단체 안무 줄은
-`nobody sings, every mouth stays closed` 처럼 입을 다문다고 적는다.
+가사 줄이 영어가 아니면 가사를 따옴표로 넣지 말고 「second line」처럼 차례로 부른다. 안무 줄은 될 수 있으면 입모양 없이
+안무에 집중한다. `nobody sings, every mouth stays closed` 처럼 입을 다문다고 적는다. 꼭 입을 보여야 하는 줄만
+[`democut-mv.md`](democut-mv.md) 「입을 맞춰 부르는 줄(단독샷)」대로 부르는 멤버의 단독샷으로 만들고, 그때도 입을 크게
+벌려 또렷하게 맞추라고 적지 않는다.
 
 모델이 동작을 차례대로 다 그리는지는 미확인이다. 만든 뒤 `mv_timing.py sheet` 로 동작 순서와 박을 확인하고,
 빠진 동작이 많으면 동작 수를 줄여 다시 만든다.
