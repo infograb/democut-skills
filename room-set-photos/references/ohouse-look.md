@@ -36,7 +36,10 @@
 것은 「It stands on the kitchen counter (140x60 cm top), inside its edges.」, 침대는 「Made up with a 110x200 cm mattress lying
 flush on the frame from head to foot」, 10cm 안에 다른 가구가 선 것은 「Bare floor shows between
 it and the bed (7 cm gap).」. 짝은 보이는데 자기는 화면 밖이면 「Its chair is out of
-frame: draw no chair at it.」 를 붙인다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
+frame: draw no chair at it.」 를 붙인다. 받침은 보이는데 그 위 소품이 화면 밖이면 「Its bedside lamp stands on its top just
+out of frame past the right edge: show no more of the nightstand than the sketch does; if more of its top shows, the bedside
+lamp stands there too.」 를 붙인다. 짝과 달리 소품은 그 받침 위에 있으므로 「그리지 말라」 고 쓰지 않는다. 2026-11-13
+끝에 조금 걸친 협탁을 모델이 거의 다 그리고 그 위 조명은 빼 맨 윗면이 나왔다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
 room-set-planner 로 돌려보낸다.
 
 **크기는 치수가, 생김새는 제품 사진이 정한다.** 오늘의집 대표 사진은 고른 옵션과 다른 크기를 찍었을 때가 많다. 2026-11-11

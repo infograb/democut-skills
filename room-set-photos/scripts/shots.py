@@ -772,7 +772,7 @@ def light_direction(sc, cam, st):
     way = " and ".join(en)
     return (("Daylight comes only from the window on {}{}, traveling {}: sides facing the window are brighter, "
              "soft shadows fall {}. Ceiling light off.").format(
-                REL_EN[rel], "" if seen else ", out of frame,", way, way),
+                REL_EN[rel], "" if seen else ", out of frame", way, way),
             "창({}{})에서 빛이 들어와 그림자가 {}으로 진다".format(WALL_KO[rel], "" if seen else ", 화면 밖", "·".join(ko)))
 
 
@@ -1018,10 +1018,15 @@ def describe(sc, cam, cv, st, house, rules=()):
     vis.sort(key=lambda v: v["hx"])
     # 짝(with)이 보이는데 자신은 화면 밖인 품목. 모델은 책상이 보이면 의자를 지어 붙이므로 없다고 적는다
     seen = {v["it"]["id"] for v in vis}
-    away = {}
+    away, atop = {}, {}
     for it in sc.items:
         if it.get("with") in seen and it["id"] not in seen:
             away.setdefault(it["with"], []).append(it)
+        # 받침(on)이 보이는데 자신은 화면 밖(가려진 것이 아니라 한 픽셀도 그려지지 않은)인 소품. 모델은 가장자리에 걸친 받침을
+        # 화면 안으로 더 들이고, 소품을 모르면 윗면을 비워 그린다(2026-11-13 제품 컷: 오른쪽 끝에 조금 걸친 협탁을 거의 다
+        # 그리고 그 위 조명은 빠졌다). 「그리지 말라」 가 아니라 거기 있다고 적어 받침을 덜 보이게 하거나 소품을 함께 그리게 한다
+        if it.get("on") in seen and it["id"] not in seen and not cv.drawn[sc.iid[it["id"]]]:
+            atop.setdefault(it["on"], []).append(it)
     lines, checks, board, avoid, facts = [], [], [], [], []
     for n, v in enumerate(vis, 1):
         it = v["it"]
@@ -1092,6 +1097,10 @@ def describe(sc, cam, cv, st, house, rules=()):
             lines[-1] += " Keep exactly: {}.".format(keep)
         for a in away.get(it["id"], []):
             lines[-1] += " Its {0} is out of frame: draw no {0} at it.".format(_label_en(a))
+        for a in atop.get(it["id"], []):
+            edge = " past the {} edge".format("left" if v["cut_l"] else "right") if v["cut_l"] or v["cut_r"] else ""
+            lines[-1] += (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
+                          "if more of its top shows, the {0} stands there too.").format(_label_en(a), edge, _label_en(it))
         facts.append(dict(id=it["id"], label=_label_en(it), look=_look(it), keep=keep or None,
                           size="{}x{}x{}".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
                                                  _cm(sz.get("h", 0) or item_height(it, g))),
@@ -1104,6 +1113,8 @@ def describe(sc, cam, cv, st, house, rules=()):
         avoid.extend(a for a in rl["avoid"] if a not in avoid)
         for a in away.get(it["id"], []):
             checks.append("{} — 화면 밖. {} 곁에 그려지지 않았나".format(P.label_of(a), P.label_of(it)))
+        for a in atop.get(it["id"], []):
+            checks.append("{} — 화면 밖. {} 윗면이 스케치보다 더 보이면 그 위에 놓여 있나".format(P.label_of(a), P.label_of(it)))
         if has_img:
             board.append(dict(item=it["id"], n=n, label=_label_en(it), crop=prod.get("ref_crop")))
     ops = []
@@ -1177,10 +1188,11 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
             # 보드 칸의 순서(reading order)는 모델이 잘 못 따른다 — 무엇이 찍혔는지로 가리키고, 품목 줄과는 생김새로
             # 짝짓게 한다(조사: references/product-fidelity.md 「레퍼런스는 내용으로 가리킨다」)
             many = len(board) > 1
-            rt.append("Reference image{} {} show{} product photo{} of the {}: copy {} exactly (shape, proportions, color, "
+            rt.append("Reference image{} {} show{} {}product photo{} of the {}: copy {} exactly (shape, proportions, color, "
                       "finish, details){}; ignore anything else in {}; sizes come only from the numbers above.".format(
                           "s" if len(bidx) > 1 else "", " and ".join(map(str, bidx)), "" if len(bidx) > 1 else "s",
-                          "s" if many else "", _and(b["label"] for b in board), "each" if many else "it",
+                          "" if many else "a ", "s" if many else "", _and(b["label"] for b in board),
+                          "each" if many else "it",
                           ", matched to its line by look" if many else "", "them" if len(bidx) > 1 else "it"))
         elif ref["role"] == "product":
             rt.append("Reference image {} is the actual product photo of item {} ({}): copy its shape, color and material "
