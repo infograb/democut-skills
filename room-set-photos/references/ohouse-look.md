@@ -36,17 +36,39 @@
 것은 「It stands on the kitchen counter (140x60 cm top), inside its edges.」, 침대는 「Made up with a 110x200 cm mattress lying
 flush on the frame from head to foot」, 10cm 안에 다른 가구가 선 것은 「Bare floor shows between
 it and the bed (7 cm gap).」. 짝은 보이는데 자기는 화면 밖이면 「Its chair is out of
-frame: draw no chair at it.」 를 붙인다. 받침은 보이는데 그 위 소품이 화면 밖이면 「Its bedside lamp stands on its top just
+frame: draw no chair at it.」 를 붙인다(한 픽셀도 그려지지 않을 때만. 짝에 가려진 것은 아래 붙박이). 받침은 보이는데 그 위 소품이 화면 밖이면 「Its bedside lamp stands on its top just
 out of frame past the right edge: show no more of the nightstand than the sketch does; if more of its top shows, the bedside
 lamp stands there too.」 를 붙인다. 짝과 달리 소품은 그 받침 위에 있으므로 「그리지 말라」 고 쓰지 않는다. 2026-11-13
 끝에 조금 걸친 협탁을 모델이 거의 다 그리고 그 위 조명은 빼 맨 윗면이 나왔다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
 room-set-planner 로 돌려보낸다.
+
+짝의 바닥 면 안에 든 붙박이(`with: counter` 로 싱크대 밑에 넣은 세탁기)는 화면 안이어도 짝의 상자에 가려 목록에 오르지
+않는다. 그대로 두면 `Avoid:` 의 「목록 밖 가전」 때문에 그 자리에 수납장 문이 그려지므로, 짝의 줄에 「Built into it at its
+right end: a white front-loading washing machine …, its front flush with the kitchen counter's front.」 를 붙인다. 2026-11-13
+전에는 이 세탁기에 「Its washer is out of frame: draw no washer at it.」 가 붙어 싱크대 look 과 부딪쳤다.
 
 **크기는 치수가, 생김새는 제품 사진이 정한다.** 오늘의집 대표 사진은 고른 옵션과 다른 크기를 찍었을 때가 많다. 2026-11-11
 SS 침대 프레임(110×204cm, SS 매트리스와 거의 같은 크기)의 대표 사진은 더 큰 받침에 매트리스를 올려 옆으로 선반 같은 여백이
 있었다. 그 여백을 look 에 「둘레로 나온 넓은 받침」 이라고 적었더니, 모델이 치수와 맞추려고 받침을 줄여 매트리스 머리 쪽이
 떠 버렸다(사용자 지적). 그래서 look 에는 크기 관계를 적지 않고(`plan` 이 경고한다), 보드 문장은 「크기는 숫자에서만 가져오라」
 고 적는다. 받침과 놓인 것의 크기 관계는 가구별 규칙이 치수로 계산해 적는다.
+
+## 방 종류별 마감
+
+컨셉 프리셋의 벽·바닥·소품은 침실·거실에 맞춘 값이다. 원룸형 집의 주방·욕실·현관에 그대로 쓰면 욕실에 강마루와 린넨 침구,
+현관에 니트 담요가 들어간다(2026-11-13 처음 다른 방을 찍으며 확인). 그래서 `shots.py` 는 방의 `kind` 로 마감을 바꾼다.
+
+| 방 종류 | 벽 · 바닥 | 디테일 · 소품 |
+|---|---|---|
+| `bedroom`·`living`·`dressroom` | 프리셋 그대로 | 한국 집 디테일(샷시·걸레받이·실크 벽지·원형 LED) · 프리셋 소품 |
+| `kitchen` | 프리셋 벽 + 싱크대 뒤 흰 타일 · 프리셋 바닥 | 같은 디테일 · 건조대의 그릇, 흰 전기포트, 접은 행주 |
+| `bathroom` | 바닥부터 천장까지 흰 유광 타일 · 배수구로 기운 연회색 논슬립 타일 | 타일 벽·바닥, 배수구, 문턱, 사각 평판 LED · 벽 고리의 흰 수건, 세면대 옆 디스펜서·칫솔컵 |
+| `entrance` | 프리셋 벽 · 옆 방보다 한 단 낮은 회색 포세린 타일 | 같은 디테일 · 바닥 타일 위 흰 운동화 한 켤레 |
+
+값은 `photo.rooms` 에 방 종류나 방 id 를 키로 덮어쓴다(`walls`·`floor`·`details`·`props`). 방 이름은 원룸이면
+「the bathroom of a one-room studio in a 4-story Korean villa」 처럼 그 집 안의 공간으로 적는다. 대표 컷(침실)을 레퍼런스로
+받을 때 벽이나 바닥이 다르면 「use the same window frames, door and trim colors and light; the floor follows the text above,
+not that photo」 처럼 같은 것만 맞추라고 적는다. 모델은 「같은 집」 이라는 말만 들으면 침실의 강마루를 욕실에 깐다.
 
 ## 빛 디렉팅
 

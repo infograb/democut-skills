@@ -48,6 +48,7 @@ import planner as P  # noqa: E402
 
 NEAR = 60.0                 # 카메라 앞 이보다 가까운 면은 자른다(mm)
 NEAR_CUT = 1500             # 넓은 컷에서 이보다 가까운 큰 가구가 화면 끝에 잘려 걸리면 크기가 틀어진다(mm)
+WIDE_CLOSE = 750            # 전체 컷에서 화면을 크게 차지한 가구가 이보다 가까우면 점수를 깎는다(mm)
 BIG_CUT = 600               # 그 검사를 받는 가구의 바닥 긴 변(mm)
 NEAR_GAP = 100              # 바닥 가구 둘 사이가 이보다 좁으면 사이를 적는다. 안 적으면 붙거나 한쪽이 밑으로 파고든다(mm)
 DEFAULT_CEIL = 2300
@@ -87,9 +88,29 @@ KIND_EN = {"bedroom": "bedroom", "living": "living room", "kitchen": "kitchen", 
 
 COMMON_LOOK = ("A real photo from an Ohouse (오늘의집) house-tour post, shot by the resident on a smartphone: "
                "phone-photo texture, muted natural colors, low contrast, light sensor noise, tidy but lived-in, "
-               "not a 3D render or a staged ad. "
-               "Korean home details: white PVC double-sash windows, white baseboards, silk wallpaper, "
-               "a flat round LED ceiling light.")
+               "not a 3D render or a staged ad.")
+HOME_DETAILS = ("Korean home details: white PVC double-sash windows, white baseboards, silk wallpaper, "
+                "a flat round LED ceiling light.")
+# 공간 종류마다 마감·소품이 다르다. 방의 벽지·마루·침구 문장을 그대로 쓰면 화장실이 벽지·마루로 나오고 주방·현관에 침구
+# 소품이 붙는다(2026-11-13 원룸 계획에서 확인). {walls}·{floor} 는 컨셉 값. photo.rooms.<종류 또는 방 id> 로 덮어쓴다
+KIND_FINISH = {
+    "bathroom": dict(
+        walls="glossy white ceramic wall tiles from floor to ceiling",
+        floor="light gray non-slip ceramic floor tiles sloping to a floor drain",
+        details="Korean bathroom details: tiled walls and floor, a floor drain, a raised threshold at the door, "
+                "a flat square LED ceiling light.",
+        props="a white towel on a wall hook, a soap dispenser and a toothbrush cup by the basin"),
+    "entrance": dict(
+        floor="gray porcelain floor tiles, one step below the next room's floor",
+        props="one pair of white sneakers on the floor tiles"),
+    "kitchen": dict(
+        walls="{walls}, with white ceramic tiles on the wall behind the counter",
+        props="a few dishes in the dish rack, a white electric kettle, a folded dish towel"),
+}
+LIVING_KINDS = {"bedroom", "living", "dressroom", None}   # 컨셉 소품(침구·책)이 맞는 공간. None = 종류를 안 적은 방
+FINISH_KEYS = ("walls", "floor", "details", "props")
+
+
 def negative(concept, extra=()):
     """Avoid 줄. 식물은 사용자가 원할 때만(photo.plants) 넣고, 그 밖에는 막는다. extra 는 보이는 품목의 가구별 규칙이 더한다."""
     # 「glossy」 를 막으면 유광 제품(일광전구 스노우맨 갓)도 무광으로 바뀐다 — 광고 사진 같은 광만 막는다(2026-11-13)
@@ -157,6 +178,19 @@ def concept_of(house):
     base["view"] = VIEWS.get(house.get("type")) if v is None else ((str(v), "창밖 — " + str(v), None) if v else None)
     base["key"] = c
     return base
+
+
+def room_finish(house, concept, room):
+    """그 공간의 벽·바닥·공통 문장·소품. 컨셉 값 ← 공간 종류 기본(KIND_FINISH) ← photo.rooms.<종류> ← photo.rooms.<방 id>."""
+    kind = room.get("kind")
+    f = dict(walls=concept["walls"], floor=concept["floor"], details=HOME_DETAILS,
+             props=concept["props"] if kind in LIVING_KINDS else None)
+    for k, v in KIND_FINISH.get(kind, {}).items():
+        f[k] = v.format(walls=concept["walls"], floor=concept["floor"])
+    over = (house.get("photo") or {}).get("rooms") or {}
+    for key in (kind, room["id"]):
+        f.update({k: v for k, v in (over.get(key) or {}).items() if k in FINISH_KEYS})
+    return f
 
 
 # ----------------------------------------------------------------------------- 그리기(표준 라이브러리)
@@ -597,16 +631,21 @@ def wide_candidates(sc):
             continue
         line = o["line"] if o["room"] == room["id"] else o["other_line"]
         inward = -NORMAL[m["side"]][0 if o["axis"] == "y" else 1]
-        mid = (o["a"] + o["b"]) / 2.0
-        p = (mid, line + inward * 420) if o["axis"] == "x" else (line + inward * 420, mid)
-        cands.append((p, "door", oid))
+        alongs = [(o["a"] + o["b"]) / 2.0]
+        if o["b"] - o["a"] >= 1200:     # 벽이 통째로 트인 문간은 가운데 앞에 가구가 있기 쉽다. 양 끝에도 서 본다
+            alongs += [o["a"] + ins, o["b"] - ins]
+        for mid in alongs:
+            p = (mid, line + inward * 420) if o["axis"] == "x" else (line + inward * 420, mid)
+            cands.append((p, "door", oid))
     out = []
     for p, kind, oid in cands:
         q = p
         ok = sc.free(q)
         L = math.hypot(cx - p[0], cy - p[1]) or 1.0
+        # 막혔으면 방 가운데 쪽으로 옮기되 가운데를 넘지 않는다. 넘으면 문간 자리가 반대편 끝으로 가서 「문간에 서서」
+        # 라는 설명과 다른 데서 그 문간을 돌아본다(2026-11-13 주방: 침실 쪽 문간 자리가 1.2m 걸어 현관 앞으로 갔다)
         for k in range(1, 13):
-            if ok:
+            if ok or 100 * k > L:
                 break
             q = (p[0] + (cx - p[0]) / L * 100 * k, p[1] + (cy - p[1]) / L * 100 * k)
             ok = sc.free(q)
@@ -623,13 +662,15 @@ def plan_wide(sc, ratio, cam_h, review_ids):
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     scored = []
     for p, kind, oid in wide_candidates(sc):
-        for off in (0.0, -0.18, 0.18):
+        # 방 가운데를 보는 것을 기준으로 좌우 10°·20°·30° 도 본다. 좁은 방(욕실)은 가운데를 보면 변기·세면대가
+        # 둘 다 화각 밖으로 나가고 샤워 커튼만 남는다
+        for off in (0.0, -0.18, 0.18, -0.36, 0.36, -0.54, 0.54):
             yaw = math.atan2(cy - p[1], cx - p[0]) + off
             cam = Cam(p[0], p[1], cam_h, yaw, 0.0, hfov, w, h, cyf=HORIZON[ratio])
             cv = sc.render(cam)
             st = cv.stats()
             A = float(w * h)
-            score, big = 0.0, 0.0
+            score, big, close = 0.0, 0.0, False
             for it in sc.items:
                 s = _share(st, sc.iid[it["id"]], A)
                 if not s:
@@ -637,15 +678,28 @@ def plan_wide(sc, ratio, cam_h, review_ids):
                 wgt = 2.0 if it["id"] in review_ids else (0.3 if P.CAT.get(it.get("category"), {}).get("floor") else 1.0)
                 score += wgt * min(1.0, s / 0.03)
                 big = max(big, s)
+                if s > 0.08 and not it.get("on") and not P.CAT.get(it.get("category"), {}).get("floor"):
+                    d = _visible_part(sc, cam, it)[0]
+                    close = close or (d is not None and d < WIDE_CLOSE)
             win = sum(st[k][0] for k in st if k >= 1000 and sc.ops[k]["op"]["type"] == "window") / A
             if win > 0.01:
                 score += 1.5
             if big > 0.45:
                 score -= 2.0
+            # 큰 가구가 렌즈 바로 앞(WIDE_CLOSE 안)을 막는 전체 컷은 그 가구의 클로즈업이 된다(2026-11-13 주방: 싱크대 0.6m 앞)
+            if close:
+                score -= 1.5
             scored.append((score, p, yaw, kind, oid, win > 0.01, len(near_cuts(sc, cam, st))))
     scored.sort(key=lambda t: (t[6] > 0, -t[0]))    # 가까운 큰 가구가 끝에 잘려 걸린 자리는 다른 후보가 없을 때만
     picked = []
+    shows = any(s[0] > 0 for s in scored)
     for s in scored:
+        if s[0] <= 0 and (picked or shows):     # 품목도 창도 안 보이는 빈 벽은 고르지 않는다(2026-11-13 현관)
+            continue
+        # 둘째 컷은 가까운 큰 가구가 끝에 잘려 걸린 자리로 채우지 않는다. 좁은 방(주방 1.6m·욕실 1.9m)은 둘째 자리가
+        # 대개 변기·싱크대에 렌즈를 붙인 그림이라, 없는 편이 낫다(2026-11-13)
+        if picked and s[6] > 0:
+            continue
         if all(abs(math.atan2(math.sin(s[2] - q[2]), math.cos(s[2] - q[2]))) > math.radians(60)
                or math.hypot(s[1][0] - q[1][0], s[1][1] - q[1][1]) > 1500 for q in picked):
             picked.append(s)
@@ -794,10 +848,13 @@ def _place_wall(it):
     return pl.get("wall") if pl.get("wall") in NORMAL else None
 
 
+VILLA_STUDIO = "a one-room studio in a 4-story Korean villa (빌라)"   # 오피스텔·아파트는 고층 창밖을 부른다
+
+
 def _room_space(house, room):
     kind = room.get("kind")
-    if house.get("type") == "oneroom" and kind == "bedroom":
-        return "a one-room studio in a 4-story Korean villa (빌라)"   # 오피스텔·아파트는 고층 창밖을 부른다
+    if house.get("type") == "oneroom":   # 주방·화장실·현관도 그 빌라 원룸의 것이다(전에는 「Korean apartment」 로 나갔다)
+        return VILLA_STUDIO if kind == "bedroom" else "the {} of {}".format(KIND_EN.get(kind, "room"), VILLA_STUDIO)
     if house.get("type") == "room":
         nm = room.get("name")
         return "a room in a Korean home{}".format(' used as "{}"'.format(nm) if nm else "")
@@ -977,6 +1034,15 @@ def apply_rules(rules, it, v):
     return out
 
 
+def _within(r, outer, tol=1.0):
+    return r[0] >= outer[0] - tol and r[1] >= outer[1] - tol and r[2] <= outer[2] + tol and r[3] <= outer[3] + tol
+
+
+def _center3(sc, it):
+    x0, y0, x1, y1 = sc.ctx.geo[it["id"]]["rect"]
+    return ((x0 + x1) / 2.0, (y0 + y1) / 2.0, base_z(sc.ctx, it) + item_height(it, sc.ctx.geo[it["id"]]) / 2.0)
+
+
 def describe(sc, cam, cv, st, house, rules=()):
     """보이는 품목·창·문을 화면 위치와 함께 정리한다. 보이는 품목마다 가구별 규칙(rules)을 건다."""
     W, H = cam.w, cam.h
@@ -1016,12 +1082,19 @@ def describe(sc, cam, cv, st, house, rules=()):
                         cut_l=s[3] <= 0, cut_r=s[4] >= W - 1, frac=frac,
                         occluder=occ[0][1] if occ and frac < 0.6 else None, dist=dist, center=(cx, cy)))
     vis.sort(key=lambda v: v["hx"])
-    # 짝(with)이 보이는데 자신은 화면 밖인 품목. 모델은 책상이 보이면 의자를 지어 붙이므로 없다고 적는다
+    # 짝(with)이 보이는데 자신은 화면 밖(한 픽셀도 그려지지 않은)인 품목. 모델은 책상이 보이면 의자를 지어 붙이므로 없다고
+    # 적는다. 화면 안에서 짝에 가려진 것은 빼지 않는다: 싱크대 밑 붙박이 세탁기(with: counter)는 싱크대에 다 가려져
+    # 목록에 없는데, 「세탁기를 그리지 말라」 고 적으면 싱크대 look 의 「밑에 세탁기」 와 부딪친다(2026-11-13 주방 컷)
     seen = {v["it"]["id"] for v in vis}
-    away, atop = {}, {}
+    away, atop, built = {}, {}, {}
     for it in sc.items:
-        if it.get("with") in seen and it["id"] not in seen:
+        if it.get("with") in seen and it["id"] not in seen and not cv.drawn[sc.iid[it["id"]]]:
             away.setdefault(it["with"], []).append(it)
+        # 짝의 바닥 면 안에 든 붙박이(싱크대 밑 세탁기)는 화면 안이어도 짝의 상자에 가려 목록에 없다. 적지 않으면
+        # 「목록 밖 가전은 그리지 말라」 때문에 그 자리에 수납장 문을 그린다(2026-11-13 주방). 짝의 줄에 붙여 적는다
+        elif it.get("with") in seen and it["id"] not in seen and _within(sc.ctx.geo[it["id"]]["rect"],
+                                                                          sc.ctx.geo[it["with"]]["rect"]):
+            built.setdefault(it["with"], []).append(it)
         # 받침(on)이 보이는데 자신은 화면 밖(가려진 것이 아니라 한 픽셀도 그려지지 않은)인 소품. 모델은 가장자리에 걸친 받침을
         # 화면 안으로 더 들이고, 소품을 모르면 윗면을 비워 그린다(2026-11-13 제품 컷: 오른쪽 끝에 조금 걸친 협탁을 거의 다
         # 그리고 그 위 조명은 빠졌다). 「그리지 말라」 가 아니라 거기 있다고 적어 받침을 덜 보이게 하거나 소품을 함께 그리게 한다
@@ -1097,6 +1170,12 @@ def describe(sc, cam, cv, st, house, rules=()):
             lines[-1] += " Keep exactly: {}.".format(keep)
         for a in away.get(it["id"], []):
             lines[-1] += " Its {0} is out of frame: draw no {0} at it.".format(_label_en(a))
+        for a in built.get(it["id"], []):
+            asz = a.get("size") or {}
+            px = cam.proj(cam.to_cam(_center3(sc, a)))[0] / float(cam.w)
+            end = "its left end" if px < v["hx"] - 0.08 else "its right end" if px > v["hx"] + 0.08 else "the middle"
+            lines[-1] += " Built into it at {}: {}, {}x{}x{} cm, its front flush with the {}'s front.".format(
+                end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)), _label_en(it))
         for a in atop.get(it["id"], []):
             edge = " past the {} edge".format("left" if v["cut_l"] else "right") if v["cut_l"] or v["cut_r"] else ""
             lines[-1] += (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
@@ -1113,6 +1192,8 @@ def describe(sc, cam, cv, st, house, rules=()):
         avoid.extend(a for a in rl["avoid"] if a not in avoid)
         for a in away.get(it["id"], []):
             checks.append("{} — 화면 밖. {} 곁에 그려지지 않았나".format(P.label_of(a), P.label_of(it)))
+        for a in built.get(it["id"], []):
+            checks.append("{} — {} 안에 붙박이로 보인다".format(P.label_of(a), P.label_of(it)))
         for a in atop.get(it["id"], []):
             checks.append("{} — 화면 밖. {} 윗면이 스케치보다 더 보이면 그 위에 놓여 있나".format(P.label_of(a), P.label_of(it)))
         if has_img:
@@ -1155,29 +1236,39 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
     C = (house.get("photo") or {}).get("ceiling", DEFAULT_CEIL)
     tilt = ("camera level so vertical lines stay vertical" if abs(cam.pitch) < math.radians(3)
             else "camera tilted slightly down" if cam.pitch < 0 else "camera tilted slightly up")
-    out = [COMMON_LOOK, concept["mood"],
+    fin = view["finish"]
+    out = [COMMON_LOOK + " " + fin["details"], concept["mood"],
            "Camera: {} photo, {:.0f} mm full-frame-equivalent lens, camera height {} cm, {}.".format(
                R[4], cam.lens_mm, _cm(cam.z), tilt),
            "Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
-               view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0,
-               concept["walls"], concept["floor"]),
+               view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]),
            ("Light: {}. {}".format(concept["light"], light_dir) if light_dir else
-            "Light: soft even light from the flat round LED ceiling light, with a little daylight from the doorway."),
+            "Light: soft even light from the LED ceiling light, with a little daylight from the doorway."),
            "View: {}.".format(kind_txt)]
     if ops:
         out.append("In view: " + "; ".join(ops) + ".")
     out.append("Furniture in frame, left to right (position, depth; W x D x H). Draw exactly these, at true scale:")
     out.extend(lines)
-    out.append("Styling: {}. Small soft props only.".format(
-        concept["props"] + (", " + concept["plants"] if concept.get("plants") else "")))
+    if fin["props"]:
+        out.append("Styling: {}. Small soft props only.".format(
+            fin["props"] + (", " + concept["plants"] if concept.get("plants") else "")))
     rt = []
     bidx = [i for i, ref in enumerate(refs, 1) if ref["role"] == "board"]
+    mf = view.get("master_finish") or fin
+    same = [k for k in ("walls", "floor") if fin[k] == mf[k]]
     for i, ref in enumerate(refs, 1):
-        if ref["role"] == "master":
-            rt.append(("Reference image {} is a photo of this same room from another angle: keep the identical walls, floor, "
-                       "window, curtains, light, colors, bedding and props." if ref.get("same_room") else
-                       "Reference image {} is a photo of another room in the same home: use the same wall and floor finishes, "
-                       "window frames, light and styling.").format(i))
+        if ref["role"] == "master" and ref.get("same_room"):
+            rt.append("Reference image {} is a photo of this same room from another angle: keep the identical walls, floor, "
+                      "window, curtains, light, colors, bedding and props.".format(i))
+        elif ref["role"] == "master" and len(same) == 2:
+            rt.append("Reference image {} is a photo of another room in the same home: use the same wall and floor finishes, "
+                      "window frames, light and styling.".format(i))
+        elif ref["role"] == "master":       # 마감이 다른 공간(화장실·현관): 그 사진의 벽지·마루를 따라 그리지 않게 한다
+            differ = [k for k in ("walls", "floor") if k not in same]
+            rt.append("Reference image {} is a photo of another room in the same home: use the same {}window frames, door "
+                      "and trim colors and light; the {} {} the text above, not that photo.".format(
+                          i, "".join(k.rstrip("s") + " finish, " for k in same), _and(differ),
+                          "follows" if differ == ["floor"] else "follow"))
         elif ref["role"] == "sketch":
             legend = [txt for key, txt in OPENING_LEGEND if any(key in o for o in ops)]   # 화면에 있는 창·문만
             rt.append("Reference image {} is a massing sketch of this exact view: match its perspective and each colored "
@@ -1284,40 +1375,50 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         raise SystemExit("가구가 놓인 방이 없다. room-set-planner 로 먼저 배치한다")
     os.makedirs(os.path.join(out_dir, "sketch"), exist_ok=True)
     specs = []
-    manual = ph.get("shots")
-    if manual:
-        for i, m in enumerate(manual, 1):
-            room = ctx.rooms[m["room"]]
-            yaw = math.radians(m["yaw"]) if "yaw" in m else math.atan2(m["look_at"][1] - m["y"], m["look_at"][0] - m["x"])
-            specs.append(dict(id=m.get("id", "shot-{}".format(i)), room=room["id"], x=m["x"], y=m["y"],
-                              z=m.get("h", cam_h), yaw=yaw, pitch=math.radians(m.get("pitch", 0)),
-                              lens=m.get("lens", WIDE_LENS), kind=m.get("kind", "wide"), target=m.get("target"),
-                              where="manual", cyf=HORIZON[ratio] if not m.get("pitch") else 0.5))
-    else:
-        heroes = 0
-        for room in rooms:
-            sc = Scene(ctx, room, ceil)
-            pre = "" if len(rooms) == 1 else room["id"] + "-"
-            for k, s in enumerate(plan_wide(sc, ratio, cam_h, review), 1):
-                s.update(id="{}wide-{}".format(pre, k), room=room["id"])
+    for i, m in enumerate(ph.get("shots") or [], 1):
+        room = ctx.rooms[m["room"]]
+        yaw = math.radians(m["yaw"]) if "yaw" in m else math.atan2(m["look_at"][1] - m["y"], m["look_at"][0] - m["x"])
+        specs.append(dict(id=m.get("id", "shot-{}".format(i)), room=room["id"], x=m["x"], y=m["y"],
+                          z=m.get("h", cam_h), yaw=yaw, pitch=math.radians(m.get("pitch", 0)),
+                          lens=m.get("lens", WIDE_LENS), kind=m.get("kind", "wide"), target=m.get("target"),
+                          where="manual", cyf=HORIZON[ratio] if not m.get("pitch") else 0.5))
+    # 직접 적은 컷은 그 방의 자동 컷만 대신한다. 전에는 방 하나만 적어도 다른 방(주방·화장실·현관)의 컷이 통째로 빠졌다
+    # (2026-11-13 사용자 「주방 화장실 현관은 안 만들어?」). 방을 빼려면 photo.skip_rooms 에 방 id 를 적는다
+    covered = {s["room"] for s in specs}
+    skip = set(ph.get("skip_rooms") or [])
+    if skip - set(ctx.rooms):
+        raise SystemExit("photo.skip_rooms 에 없는 방이 있다: {} (방: {})".format(
+            ", ".join(sorted(skip - set(ctx.rooms))), ", ".join(ctx.rooms)))
+    taken = {s["id"] for s in specs}
+    heroes = sum(1 for s in specs if s["kind"] == "hero")
+    for room in rooms:
+        if room["id"] in covered or room["id"] in skip:
+            continue
+        sc = Scene(ctx, room, ceil)
+        pre = "" if len(rooms) == 1 else room["id"] + "-"
+        for k, s in enumerate(plan_wide(sc, ratio, cam_h, review), 1):
+            s.update(id="{}wide-{}".format(pre, k), room=room["id"])
+            specs.append(s)
+        for it in sc.items:
+            if it["id"] not in review or heroes >= max_hero:
+                continue
+            s = plan_hero(sc, it, ratio)
+            hid = "hero-{}".format(re.sub(r"[^A-Za-z0-9_-]", "_", it["id"]))
+            if s and hid not in taken:
+                s.update(id=hid, room=room["id"])
                 specs.append(s)
-            for it in sc.items:
-                if it["id"] not in review or heroes >= max_hero:
-                    continue
-                s = plan_hero(sc, it, ratio)
-                if s:
-                    s.update(id="hero-{}".format(re.sub(r"[^A-Za-z0-9_-]", "_", it["id"])), room=room["id"])
-                    specs.append(s)
-                    heroes += 1
+                heroes += 1
     if not specs:
         raise SystemExit("찍을 자리를 찾지 못했다. photo.shots 로 카메라를 직접 적는다")
     master_of_room, global_master = {}, None
-    rank = {r["id"]: i for i, r in enumerate(rooms)}
+    # 대표 컷은 직접 적은 방에서 먼저 고른다. 품목 수로만 고르면 품목이 같거나 많은 주방의 컷이 대표가 될 수 있다
+    rank = {r["id"]: i for i, r in enumerate(sorted(rooms, key=lambda r: r["id"] not in covered))}
     for s in sorted(specs, key=lambda x: (rank.get(x["room"], 99), not x.get("window"))):  # 창이 보이는 와이드가 빛·창틀의 기준
         if s["kind"] == "wide" and s["room"] not in master_of_room:
             master_of_room[s["room"]] = s["id"]
             global_master = global_master or s["id"]
     global_master = global_master or specs[0]["id"]
+    master_finish = room_finish(house, concept, ctx.rooms[next(s["room"] for s in specs if s["id"] == global_master)])
     has_ffmpeg = bool(shutil.which("ffmpeg"))
     shots = []
     for s in specs:
@@ -1377,7 +1478,8 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         en, ko = _view_text(sc, cam, s, byid)
         light_en, light_ko = light_direction(sc, cam, st)
         prompt = build_prompt(house, concept, ratio, cam, en,
-                              dict(room=room, space=_room_space(house, room)), lines, ops, board, refs, light_en, avoid)
+                              dict(room=room, space=_room_space(house, room), finish=room_finish(house, concept, room),
+                                   master_finish=master_finish), lines, ops, board, refs, light_en, avoid)
         if light_ko:
             checks.append("빛 — " + light_ko)
         checks.append("목록 밖 가구·가전·러그·액자가 없다")
