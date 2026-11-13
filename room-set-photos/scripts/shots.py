@@ -101,6 +101,10 @@ def negative(concept, extra=()):
 
 PLANTS = "one or two small plants in ceramic pots"   # photo.plants: true 일 때
 CURTAINS = "sheer curtains"                          # photo.curtains 가 없을 때 창에 거는 것
+# photo.view 가 없을 때의 창밖: 집 유형 → (프롬프트, 확인 목록, Avoid). 적지 않으면 모델은 한국 집 창밖에 아파트 단지를 그린다.
+# 원룸은 보통 빌라라 창밖이 바로 옆 빌라다(2026-11-13 사용자 지적: 원룸 창밖에 고층 아파트 단지가 보였다)
+VIEWS = {"oneroom": ("facing the next villa's wall and windows 4 m away",
+                     "창밖 — 4m 앞 건너편 빌라의 벽과 창(아파트 단지가 아니다)", "apartment towers")}
 OPENING_LEGEND = (("window", "pale blue = window"), ("a door", "brown = door"), ("open doorway", "dark gray = open doorway"))
 
 CONCEPTS = {
@@ -149,6 +153,8 @@ def concept_of(house):
     plants = ph.get("plants")                     # 요청이 없으면 식물을 넣지 않는다
     base["plants"] = (PLANTS if plants is True else str(plants)) if plants else None
     base["curtains"] = ph.get("curtains") or CURTAINS
+    v = ph.get("view")                            # 없으면 집 유형 기본값, false 면 적지 않는다(커튼을 친 방)
+    base["view"] = VIEWS.get(house.get("type")) if v is None else ((str(v), "창밖 — " + str(v), None) if v else None)
     base["key"] = c
     return base
 
@@ -791,7 +797,7 @@ def _place_wall(it):
 def _room_space(house, room):
     kind = room.get("kind")
     if house.get("type") == "oneroom" and kind == "bedroom":
-        return "the main room of a Korean one-room studio apartment (officetel)"
+        return "a one-room studio in a 4-story Korean villa (빌라)"   # 오피스텔·아파트는 고층 창밖을 부른다
     if house.get("type") == "room":
         nm = room.get("name")
         return "a room in a Korean home{}".format(' used as "{}"'.format(nm) if nm else "")
@@ -976,7 +982,8 @@ def describe(sc, cam, cv, st, house, rules=()):
     W, H = cam.w, cam.h
     A = float(W * H)
     rooms = {r["id"]: r for r in house.get("rooms", [])}
-    curtains = concept_of(house)["curtains"]
+    con = concept_of(house)
+    curtains, view = con["curtains"], con["view"]
     room = sc.room
     rx0, ry0, rx1, ry1 = P.rr(room)
     byid = {it["id"]: it for it in sc.items}
@@ -1108,9 +1115,14 @@ def describe(sc, cam, cv, st, house, rules=()):
         rel = _wall_rel(m["side"], cam)
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
-            ops.append("a {} cm wide window on {} ({}), sill {} cm, {}".format(
-                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains))
+            ops.append("a {} cm wide window on {} ({}), sill {} cm, {}{}".format(
+                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains,
+                ", " + view[0] if view else ""))
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
+            if view:
+                checks.append(view[1])
+                if view[2] and view[2] not in avoid:
+                    avoid.append(view[2])
         else:
             other = o.get("to") if o["room"] == room["id"] else o["room"]
             dest = "outside" if other == "outside" else ("the " + KIND_EN.get(rooms.get(other, {}).get("kind"), "next room"))

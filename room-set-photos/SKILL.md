@@ -164,6 +164,8 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
   "walls": "white silk wallpaper", // 프리셋 값 덮어쓰기(선택): walls · floor · light · props · mood
   "plants": false,                 // 식물. 요청이 있을 때만 true 또는 영어 문장(기본: 넣지 않는다)
   "curtains": "sheer curtains",    // 창에 거는 것(기본값). 암막이면 "beige blackout curtains pulled open"
+  "view": "facing …",              // 창밖(선택). 없으면 집 유형으로 정한다: 원룸은 건너편 빌라, 그 밖은 적지 않는다.
+                                   //   커튼을 친 방이면 false 로 두고 curtains 에 "… drawn closed" 를 적는다
   "model": "gpt-image-2.6-sunburst", // 이미지 모델(선택. 없으면 DemoCut 기본). democut_get_options 가 고를 수 있는 값을 말한다
   "quality": "medium",             // 품질(기본 medium)
   "ceiling": 2300,                 // 천장 높이 mm(기본 2300)
