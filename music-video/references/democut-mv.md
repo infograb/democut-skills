@@ -52,7 +52,6 @@ draft_spec={…})`.
   대사·목소리·나레이션 칸을 함께 주면 422 이고 자막은 꺼진다.
 - 음악을 받는 영상 모델만 된다. `video_model` 을 비우면 서버가 음악을 받는 모델로 정한다. 음악을 못 받는 모델을 적으면
   거부되고, 거부 문구가 쓸 수 있는 모델을 알려 준다. 어떤 모델이 받는지는 `democut_get_options` 가 말한다.
-  입을 맞춰 부르는 줄은 아래 「입을 맞춰 부르는 컷」의 모델로 만든다.
 - Seedance 계열은 곡과 함께 **참고 이미지나 참고 인물이 있어야** 한다.
 - **첫 장면 그림(`image`·`image_asset_id`)을 함께 쓸 수 없다**(422 `SPEC_CONFLICT`). 그 그림은 `reference_asset_ids` 로 옮긴다.
 - 해상도(`video_resolution`)를 고르지 않으면 720p 를 넘지 않는다. 고르면 그 값으로 만들고 값이 오른다.
@@ -71,47 +70,32 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 - 저장할 때 숫자로 굳는다. 순서를 바꾸거나 앞 컷 길이를 바꿔도 따라 움직이지 않으므로, 바꿨으면 다시 지정한다.
 - 곡 길이를 서버가 모르면(자산에 `duration_ms` 가 없으면) 확정하지 못하고 만들 때 막힌다.
 
-### 입을 맞춰 부르는 컷(립싱크)
+### 입을 맞춰 부르는 줄(단독샷)
 
-영상 모델은 콘티의 립싱크 칸이 정한다. 화면 속 멤버가 얼굴이 보이게 노래·랩을 하는 줄만 립싱크 모델로 만든다.
+화면 구성은 콘티의 립싱크 칸이 정한다.
 
-| 립싱크 칸 | 영상 모델 | 화면 |
+| 립싱크 칸 | 화면 | 프롬프트에 넣는 것 |
 |---|---|---|
-| 멤버 이름 | `"video_model": "minimax-h3", "video_resolution": "1080p"` | 그 멤버 얼굴을 크게 잡고 아래 입 문장을 넣는다 |
-| 없음 | 춤 컷에 쓰는 모델(Seedance 계열 등 곡을 받는 모델) | 입모양 없이 안무만 한다. 또는 노래하지 않는 다른 장면(단독 표정 컷, 분신·소품, 넓은 샷)으로 바꾼다 |
+| 멤버 이름 | 그 멤버 한 명만 나오는 단독샷. 얼굴을 크게 잡는다 | 아래 입 문장 |
+| 없음 | 단체샷이면 아무도 노래하지 않고 입을 다문 채 안무만 한다. 노래하지 않는 다른 장면(분신·소품, 넓은 샷)이어도 된다 | `nobody sings, every mouth stays closed` |
 
-이렇게 나눈 근거(실측):
+- 한 단체샷 안에서 입을 맞추게 하지 않는다. 여럿이 함께 부르는 줄(후렴 구호 등)의 입을 보이려면 줄을 나눠
+  부르는 멤버마다 단독샷을 만든다.
+- 단체샷에서 부르지 않는 멤버에게 입을 다물라고 적었는데도 그 멤버가 입을 벌린 프레임이 나왔다(한 번).
+  입 다문 단체샷도 만든 뒤 「5. 확인과 자르기」의 확인용 파일로 입을 본다.
 
-- Seedance 계열은 박자에 맞춰 움직이지만 입모양이 가사와 따로 논다. `The CENTER lip-syncs the lead vocal` 을 넣은 컷도,
-  아래 입 문장을 넣고 얼굴을 정면 클로즈업으로 잡은 컷도 입이 맞지 않았다(두 번). 부르지 않는 멤버에게 입을 다물라고
-  적은 컷에서도 그 멤버가 입을 벌린 프레임이 나왔다(한 번).
-- 캐릭터 PIP(`host: "character"`, OmniHuman 립싱크)에 곡 구간을 오디오로 넣는 길은 만들어지기는 했다. 그러나 화면 구석에
-  겹치는 작은 화면이고 사용자가 품질에서 거절했다. 쓰지 않는다.
-- MiniMax H3 1080p 로 한 줄을 만들어 보고 사용자가 립싱크 모델로 골랐다.
-
-MiniMax H3 로 만들 때 확인한 것(한 컷):
-
-- 길이는 4~15초 정수다. 7.385초 줄은 8초로 만들고 `trim_out_ms: 7385` 로 자른다.
-- `video_resolution: "1080p"` 를 고르면 실제 파일은 2560×1440 이 나왔다.
-- 금액은 영상 길이(초)에 비례한다. 단가를 미리 셈하지 말고 견적 값을 보여 준다.
-- 첫 장면 그림 없이 참고 인물만 보내는 r2v 로 만들었다.
-- 프롬프트에 구간 시각(`0.0-0.6s: …`, `1.3-3.7s: …`)으로 적은 사건을 그 순서대로 그렸다. 사건 시각을 잰 것은 아니다.
-- 만든 컷 파일에는 소리 트랙이 없다. 곡은 완성본에서 섞인다. 입모양은 「5. 확인과 자르기」의 확인용 파일로 본다.
-
-입 문장(위 컷에서 쓴 것. Seedance 에도 같은 문장을 넣었지만 맞지 않았으니 문장보다 모델이 정한다):
+입 문장(단독샷의 예. 멤버 자리와 가사는 그 줄의 것으로 바꾼다):
 
 ```text
-The lead vocal in the reference audio is sung by the CENTER member, and whenever her face is visible her lips follow
-that vocal syllable by syllable: mouth opens on each sung syllable, shapes the vowel, and closes when the vocal pauses.
-LEFT and RIGHT keep their mouths closed.
-1.3-3.7s: the camera pushes in to a frontal medium close-up of the CENTER at frame center, face large, sharp and evenly
-lit, head steady and facing the lens. She sings the lead vocal line "<그 줄의 가사>" straight into the camera with
-clearly visible lip movement matching the vocal.
+Solo shot, only one performer in frame: the CENTER member alone. She sings every vocal in the reference audio
+straight into the lens, and her lips follow that vocal syllable by syllable: the mouth opens on each sung syllable,
+shapes the vowel, and closes when the vocal pauses.
+Camera: locked-off frontal medium shot from the waist up, eye level, her face large, sharp and evenly lit,
+head facing the lens, both hands always inside the frame.
+0.0-0.9s: she sings "<그 줄의 첫 구>" while <그 박의 동작>.
 ```
 
-- 여러 멤버가 한 화면에서 부르는 단체 컷의 입이 안 맞으면, 그 줄을 부르는 멤버의 단독 컷으로 바꾸는 길이 있다.
-- 미확인: MiniMax H3 가 안무를 박자에 맞추는지, 한 화면에서 여러 명이 번갈아 부를 때 입이 맞는지,
-  「아무도 노래하지 않는다」고 적은 춤 컷이 입을 다무는지.
+- 미확인: 단독샷으로 바꾼 줄의 입이 가사와 맞는지, 「아무도 노래하지 않는다」고 적은 단체샷이 입을 다무는지.
 
 ### 곡이 없는 연출 컷(인트로 등)
 
