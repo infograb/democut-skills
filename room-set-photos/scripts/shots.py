@@ -1587,34 +1587,58 @@ def board(shots_path, images, out_dir=None):
 
 # ----------------------------------------------------------------------------- fix(틀린 제품만 고치기)
 
-def fix_prompt(items, has_board):
+def fix_prompt(items, has_board, scale=None, changes=()):
     """만든 사진(그림 1)에서 items 만 제품 사진(그림 2)대로 바꾸고 나머지는 그대로 두는 편집 프롬프트.
     OpenAI 이미지 가이드의 「change only X / keep everything else the same」 꼴과 가상 피팅 꼴(사람·배경을 잠그고
-    옷만 바꾼다)을 가구에 옮겼다. 출처: references/product-fidelity.md"""
+    옷만 바꾼다)을 가구에 옮겼다. 출처: references/product-fidelity.md
+
+    scale 을 주면 모양은 맞고 크기만 틀린 것으로 보고, 그림 1 의 지금 크기를 자로 삼아 그 배율로 줄이거나 키운다.
+    2026-11-13 gpt-image-2.6 은 cm 와 받침과의 비율을 적어도 손바닥만 한 조명을 생성마다 약 2배로 그렸다. 편집에서는
+    그림 속 지금 크기가 자가 된다. changes 는 사진을 만든 뒤 집에서 바뀐 것(뺀 러그·바꾼 침구)을 같은 편집에 싣는 영어 문장이다."""
     names = _and("the " + f["label"] for f in items)
-    out = ["Image 1 is a finished photo of a room. Edit it: change only {} and nothing else.".format(names)]
+    out = ["Image 1 is a finished photo of a room. Edit it: change only {}{}.".format(
+        names, " and make the other changes listed below; change nothing else" if changes else " and nothing else")]
     for f in items:
+        extra = " " + f["extra"] if f.get("extra") else ""
+        if scale:
+            t = ("The {} ({}) is drawn too {}. {} it to about {}% of its current height and width in image 1, so it is its "
+                 "true size, {} cm, on the same spot.{}").format(
+                f["label"], f["where"], "large" if scale < 1 else "small", "Shrink" if scale < 1 else "Enlarge",
+                round(scale * 100), f["size"], extra)
+            t += " Keep its shape and look: {}".format(f["keep"] if f.get("keep") else f["look"])
+            if f.get("ref") and has_board:
+                t += "; it stays the product shown in image 2"
+            t += "."
+            if scale < 1:
+                t += (" Fill the space it no longer covers with what is behind it in image 1, and shrink its glow and "
+                      "shadow with it.")
+            out.append(t)
+            continue
         t = "The {} ({}): make it {}".format(f["label"], f["where"], f["look"])
         if f.get("ref") and has_board:
             t += ", exactly the product shown in image 2"
-        t += ". Keep its place and true size: {} cm.{}".format(f["size"], " " + f["extra"] if f.get("extra") else "")
+        t += ". Keep its place and true size: {} cm.{}".format(f["size"], extra)
         if f.get("keep"):
             t += " Keep exactly: {}.".format(f["keep"])
         out.append(t)
+    for c in changes:
+        out.append("Also: {}".format(c.strip().rstrip(".") + "."))
     if has_board:
         out.append("Image 2 shows the actual product{0} on {1} own: copy {2} shape, proportions, color, finish and details "
                    "exactly; ignore its background and any other object or text in it.".format(
                        "s" if sum(1 for f in items if f.get("ref")) > 1 else "",
                        "their" if sum(1 for f in items if f.get("ref")) > 1 else "its",
                        "each one's" if sum(1 for f in items if f.get("ref")) > 1 else "its"))
-    out.append("Keep everything else in image 1 exactly as it is: camera angle, framing, perspective, walls, floor, window, "
+    out.append("Keep everything else in image 1 exactly as it is{}: camera angle, framing, perspective, walls, floor, window, "
                "curtains, light, shadows, colors, every other piece of furniture, the bedding and props. Match image 1's "
                "light, shadows and color temperature so {} look{} photographed in the room, not pasted in.".format(
-                   names, "" if len(items) > 1 else "s"))
+                   " apart from the changes above" if changes else "", names, "" if len(items) > 1 else "s"))
     return "\n".join(out)
 
 
-def fix(shots_path, shot_id, item_ids, images=None):
+def fix(shots_path, shot_id, item_ids, images=None, scale=None, changes=()):
+    if scale is not None and not (0.2 <= scale <= 3 and abs(scale - 1) >= 0.05):
+        raise SystemExit("--scale 은 0.2~3 사이, 1 이 아닌 값이다(그림 속 지금 크기에 곱할 배율): {}".format(scale))
     with open(shots_path, encoding="utf-8") as f:
         data = json.load(f)
     base = os.path.dirname(os.path.abspath(shots_path))
@@ -1633,11 +1657,16 @@ def fix(shots_path, shot_id, item_ids, images=None):
     if on_board:
         refs.append(dict(role="board", file=os.path.join("boards", "fix-" + tag + ".png"), items=[f["id"] for f in on_board],
                          crops={f["id"]: f["crop"] for f in on_board if f.get("crop")}))
-    prompt = fix_prompt(items, bool(on_board))
-    out = dict(shot=shot_id, items=item_ids, refs=refs, prompt=prompt, prompt_chars=len(prompt),
-               model=data.get("model"), quality=data.get("quality", "medium"),
-               checks=["{} — 제품 사진과 모양·비율·색·광택이 같다".format(have[i]["label"]) for i in item_ids] +
-                      ["카메라·벽·바닥·빛·다른 가구·침구가 그림 1 과 같다(바뀐 곳이 없다)"])
+    changes = [c for c in changes if c.strip()]
+    prompt = fix_prompt(items, bool(on_board), scale, changes)
+    checks = ["{} — 제품 사진과 모양·비율·색·광택이 같다".format(have[i]["label"]) for i in item_ids]
+    if scale:
+        checks += ["{} — 그림 1 의 약 {}% 크기다(실제 {} cm). 받침·곁 가구와 견주어 잰다".format(
+            have[i]["label"], round(scale * 100), have[i]["en"]["size"]) for i in item_ids]
+    checks += ["추가 변경이 들어갔다: {}".format(c) for c in changes]
+    checks += ["카메라·벽·바닥·빛·다른 가구·침구가 그림 1 과 같다(위 변경 말고는 바뀐 곳이 없다)"]
+    out = dict(shot=shot_id, items=item_ids, scale=scale, changes=changes, refs=refs, prompt=prompt,
+               prompt_chars=len(prompt), model=data.get("model"), quality=data.get("quality", "medium"), checks=checks)
     os.makedirs(os.path.join(base, "fixes"), exist_ok=True)
     path = os.path.join(base, "fixes", tag + ".json")
     with open(path, "w", encoding="utf-8") as f:
@@ -1680,6 +1709,8 @@ def main(argv=None):
     d.add_argument("shot")
     d.add_argument("items", nargs="+")
     d.add_argument("--images")
+    d.add_argument("--scale", type=float, help="모양은 맞고 크기만 틀렸을 때 그림 속 지금 크기에 곱할 배율(2배로 나왔으면 0.5)")
+    d.add_argument("--change", action="append", default=[], help="같은 편집에 실을 집의 변경(영어 문장, 여러 번 줄 수 있다)")
     args = ap.parse_args(argv)
     if args.cmd == "plan":
         house = P.load(args.house)
@@ -1708,7 +1739,7 @@ def main(argv=None):
         fetch(P.load(args.house), args.dest)
         return 0
     if args.cmd == "fix":
-        return fix(args.shots, args.shot, args.items, args.images)
+        return fix(args.shots, args.shot, args.items, args.images, args.scale, args.change)
     return board(args.shots, args.images, args.out)
 
 

@@ -150,6 +150,8 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).
+   받침 위 작은 소품이 크게 나오면 다시 만들어도 같다. 그림에서 재서 `fix --scale` 로 줄인다.
+   대표 컷을 만든 뒤 집에서 작은 것(러그·침구)만 바꿨으면 그것도 `fix --change` 로 같은 편집에 싣는다.
 
 ### 7. 보고
 
