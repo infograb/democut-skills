@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "about": "가구별 사진 규칙. shots.py plan 이 화면에 보이는 품목마다 match 가 맞는 규칙을 모두 골라 prompt 는 그 품목 줄 끝에, avoid 는 Avoid 줄에, check 는 확인 목록에 넣는다. 글 안의 {이름} 은 house.json 치수로 계산한 값이다(cm). 형식·변수·더하는 법은 SKILL.md 「가구별 규칙」. why 는 프롬프트에 들어가지 않는다.",
+  "rules": [
+    {
+      "id": "bed-mattress",
+      "match": {"category": "bed"},
+      "prompt": "Made up with a {mattress} cm mattress {mattress_fit}; bedding top {top} cm high.",
+      "avoid": "a mattress longer or wider than its bed frame",
+      "check": "매트리스({mattress}cm)가 프레임 위에 머리부터 발치까지 놓였다 — {mattress_fit_ko}",
+      "why": "2026-11-11 대표 컷에서 받침이 머리 쪽 벽까지 오지 않아 매트리스 머리 쪽이 떠 있었다(사용자 지적). 프레임 치수만 적으면 모델은 매트리스 크기를 모르고, 다른 옵션을 찍은 제품 사진의 넓은 받침 여백을 따라 받침을 줄이거나 옮긴다."
+    },
+    {
+      "id": "rests-on",
+      "match": {"on": true},
+      "prompt": "It stands on the {support} ({support_size} cm top), {on_fit}, {on_scale}.",
+      "check": "{support_ko} 위에 놓였다 — {on_fit_ko}, 크기는 {on_scale_ko}",
+      "why": "planner 는 가운데가 받침 위인지만 본다. 받침 크기와 걸침을 적지 않으면 모델은 받침 끝에 걸치거나 받침을 줄여 그린다. 2026-11-12 8x8x10 cm 조명이 스툴 위에 1.5배쯤 크게 나왔다 — 작은 소품은 cm 보다 받침과의 비율(윗면 폭의 1/4, 높이의 1/5)이 모델에 잘 먹는다."
+    },
+    {
+      "id": "with-under",
+      "match": {"with": "under"},
+      "prompt": "Tucked under the {partner}.",
+      "check": "{partner_ko} 밑에 들어가 있다",
+      "why": "짝보다 낮아 밑에 들어가게 배치한 것(스툴·수납함)은 그 자리를 그대로 적는다. 짝보다 높은데 밑에 들어가는 배치는 planner 가 막는다."
+    },
+    {
+      "id": "with-taller",
+      "match": {"with": "taller"},
+      "prompt": "Pulled out in front of the {partner}, not under it ({top} cm tall vs the {partner_top} cm {partner}).",
+      "check": "{partner_ko} 앞에 빠져 있다 — 밑으로 들어가지 않았다",
+      "why": "2026-11-11 모델이 등받이가 책상보다 높은 의자를 책상 밑에 밀어 넣어 그렸다(사용자 지적). 높이를 숫자로 비교해 적는다."
+    },
+    {
+      "id": "with-beside",
+      "match": {"with": "beside"},
+      "prompt": "Next to the {partner}.",
+      "why": "짝보다 낮고 겹치지 않게 배치한 것은 곁에 둔다."
+    },
+    {
+      "id": "stands-near",
+      "match": {"near": true},
+      "prompt": "{near_fit}.",
+      "check": "{near_fit_ko}, 서로 밑으로 들어가거나 겹쳐 보이지 않는다",
+      "why": "2026-11-11 대표 컷에서 2cm 옆 침대의 받침 판이 협탁 밑으로 파고들어 겹쳐 보였다(사용자 지적). 가까운 두 가구 사이를 적지 않으면 모델은 둘을 붙이거나, 제품 사진의 여백을 따라 한쪽을 넓혀 다른 쪽 밑으로 밀어 넣는다."
+    }
+  ]
+}
