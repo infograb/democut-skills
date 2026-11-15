@@ -4,7 +4,7 @@
 
 표준 라이브러리만 쓴다(Python 3.8+). energy·tempo·sheet 는 ffmpeg 가 PATH 에 있어야 한다.
 
-  python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--offset 0] [--json]
+  python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--shot-beats 4] [--offset 0] [--json]
   python3 mv_timing.py energy song.mp3 [--from 0] [--to 20] [--window-ms 50] [--jump-db 6]
   python3 mv_timing.py tempo  song.mp3 [--from 0] [--to 60] [--min 70] [--max 180]
   python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--from 0] [--to 0] [--cols 6] [--width 320]
@@ -40,11 +40,18 @@ def cmd_grid(a):
     beat = 60.0 / a.bpm
     bar = beat * a.beats_per_bar
     row = bar * a.bars_per_row
+    shot = beat * a.shot_beats if a.shot_beats > 0 else 0.0
     rows = []
     t = a.offset
     i = 1
     while t < a.length - 1e-6:
         end = min(t + row, a.length)
+        shots = []
+        if shot:
+            k = 0
+            while k * shot < end - t - 1e-6:
+                shots.append(round(k * shot, 2))
+                k += 1
         rows.append({
             "row": i,
             "start_ms": int(round(t * 1000)),
@@ -53,6 +60,7 @@ def cmd_grid(a):
             "end": _clock(end),
             "bars": round((end - t) / bar, 2),
             "eight_counts": round((end - t) / (beat * 8), 2),
+            "shot_starts_s": shots,
         })
         t += row
         i += 1
@@ -75,6 +83,9 @@ def cmd_grid(a):
         tail = "" if abs(r["bars"] - a.bars_per_row) < 0.01 else "  (짧다: %s마디)" % r["bars"]
         print("%2d  %s~%s  song_start_ms=%-7d 길이 %dms%s"
               % (r["row"], r["start"], r["end"], r["start_ms"], r["end_ms"] - r["start_ms"], tail))
+        if r["shot_starts_s"]:
+            print("    컷 전환(줄 안 초, %d컷) %s"
+                  % (len(r["shot_starts_s"]), " ".join("%.2f" % x for x in r["shot_starts_s"])))
 
 
 def _rms_series(path, start, end, window_ms):
@@ -214,6 +225,8 @@ def main():
     g.add_argument("--length", type=float, required=True, help="곡 길이(초)")
     g.add_argument("--beats-per-bar", type=int, default=4)
     g.add_argument("--bars-per-row", type=int, default=4, help="콘티 한 줄(컷 하나)의 마디 수")
+    g.add_argument("--shot-beats", type=int, default=0,
+                   help="줄 안에서 컷을 바꾸는 간격(박 수). 4 는 마디마다, 2 는 두 박마다. 0 이면 적지 않는다")
     g.add_argument("--offset", type=float, default=0.0, help="첫 박이 곡 파일의 몇 초인가")
     g.add_argument("--json", action="store_true")
     g.set_defaults(fn=cmd_grid)

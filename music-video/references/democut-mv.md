@@ -39,6 +39,11 @@
 콘티 한 줄에 컷 하나(나눈 줄은 여럿). `democut_add_cut(slug, mode="ai_video", title="<줄 #> <요약>", after=<앞 컷>,
 draft_spec={…})`.
 
+- 한 생성 안에서 장면을 나누는 줄은 컷 하나이고, 장면 목록은 프롬프트에 적는다(아래 「프롬프트의 짜임」).
+- 짧은 컷 여럿으로 나눈 줄(`7a`·`7b`·`7c`)은 컷마다 `song_start_ms` 를 그 컷이 맡은 곡 시작으로 주고, 만든 뒤
+  `trim_out_ms` 로 맡은 길이만 남긴다(130 BPM 한 줄 7,385ms 를 셋으로 나누면 2,462ms).
+- 이미 만든 줄에 컷을 더하거나 나눌 때는 콘티 표를 먼저 고치고 초안을 고친다.
+
 ### 춤·노래 컷(곡을 들려주며 만든다)
 
 ```json
@@ -118,7 +123,18 @@ democut_set_cut_edit(slug, cut_id, rev, edit={"segments": [
 한 컷의 `image_prompt` 는 이 순서로 쓴다.
 
 1. 비율과 장면: `16:9 music-video chorus on a sunset rooftop disco, …`
-2. 초 단위 사건(곡 없는 연출 컷), 또는 가사 줄 순서의 안무(춤 컷). 안무는 [`choreography.md`](choreography.md) 의 순서
+2. 초 단위 사건(곡 없는 연출 컷), 또는 가사 줄 순서의 안무(춤 컷). 안무는 [`choreography.md`](choreography.md) 의 순서.
+   장면을 나눈 줄은 머리에 장면 수와 간격을 말하고 장면마다 시각·구도·동작을 한 문장씩 쓴다.
+
+```text
+16:9 music-video chorus, 8 seconds, a fast multi-shot edit of 8 shots separated by HARD CUTS (instant cuts, no
+transitions), one shot every two beats, every cut landing exactly on the beat of the attached music reference (130 BPM).
+Shot 1, 0.00-0.92s, frontal wide shot: <동작>.
+HARD CUT at 0.92s. Shot 2, 0.92-1.85s, floor-level low-angle close shot: <동작>.
+…
+HARD CUT at 6.46s. Shot 8, 6.46-7.30s, frontal wide shot: <동작>, holding the pose to the end.
+```
+
 3. 카메라: [`camera-moves.md`](camera-moves.md) 의 표현
 4. 고정 문단: `CLEAR MEMBER POSITIONS locked: CENTER = …; LEFT = …; RIGHT = …`
 5. 공통 끝 문장: `Motion timed to the beat of the attached music reference, photorealistic adults, no on-screen text
@@ -134,6 +150,7 @@ democut_wait_jobs(…)
 ```
 
 - 한 번에 많이 만들기 전에 대표 컷 하나(첫 후렴처럼 인물이 다 나오는 컷)를 먼저 만들어 인물·의상·자리가 맞는지 본다.
+  장면을 두 박마다 나눈 줄이 있으면 그 줄을 대표 컷으로 골라 전환이 박에 떨어지는지도 함께 본다.
 - 만든 영상이 마음에 안 들어 다시 만들면 재과금이다. 다시 만들기 전에 무엇을 바꿀지 사용자와 정한다.
 
 ## 5. 확인과 자르기
