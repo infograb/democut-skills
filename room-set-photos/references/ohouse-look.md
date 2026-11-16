@@ -91,7 +91,14 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   문간으로 안 보이면 「No window shows there.」 를 적는다. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을
   문간에 옮겨 그렸다(2026-11-13 주방 컷: 문간 너머는 옷장 옆 벽뿐이다). 가구만 적으면 창은 여전히 글에 없는 자리라 보이는지
   안 보이는지도 적는다. 화면의 0.2% 넘게 보이는 창·문만 적고, 너머 방의 또 다른 개구부(그 너머 현관 등)도 같은 말로 적는다.
-- 너머 방의 깊이도 적는다. 너머 가구는 이 방 가구처럼 붙은 벽(`back to the far wall`)을 적고, 너머 방 벽 가운데 이 방 벽과
+- 너머 방의 크기를 개구부에서 잰다. 「It is 190 cm deep past this opening, no wider.」 또는 「It is 210 cm deep, 282 cm wide,
+  120 cm right.」 처럼 맞은편 벽까지의 깊이, 그 방의 폭, 개구부 양끝 밖으로 더 나간 길이(left/right)를 적는다. 안 적으면 모델은 문간 너머를
+  실제보다 깊고 넓은 공간으로 만든다(2026-11-16 주방: 문간에 붙은 옷장이 방 안쪽으로 들어가고 그 방이 넓게 보였다). 그 방이 화면
+  가로의 18% 보다 좁은 띠면 「narrow in frame」 을 붙여 카메라를 그쪽으로 돌리지 말라고 한다.
+- 너머 가구의 자리도 개구부에서 잰다. 카메라에서의 foreground/middle ground 는 그 방 안에서의 위치를 말하지 못해, middle ground 를
+  방 한가운데로 읽었다. 가장 가까운 면이 개구부에 있으면 「flush with the opening」, 떨어져 있으면 「82 cm past the opening」 이다.
+  이 방 가구가 그 가구를 가리면 「partly behind the counter」 처럼 가린 것을 적는다.
+- 너머 방의 깊이도 벽으로 적는다. 너머 가구는 이 방 가구처럼 붙은 벽(`back to the far wall`)을 적고, 너머 방 벽 가운데 이 방 벽과
   한 줄로 이어지는 벽(개구부 벽에 수직이고 좌표가 같은 벽)은 「Its far wall is in line with this room's far wall.」 로 적는다.
   안 적었을 때 모델은 신발장 벽과 한 줄인 주방 벽을 뒤로 물리고, 그 벽에 붙은 냉장고를 문간 앞으로 내놓은 뒤 그 뒤에 싱크대를
   그렸다(2026-11-13 현관). 확인 목록에는 「정면 벽이 이 방 정면 벽과 한 줄」 이 붙는다.
@@ -119,6 +126,10 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
 채우면(남는 폭 3cm 이하) 비율 대신 「filling that 60 cm wall from corner to corner with no wall showing beside it」 이다.
 「100% of its 60 cm」 로 적었을 때 모델은 벽을 넓혀 가구 옆에 빈자리를 지었다(2026-11-13 현관: 폭 60cm 끝 벽을 채운 신발장
 옆에 바닥을 내고 운동화를 놓았다). 확인 목록에는 「붙은 벽을 모서리부터 모서리까지 채운다」 가 붙는다.
+
+가까이 있는 바닥 가구는 사이뿐 아니라 높이 차도 적는다. 「(2 cm gap, same height)」 또는 「(9 cm gap, 29 cm shorter)」.
+치수만 따로 적으면 모델은 흔한 크기로 그린다(2026-11-16 싱크대와 같은 85cm 냉장고가 싱크대보다 낮게 나왔다). 차가 2cm
+이하면 same height 다.
 
 ## 소품은 적은 것만
 

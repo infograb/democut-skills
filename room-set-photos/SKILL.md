@@ -111,8 +111,10 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
 트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·창·문·가구 상자를 같은 카메라로 그려 넣고,
-프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 개구부로 보이는 창·문(창이 있는 방인데
-안 보이면 안 보인다는 말), 보이는 가구를 적는다(`Through the open right wall … Draw only these there`). 그 방의 첫 전체 컷이
+프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 문간에서 잰 그 방의 깊이·폭,
+개구부로 보이는 창·문(창이 있는 방인데 안 보이면 안 보인다는 말), 보이는 가구와 그 가구가 문간에서 얼마나 떨어졌는지를 적는다
+(`Through the open right wall … It is 190 cm deep past this opening, no wider. … flush with the opening. Draw only these there`).
+그 방의 첫 전체 컷이
 먼저 만들어지고 레퍼런스 칸이 남으면 그 사진도 넣는다(`role: neighbor`). 벽을 다 채우는 가구는 비율 대신 「모서리까지 채운다」
 로 적는다. 소품은 `Styling:` 에 적은 것만 놓이고 그 밖의 받침 윗면과 바닥은 비운다.
 모두 [`references/ohouse-look.md`](references/ohouse-look.md) 「문간 너머」·「벽을 채우는 가구」·「소품은 적은 것만」.
@@ -244,7 +246,7 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 | `support` · `support_ko` · `support_size` · `on_fit` · `on_fit_ko` | `on` 이 있는 품목 | 받침 이름과 윗면 크기, 받침 가장자리 안에 있는지(`inside its edges`) 몇 cm 나오는지 |
 | `on_scale` · `on_scale_ko` | `on` 이 있는 품목 | 받침과의 비율(`about 1/4 that top's width and 1/5 the nightstand's height`). 납작한 것은 폭만 |
 | `partner` · `partner_ko` · `partner_top` | `with` 가 있는 품목 | 짝 이름과 높이 |
-| `near` · `near_ko` · `near_gap` · `near_fit` · `near_fit_ko` | `near` 가 맞는 품목 | 가장 가까운 곁 가구 이름과 사이(cm). `near_fit` 은 10cm 안의 곁 가구를 모두 적은 문장이다(`Bare floor shows between it and the desk (5 cm gap) and the bed (7 cm gap)` · 붙었으면 `It touches the … without overlapping`) |
+| `near` · `near_ko` · `near_gap` · `near_fit` · `near_fit_ko` | `near` 가 맞는 품목 | 가장 가까운 곁 가구 이름과 사이(cm), 높이 차. `near_fit` 은 10cm 안의 곁 가구를 모두 적은 문장이다(`Bare floor shows between it and the desk (9 cm gap, 29 cm shorter)` · 높이가 2cm 안이면 `same height` · 붙었으면 `It touches the … without overlapping`) |
 | `mattress` · `mattress_fit` · `mattress_fit_ko` | 침대 | 프레임에 들어가는 가장 큰 표준 매트리스(폭 S 100 · SS 110 · D 140 · Q 150 · K 160, 길이 200)와 프레임 위에 놓인 모양 |
 
 - 그 품목에 없는 변수를 쓰면 `plan` 이 멈춘다. `match` 로 그 관계가 있는 품목에만 건다.

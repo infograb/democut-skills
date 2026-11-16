@@ -602,7 +602,7 @@ def see_through(sc, cam, cv):
     cv.through[id] = (그 방 Scene, 품목, 문간 id) 로, 그려 넣은 문간은 cv.doorways[문간 id] = 그 방 Scene 으로 적는다
     (가구가 없는 방도 벽·바닥은 적어야 한다). 너머 방의 벽·바닥 픽셀은 문간 id 를 그대로 둔다.
     이 방 품목이나 선이 문간 앞을 가린 픽셀(문간 색이 아닌 픽셀)은 건드리지 않는다."""
-    cv.through, cv.doorways, cv.through_ops = {}, {}, {}
+    cv.through, cv.doorways, cv.through_ops, cv.through_cover = {}, {}, {}, {}
     used = {c[1] for c in sc.color.values()}
     free = [c for c in PALETTE if c[1] not in used] or PALETTE      # 이 방 상자와 색이 겹치지 않게
     void, nxt, k = bytes(VOID), THROUGH, 0
@@ -658,6 +658,17 @@ def see_through(sc, cam, cv):
             for i, v in enumerate(mask.ids):
                 if v and cv.ids[i] in (0, oid) and bytes(px[i * 3:i * 3 + 3]) in plain:
                     px[i * 3:i * 3 + 3] = wall
+        # 이 방 가구가 가린 너머 가구. 벽(id 0) 뒤에 있는 것은 세지 않는다 — 문간 밖은 당연히 벽이다.
+        # 싱크대처럼 문간을 덮은 가구만 「partly behind」 의 근거가 된다
+        inv = {sc.iid[it["id"]]: it["id"] for it in sc.items}
+        for i, v in enumerate(ncv.ids):
+            tid = gid.get(v)
+            if not tid:
+                continue
+            kid = inv.get(cv.ids[i])
+            if kid:
+                bucket = cv.through_cover.setdefault(tid, {})
+                bucket[kid] = bucket.get(kid, 0) + 1
     return cv
 
 
@@ -1091,8 +1102,10 @@ def rule_vars(sc, it, seen=()):
         iw = max(sz.get("w", 0), sz.get("d", 0))
         ih = sz.get("h", 0) or item_height(it, g)
         rw, rh = iw / float(sw), ih / float(sh)
-        v.update(on_scale="about {} that top's width{}".format(   # 납작한 것(바 조명)은 높이 비율이 뜻이 없다
-                     _frac(rw), " and {} the {}'s height".format(_frac(rh), _label_en(sup)) if rh >= 0.1 else ""),
+        fw = _frac(rw)   # 「about nearly all」 은 말이 겹친다. nearly all 일 때는 about 을 빼다
+        v.update(on_scale="{}{} that top's width{}".format(   # 납작한 것(바 조명)은 높이 비율이 뜻이 없다
+                     "" if fw == "nearly all" else "about ", fw,
+                     " and {} the {}'s height".format(_frac(rh), _label_en(sup)) if rh >= 0.1 else ""),
                  on_scale_ko="윗면 폭의 {:.0%}, 받침 높이의 {:.0%}".format(iw / float(sw), ih / float(sh)))
     par = byid.get(it.get("with"))
     if par and par["id"] in sc.ctx.geo:
@@ -1116,13 +1129,35 @@ def rule_vars(sc, it, seen=()):
         touch = [o for o, g in nbs if g <= 10]
         apart = [(o, g) for o, g in nbs if g > 10]
         en, ko = [], []
+
+        def hbit(o):
+            """곁 가구와의 높이. cm 만 적으면 모델은 흔한 크기로 줄인다(2026-11-16 싱크대와 같은 85cm 냉장고가 더 낮게 나왔다)."""
+            ha = (it.get("size") or {}).get("h") or 0
+            hb = (o.get("size") or {}).get("h") or 0
+            if ha <= 0 or hb <= 0:
+                return "", ""
+            d = ha - hb
+            if abs(d) <= 20:
+                return "same height", "높이 같다"
+            n = _cm(abs(d))
+            return ("{} cm taller".format(n), "{}cm 높다".format(n)) if d > 0 else (
+                "{} cm shorter".format(n), "{}cm 낮다".format(n))
+
         if apart:
             en.append("Bare floor shows between it and " + " and ".join(
-                "the {} ({} cm gap)".format(_label_en(o), _cm(g)) for o, g in apart))
-            ko.append(", ".join("{}까지 {}cm".format(P.label_of(o), _cm(g)) for o, g in apart) + " 떨어져 사이로 바닥이 보인다")
+                "the {} ({} cm gap{})".format(_label_en(o), _cm(g), ", " + hbit(o)[0] if hbit(o)[0] else "")
+                for o, g in apart))
+            ko.append(", ".join("{}까지 {}cm{}".format(
+                P.label_of(o), _cm(g), "({})".format(hbit(o)[1]) if hbit(o)[1] else "") for o, g in apart)
+                + " 떨어져 사이로 바닥이 보인다")
         if touch:
-            en.append("It touches the {} without overlapping".format(" and the ".join(_label_en(o) for o in touch)))
-            ko.append("{}에 바로 붙어 있다".format("·".join(P.label_of(o) for o in touch)))
+            te, tk = [], []
+            for o in touch:
+                he, hk = hbit(o)
+                te.append(_label_en(o) + (" ({})".format(he) if he else ""))
+                tk.append(P.label_of(o) + ("({})".format(hk) if hk else ""))
+            en.append("It touches the {} without overlapping".format(" and the ".join(te)))
+            ko.append("{}에 바로 붙어 있다".format("·".join(tk)))
         o, g = nbs[0]
         v.update(near=_label_en(o), near_ko=P.label_of(o), near_gap=_cm(g), near_fit=". ".join(en), near_fit_ko=", ".join(ko))
     return v
@@ -1208,6 +1243,98 @@ def _depth(d):
     return "foreground" if d < 1200 else "middle ground" if d < 2600 else "background"
 
 
+def _beyond_geom(o, room):
+    """개구부 너머 방의 크기. depth 는 너머 쪽 면에서 맞은편 벽까지(mm), width 는 그 벽을 따른 방의 길이.
+    before/after 는 개구부 구간 밖으로 방이 더 나간 길이(a 쪽, b 쪽)."""
+    plane = o["line"] if o["room"] == room["id"] else o["other_line"]
+    x0, y0, x1, y1 = P.rr(room)
+    if o["axis"] == "x":
+        sign = 1.0 if (y0 + y1) / 2.0 > plane else -1.0
+        depth = max((y0 - plane) * sign, (y1 - plane) * sign)
+        along0, along1 = x0, x1
+    else:
+        sign = 1.0 if (x0 + x1) / 2.0 > plane else -1.0
+        depth = max((x0 - plane) * sign, (x1 - plane) * sign)
+        along0, along1 = y0, y1
+    a, b = (o["a"], o["b"]) if o["b"] >= o["a"] else (o["b"], o["a"])
+    return dict(plane=plane, sign=sign, axis=o["axis"], depth=max(0.0, depth), width=along1 - along0,
+                before=max(0.0, a - along0), after=max(0.0, along1 - b))
+
+
+def _end_right(cam, o, toward_b):
+    """개구부 좌표가 커지는 쪽(toward_b)이 화면 오른쪽인가."""
+    d = 1.0 if toward_b == (o["b"] >= o["a"]) else -1.0
+    vx, vy = (d, 0.0) if o["axis"] == "x" else (0.0, d)
+    rx, ry = cam.right2()
+    return vx * rx + vy * ry > 0
+
+
+def _past_mm(geom, rect):
+    """가구의 가장 가까운 면이 개구부 면에서 너머 방 안쪽으로 떨어진 거리(mm). 면에 걸치면 0."""
+    c0, c1 = (rect[1], rect[3]) if geom["axis"] == "x" else (rect[0], rect[2])
+    near = min((c0 - geom["plane"]) * geom["sign"], (c1 - geom["plane"]) * geom["sign"])
+    return 0.0 if near < 0 else near
+
+
+def _past_phrase(near):
+    """카메라에서의 foreground/middle ground 는 문간에서의 위치를 말하지 못한다. 모델은 middle ground 를
+    너머 방 한가운데로 읽고 문간에 붙은 가구를 멀리 물렸다(2026-11-16)."""
+    if near <= 30:
+        return "flush with the opening"
+    return "{} cm past the opening".format(_cm(near))
+
+
+def _span_sentence(cam, o, room, narrow):
+    """너머 방의 깊이·폭. narrow 면 이 화면에는 그 방의 가는 띠만 들어온다."""
+    g = _beyond_geom(o, room)
+    left = g["before"] if not _end_right(cam, o, False) else 0.0
+    right = g["before"] if _end_right(cam, o, False) else 0.0
+    if _end_right(cam, o, True):
+        right += g["after"]
+    else:
+        left += g["after"]
+    extra = []
+    if left > 50:
+        extra.append("{} cm {}".format(_cm(left), "left"))
+    if right > 50:
+        extra.append("{} cm {}".format(_cm(right), "right"))
+    d, w = _cm(g["depth"]), _cm(g["width"])
+    ow = abs(o["b"] - o["a"])
+    # 주방 컷은 4,000자에 붙어 있어 문장을 짧게 둔다. 뜻은 같다: 문간에서 잰 깊이·폭, 개구부 밖으로 더 나간 쪽.
+    if not extra and abs(g["width"] - ow) <= 50:
+        s = "It is {} cm deep past this opening, no wider".format(d)
+    elif not extra:
+        s = "It is {} cm deep, {} cm wide past this opening".format(d, w)
+    else:
+        s = "It is {} cm deep, {} cm wide, {}".format(d, w, " and ".join(extra))
+    if narrow:
+        s += ", narrow in frame"
+    return s + "."
+
+
+def _span_ko(cam, o, room, narrow):
+    g = _beyond_geom(o, room)
+    left = g["before"] if not _end_right(cam, o, False) else 0.0
+    right = g["before"] if _end_right(cam, o, False) else 0.0
+    if _end_right(cam, o, True):
+        right += g["after"]
+    else:
+        left += g["after"]
+    bits = ["문간에서 {}cm 깊이".format(_cm(g["depth"])), "폭 {}cm".format(_cm(g["width"]))]
+    side = []
+    if left > 50:
+        side.append("왼쪽 {}cm".format(_cm(left)))
+    if right > 50:
+        side.append("오른쪽 {}cm".format(_cm(right)))
+    if side:
+        bits.append("개구부 밖으로 " + "·".join(side))
+    elif abs(g["width"] - abs(o["b"] - o["a"])) <= 50:
+        bits.append("개구부보다 넓지 않다")
+    if narrow:
+        bits.append("화면에는 가는 띠만")
+    return " · ".join(bits)
+
+
 def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
     """문간 너머로 보이는 옆 방(see_through 가 그려 넣은 것)을 문간마다 정리한다. 품목 번호는 n0+1 부터 잇는다.
     seen_here: 이 컷에 보이는 이 방 품목(한 면으로 이어진 벽에 나란히 붙은 이 방 가구·너머 가구를 짝지어 적는다).
@@ -1225,6 +1352,9 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
         if not ms or ms[0] / A < THROUGH_MIN:
             continue
         area, xs = ms[0], (ms[3], ms[4])
+        m = sc.ops[oid]
+        geom = _beyond_geom(m["op"], nb.room)
+        narrow = (ms[4] - ms[3] + 1) / float(W) < 0.18
         big = {it["id"] for c, it in members if c in st and st[c][0] >= 30 and st[c][0] / A >= 0.004}
         vis = []
         for cid, it in members:         # 이 방 품목과 같은 기준: 0.4% 이상, 또는 보이는 받침 위의 알아볼 만한 소품
@@ -1237,17 +1367,15 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
                 vis.append((s[1] / s[0] / W, cid, it, s))
         vis.sort(key=lambda t: t[0])
         seen = {it["id"] for _, _, it, _ in vis}
-        lines, short, facts, labels = [], [], [], []
+        lines, short, facts, labels, places = [], [], [], [], []
         for hx, cid, it, s in vis:
             n += 1
             g = nb.ctx.geo[it["id"]]
             sz = it.get("size") or {}
-            x0, y0, x1, y1 = g["rect"]
-            d = _visible_part(nb, cam, it)[0]
-            if d is None:
-                d = math.hypot(max(x0 - cam.x, 0, cam.x - x1), max(y0 - cam.y, 0, cam.y - y1))
+            near = _past_mm(geom, g["rect"])
             hpos, vp = _hpos(hx), _vpos(s[2] / s[0] / H)
-            parts = ["{}, {}".format(hpos if vp == "middle" else "{} {}".format(vp, hpos), _depth(d)), _orient(cam, it, g)]
+            parts = ["{}, {}".format(hpos if vp == "middle" else "{} {}".format(vp, hpos), _past_phrase(near)),
+                     _orient(cam, it, g)]
             # 붙은 벽. 안 적으면 모델은 너머 가구를 벽에서 떼어 문간 앞으로 내놓고, 그 뒤 먼 벽에 그 방 사진의 다른 가구를
             # 그린다(2026-11-13 현관: 서쪽 벽에 붙은 냉장고를 앞으로 내고 뒤에 싱크대를 그렸다)
             pw = _place_wall(it)
@@ -1256,6 +1384,15 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
                                                   REL_EN[_wall_rel(pw, cam)]))
             if s[3] <= 0 or s[4] >= W - 1:
                 parts.append("cut off at the {} edge".format("left" if s[3] <= 0 else "right"))
+            cover = (getattr(cv, "through_cover", {}) or {}).get(cid) or {}
+            if cover:
+                hid, npx = max(cover.items(), key=lambda kv: kv[1])
+                if npx >= 0.4 * (npx + s[0]):
+                    # category kitchen_counter 의 영어 이름은 「kitchen counter」. 문장은 이미 그 방 안이라 앞 단어를 뺀다
+                    name = _label_en(next(x for x in sc.items if x["id"] == hid))
+                    if name.startswith("kitchen "):
+                        name = name[len("kitchen "):]
+                    parts.append("partly behind the {}".format(name))
             dims = "{}x{}x{} cm. {}.".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
                                              _cm(sz.get("h", 0) or item_height(it, g)), "; ".join(parts).capitalize())
             line = "{}. {} ({} box): {}. {}".format(n, _label_en(it).capitalize(), nb.color[it["id"]][1], _look(it), dims)
@@ -1268,24 +1405,24 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
                     continue
                 asz = a.get("size") or {}
                 end = ("its left end" if px / W < hx - 0.08 else "its right end" if px / W > hx + 0.08 else "the middle")
-                tail = " Built into it at {}: {}, {}x{}x{} cm, its front flush with the {}'s front."
-                line += tail.format(end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)),
-                                    _label_en(it))
+                tail = " Built into it at {}: {}, {}x{}x{} cm, front flush."
+                line += tail.format(end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)))
                 short[-1] += tail.format(end, "a " + _label_en(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)),
-                                         _cm(asz.get("h", 0)), _label_en(it))
+                                         _cm(asz.get("h", 0)))
             lines.append(line)
             labels.append(P.label_of(it))
+            places.append("문간에 붙음" if near <= 30 else "문간에서 {}cm".format(_cm(near)))
             facts.append(dict(id=it["id"], label=P.label_of(it), share=round(s[0] / A, 3), x=round(hx, 2),
                               en=dict(id=it["id"], label=_label_en(it), look=_look(it), where="; ".join(parts))))
-        m = sc.ops[oid]
         kind = nb.room.get("kind")
         fin, here = room_finish(house, con, nb.room), room_finish(house, con, sc.room)
         label, label_ko = KIND_EN.get(kind, "next room"), P.KIND_KO.get(kind or "", "옆 방")
         # 화면 자리(hp)는 In view 줄이 이미 적었다. 벽 이름으로 그 개구부를 가리킨다. 마감이 이 방과 같으면 「same as here」
         # (이어진 한 바닥이라는 말이기도 하고, 프롬프트 한도 가까운 컷의 글자를 아낀다)
-        head = "Through {} is the {} (walls: {}; floor: {}).".format(
+        head = "Through {} is the {} (walls: {}; floor: {}). {}".format(
             _opening(sc, m, cam)["the"], label, "same as here" if fin["walls"] == here["walls"] else fin["walls"],
-            "same as here" if fin["floor"] == here["floor"] else fin["floor"])
+            "same as here" if fin["floor"] == here["floor"] else fin["floor"],
+            _span_sentence(cam, m["op"], nb.room, narrow))
         # 이 방 벽과 한 줄로 이어지는 너머 방 벽(개구부 벽에 수직인 두 벽 중 좌표가 같은 것). 안 적으면 모델은 너머 방을
         # 더 깊게 지어 이 방 벽보다 뒤에 그 방의 벽을 세운다(2026-11-13 현관: 신발장 벽과 한 줄인 주방 벽을 뒤로 물렸다).
         # 개구부가 그 모서리에 붙어 있으면(_seam_sides) 두 벽은 한 면이다. 「한 줄」 이라고만 적었을 때 모델은 그 자리에
@@ -1363,7 +1500,8 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
         head, head_nopair = (start + "".join(a + b for a, b in lined) + head + tail,
                              start + "".join(a for a, _ in lined) + head + tail)
         check = "문간 너머 {} — {}".format(label_ko, "·".join(labels) + " 만 보인다" if labels else "가구 없이 벽·바닥만 보인다")
-        ko_ops = ko_lined + ko_ops
+        ko_ops = [_span_ko(cam, m["op"], nb.room, narrow)] + [
+            "{} {}".format(a, b) for a, b in zip(labels, places)] + ko_lined + ko_ops
         if ko_ops:
             check += " · " + " · ".join(ko_ops)
         out.append(dict(oid=oid, room=nb.room["id"], label=label, label_ko=label_ko, share=area / A,
@@ -1484,8 +1622,8 @@ def describe(sc, cam, cv, st, house, rules=()):
             asz = a.get("size") or {}
             px = cam.proj(cam.to_cam(_center3(sc, a)))[0] / float(cam.w)
             end = "its left end" if px < v["hx"] - 0.08 else "its right end" if px > v["hx"] + 0.08 else "the middle"
-            lines[-1] += " Built into it at {}: {}, {}x{}x{} cm, its front flush with the {}'s front.".format(
-                end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)), _label_en(it))
+            lines[-1] += " Built into it at {}: {}, {}x{}x{} cm, front flush.".format(
+                end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)))
         for a in atop.get(it["id"], []):
             edge = " past the {} edge".format("left" if v["cut_l"] else "right") if v["cut_l"] or v["cut_r"] else ""
             lines[-1] += (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
