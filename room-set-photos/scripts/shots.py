@@ -1247,9 +1247,12 @@ def scale_faults(sc, cam, cv, st):
             faults.append("{} — 그린 크기 {:.0f}×{:.0f}px 가 치수 투영 {:.0f}×{:.0f}px 보다 크다".format(
                 name, pw, ph, ew, eh))
         ih = item_height(it, scene.ctx.geo[it["id"]])
-        if ih >= 50 and eh > 1 and ph > 0.7 * eh:
+        # 인덕션처럼 납작한 상판 위 물건은 화면 높이가 키보다 윗면의 원근이다. 키로 나누면 같은 거리의
+        # 키 큰 가구보다 배율이 큰 것처럼 나온다. 가장 긴 변으로 재고, 키 12cm 미만은 이 비교에서 뺀다.
+        lin = _linear(it, scene)
+        if not (it.get("on") and ih < 120) and lin >= 50 and eh > 1 and max(pw, ph) > 0.7 * max(ew, eh):
             dist = _gap_point(cam.x, cam.y, scene.ctx.geo[it["id"]]["rect"])
-            rows.append((it, ph / float(ih), dist, name))
+            rows.append((it, max(pw, ph) / float(lin), dist, name))
     if len(rows) >= 2:
         near = min(r[2] for r in rows)
         cohort = [r for r in rows if r[2] <= near * 1.6 and r[2] > 1]
@@ -1257,7 +1260,7 @@ def scale_faults(sc, cam, cv, st):
             med = sorted(r[1] for r in cohort)[len(cohort) // 2] or 1
             worst = max(cohort, key=lambda r: r[1])
             if worst[1] > 1.75 * med:
-                faults.append("{} — 같은 거리의 다른 가구보다 키 대비 화면이 {:.1f}배 크다".format(
+                faults.append("{} — 같은 거리의 다른 가구보다 가장 긴 변 대비 화면이 {:.1f}배 크다".format(
                     worst[3], worst[1] / med))
     return faults
 
@@ -2650,6 +2653,7 @@ def plan(house, out_dir, max_hero=6, ratio=None):
     master_finish = room_finish(house, concept, ctx.rooms[next(s["room"] for s in specs if s["id"] == global_master)])
     has_ffmpeg = bool(shutil.which("ffmpeg"))
     seen_by = {}                                  # 컷 id → (스케치·글 재료)
+    skipped = []                                  # 자동 제품 컷만 빼고 나머지는 계속 낸다
     for s in specs:
         room = ctx.rooms[s["room"]]
         sc = Scene(ctx, room, ceil)
@@ -2669,6 +2673,10 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                 s["id"], "\n  ".join(empty)))
         blown = scale_faults(sc, cam, cv, st)
         if blown:
+            # 직접 적은 컷은 멈추고, 자동 제품 컷 하나는 빼고 다음 컷을 계속 만든다
+            if s["kind"] == "hero" and s.get("where") != "manual":
+                skipped.append(dict(id=s["id"], why=blown))
+                continue
             raise SystemExit("컷 {} 의 상자가 치수와 안 맞는다. 이 컷은 내지 않는다:\n  {}".format(
                 s["id"], "\n  ".join(blown)))
         # 범례는 스케치에 실제로 칠해진 색만 적는다. 트인 문간은 너머 방이 그려져 짙은 회색이 남지 않는 일이 많다
@@ -2680,6 +2688,7 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         write_legend(cv, os.path.join(out_dir, "sketch", s["id"] + "-legend.png"), _legend_entries(sc, cv, st))
         seen_by[s["id"]] = (sc, cam, hfov, st, sketch, colors, describe(sc, cam, cv, st, house, rules))
         del cv
+    specs = [s for s in specs if s["id"] in seen_by]
     looks = {sid: [t["room"] for t in sorted(v[6][7], key=lambda t: -t["share"]) if t["share"] >= NEIGHBOR_SHARE]
              for sid, v in seen_by.items()}
     shots, made = [], set()
@@ -2785,7 +2794,7 @@ def plan(house, out_dir, max_hero=6, ratio=None):
               for m in [SIZE_CLAIM.search(it.get("look") or "")] if m}
     data = dict(house=house.get("name"), concept=concept["key"], concept_ko=concept["ko"], ratio=ratio, image_size=size,
                 model=ph.get("model"), quality=ph.get("quality", "medium"),
-                missing_look=no_look, size_claims=claims, unshot=unshot,
+                missing_look=no_look, size_claims=claims, unshot=unshot, skipped=skipped,
                 created=datetime.date.today().isoformat(), shots=order)
     with open(os.path.join(out_dir, "shots.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -3130,6 +3139,8 @@ def main(argv=None):
                 print("     ⚠ 프롬프트가 DemoCut 한도({:,}자)에 가깝다. look 을 줄인다".format(PROMPT_MAX))
             for w in s["warnings"]:
                 print("     ⚠ " + w)
+        for sk in data.get("skipped") or []:
+            print("  ⚠ {} — 자동 제품 컷을 빼 두었다. {}".format(sk["id"], " / ".join(sk["why"])))
         for rid in data.get("unshot") or []:
             print("  ⚠ {} — 전체 컷 없음. 폰 기본 렌즈로 {:.0f}cm 이상 물러설 자리가 방 안에도 트인 문간 너머에도 없다".format(
                 rid, NEAR_MIN / 10))
