@@ -21,6 +21,7 @@
 ```text
 democut_create_upload_url(kind="image", project_slug=<slug>, filename="wide-1-sketch.png")
 → 응답의 upload_url 로 15분 안에:  curl -sS -T photos/sketch/wide-1.png "<upload_url>"
+  모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 올리지 않는다.
 → 그 응답(또는 democut_get_asset)의 state 가 ready 면 asset_id 를 쓴다
 ```
 

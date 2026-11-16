@@ -101,6 +101,26 @@ PALETTE = [((232, 116, 80), "orange"), ((48, 160, 146), "teal"), ((236, 196, 92)
            ((70, 120, 184), "blue"), ((160, 96, 204), "purple"), ((118, 172, 78), "green"),
            ((218, 72, 112), "pink"), ((140, 98, 66), "brown"), ((90, 200, 222), "cyan"),
            ((108, 108, 204), "indigo"), ((200, 160, 60), "ochre"), ((60, 60, 60), "charcoal")]
+# 문간 너머 방은 이 방 상자와 색 이름이 겹치지 않게 고른다. 팔레트가 부족하면 이쪽을 쓴다.
+# 이 목록은 카메라가 선 방의 상자 색(PALETTE 의 순번)을 바꾸지 않는다.
+MORE_COLORS = [((184, 92, 48), "rust"), ((48, 92, 72), "pine"), ((92, 48, 72), "plum"),
+               ((48, 72, 120), "navy"), ((176, 148, 96), "tan"), ((120, 60, 48), "brick"),
+               ((72, 140, 120), "sage"), ((150, 80, 130), "mauve")]
+
+
+def _next_box_color(used):
+    """이미 쓴 색 이름을 피한다. 이름까지 떨어지면 번호 색을 만든다."""
+    for color in PALETTE + MORE_COLORS:
+        if color[1] not in used:
+            used.add(color[1])
+            return color
+    n = len(used)
+    name = "box{}".format(n)
+    while name in used:
+        n += 1
+        name = "box{}".format(n)
+    used.add(name)
+    return ((40 + (n * 47) % 180, 50 + (n * 29) % 180, 60 + (n * 67) % 180), name)
 DEFAULT_H = {"bed": 300, "desk": 740, "dining_table": 740, "chair": 900, "lamp": 500, "sofa": 800}
 
 KIND_EN = {"bedroom": "bedroom", "living": "living room", "kitchen": "kitchen", "bathroom": "bathroom",
@@ -295,14 +315,8 @@ class Canvas:
                 self.px[(yy * self.w + xa) * 3:(yy * self.w + xb) * 3] = col * (xb - xa)
 
     def png(self, path):
-        w = self.w * 3
-        raw = b"".join(b"\x00" + bytes(self.px[y * w:(y + 1) * w]) for y in range(self.h))
-
-        def chunk(t, d):
-            return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
         with open(path, "wb") as f:
-            f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", self.w, self.h, 8, 2, 0, 0, 0))
-                    + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+            f.write(_png(self.w, self.h, self.px))
 
     def stats(self):
         """id → [픽셀 수, x 합, y 합, x 최소, x 최대, y 최소, y 최대]"""
@@ -327,6 +341,130 @@ class Canvas:
                     if y > s[6]:
                         s[6] = y
         return st
+
+
+def _png(w, h, px):
+    raw = b"".join(b"\x00" + bytes(px[y * w * 3:(y + 1) * w * 3]) for y in range(h))
+
+    def chunk(t, d):
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+# 5×7 비트맵. 범례는 사람용 파일이라 모델에 넣는 스케치에는 그리지 않는다.
+_GLYPH = {
+    "a": "01110100011000111111100011000110001",
+    "b": "11110100011111010001100011111010001",
+    "c": "01110100011000010000100001000101110",
+    "d": "11110100011000110001100011111010001",
+    "e": "11111100001111010000100001111110000",
+    "f": "01111100001111010000100001000010000",
+    "g": "01110100011000010111100011000101110",
+    "h": "10001100011111110001100011000110001",
+    "i": "01110001000010000100001000010001110",
+    "j": "00111000100001000010010010100011000",
+    "k": "10001100101010011000101001001010001",
+    "l": "10000100001000010000100001000011111",
+    "m": "10001110111010110001100011000110001",
+    "n": "10001110011010110011100011000110001",
+    "o": "01110100011000110001100011000101110",
+    "p": "11110100011000111110100001000010000",
+    "q": "01110100011000110001101011001001101",
+    "r": "11110100011000111110101001001010001",
+    "s": "01111100000111000001000010000111110",
+    "t": "11111001000010000100001000010000100",
+    "u": "10001100011000110001100011000101110",
+    "v": "10001100011000110001010100101000100",
+    "w": "10001100011000110101101011010101010",
+    "x": "10001100010101000100010101000110001",
+    "y": "10001100010101000100001000010000100",
+    "z": "11111000010001000100010001000011111",
+    "0": "01110100011001110101110011000101110",
+    "1": "00100011000010000100001000010001110",
+    "2": "01110100010000100110010001000011111",
+    "3": "11110000010011000001000011000101110",
+    "4": "00010001100101010010111110001000010",
+    "5": "11111100001111000001000011000101110",
+    "6": "00110010001000011110100011000101110",
+    "7": "11111000010001000100010000100001000",
+    "8": "01110100010111010001100011000101110",
+    "9": "01110100011000101110000100010001100",
+    "-": "00000000000000011111000000000000000",
+    " ": "00000000000000000000000000000000000",
+    "?": "01110100010001000100001000000000100",
+}
+
+
+def _legend_entries(sc, cv, st):
+    """스케치에 실제로 칠해진 상자와 창·문. 빈 문간(VOID)은 범례에 넣지 않는다."""
+    out, seen = [], set()
+
+    def add(color, text):
+        key = (tuple(color), text)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((tuple(color), text))
+
+    for it in sc.items:
+        iid = sc.iid[it["id"]]
+        if st.get(iid) and st[iid][0] >= 20:
+            add(sc.color[it["id"]][0], _legend_label(it))
+    for cid, (nb, it, _oid) in getattr(cv, "through", {}).items():
+        s = st.get(cid)
+        if s and s[0] >= 20:
+            add(nb.color[it["id"]][0], _legend_label(it))
+    for col, txt in OPENING_LEGEND:
+        if col == VOID:
+            continue
+        if tuple(col) in {(r, g, b) for r, g, b in zip(cv.px[0::3], cv.px[1::3], cv.px[2::3])}:
+            add(col, txt.split("=")[-1].strip())
+    return out
+
+
+def write_legend(cv, path, entries):
+    """사람용. 스케치 오른쪽에 색 견본과 이름을 붙인다. 모델에 넣는 파일은 이쪽이 아니다."""
+    scale = 2
+    cw, ch, gap = 5 * scale + scale, 7 * scale + 6, 4
+    tw = 22
+    panel = 8 + 14 + 8 + tw * cw
+    W, H = cv.w + panel, max(cv.h, 12 + len(entries) * (ch + gap))
+    px = bytearray(bytes((255, 255, 255)) * (W * H))
+    # 왼쪽은 깨끗한 스케치
+    for y in range(cv.h):
+        px[y * W * 3:y * W * 3 + cv.w * 3] = cv.px[y * cv.w * 3:(y + 1) * cv.w * 3]
+    for y in range(H):
+        i = (y * W + cv.w) * 3
+        px[i:i + 3] = bytes((180, 180, 180))
+
+    def pix(x, y, rgb):
+        if 0 <= x < W and 0 <= y < H:
+            i = (y * W + x) * 3
+            px[i:i + 3] = bytes(rgb)
+
+    def text(x, y, s, rgb=(30, 30, 30)):
+        for i, ch in enumerate(s[:tw].lower()):
+            bits = _GLYPH.get(ch, _GLYPH["?"])
+            ox = x + i * cw
+            for r in range(7):
+                row = int(bits[r * 5:(r + 1) * 5], 2)
+                for c in range(5):
+                    if row & (1 << (4 - c)):
+                        for dy in range(scale):
+                            for dx in range(scale):
+                                pix(ox + c * scale + dx, y + r * scale + dy, rgb)
+
+    y = 10
+    for color, label in entries:
+        x0 = cv.w + 8
+        for dy in range(12):
+            for dx in range(12):
+                pix(x0 + dx, y + dy, color if 0 < dx < 11 and 0 < dy < 11 else (40, 40, 40))
+        text(x0 + 18, y + 1, label)
+        y += ch + gap
+    with open(path, "wb") as f:
+        f.write(_png(W, H, px))
 
 
 def _dot(a, b):
@@ -610,20 +748,25 @@ class Scene:
         return cv
 
 
-def see_through(sc, cam, cv):
-    """트인 문간(문짝 없는 개구부) 자리에 그 너머 방을 같은 카메라로 그려 넣는다. 비워 두면 생성 모델은 너머 방을
-    지어 그려, 같은 집의 그 방 컷과 다른 가구·마감이 나온다. 너머 방의 품목은 THROUGH 부터 id 를 받고
-    cv.through[id] = (그 방 Scene, 품목, 문간 id) 로, 그려 넣은 문간은 cv.doorways[문간 id] = 그 방 Scene 으로 적는다
-    (가구가 없는 방도 벽·바닥은 적어야 한다). 너머 방의 벽·바닥 픽셀은 문간 id 를 그대로 둔다.
-    이 방 품목이나 선이 문간 앞을 가린 픽셀(문간 색이 아닌 픽셀)은 건드리지 않는다."""
+def see_through(sc, cam, cv, depth=0, visited=None, palette_used=None):
+    """트인 문간 자리에 그 너머 방을 같은 카메라로 그려 넣는다. 그 방에 또 문간이 보이면 그 너머도 이어서 그린다.
+    한 단계만 그리면 그 다음 문간은 빈 회색 판으로 남고, 생성 모델이 도면에 없는 방을 지어 그린다.
+    너머 방의 품목은 THROUGH 부터 id 를 받고 cv.through[id] = (그 방 Scene, 품목, 이 방 문간 id).
+    이미 그린 방으로 다시 들어가지 않는다."""
+    visited = set(visited or ())
+    visited.add(sc.room["id"])
+    if palette_used is None:
+        palette_used = {c[1] for c in sc.color.values()}
+    else:
+        palette_used = set(palette_used)
+        palette_used.update(c[1] for c in sc.color.values())
     cv.through, cv.doorways, cv.through_ops, cv.through_cover = {}, {}, {}, {}
-    used = {c[1] for c in sc.color.values()}
-    free = [c for c in PALETTE if c[1] not in used] or PALETTE      # 이 방 상자와 색이 겹치지 않게
-    void, nxt, k = bytes(VOID), THROUGH, 0
+    cv.shell_of, cv.far_shell = {}, {}
+    void, nxt = bytes(VOID), THROUGH
     for oid, m in sc.ops.items():
         o = m["op"]
         other = o.get("to") if o["room"] == sc.room["id"] else o["room"]
-        if o["type"] != "opening" or other not in sc.ctx.rooms:
+        if o["type"] != "opening" or other not in sc.ctx.rooms or other in visited:
             continue
         px = cv.px
         idx = [i for i, v in enumerate(cv.ids) if v == oid and px[i * 3:i * 3 + 3] == void]
@@ -632,9 +775,10 @@ def see_through(sc, cam, cv):
         nb = Scene(sc.ctx, sc.ctx.rooms[other], sc.ceil)
         side = next(n["side"] for n in nb.ops.values() if n["op"] is o)
         for it in nb.items:
-            nb.color[it["id"]] = free[k % len(free)]
-            k += 1
+            nb.color[it["id"]] = _next_box_color(palette_used)
         ncv = nb.render(cam, skip=side)
+        if depth < 6:
+            see_through(nb, cam, ncv, depth + 1, visited, palette_used)
         cv.doorways[oid] = nb
         for pts, col in _reveal(o, min(DOOR_H, sc.ceil - 100)):    # 벽 두께 — 너머 방의 무엇보다 카메라에 가깝다
             _draw(ncv, cam, pts, col)
@@ -642,18 +786,46 @@ def see_through(sc, cam, cv):
         for it in nb.items:
             gid[nb.iid[it["id"]]] = nxt
             cv.through[nxt] = (nb, it, oid)
-            cv.drawn[nxt] = ncv.drawn[nb.iid[it["id"]]]
+            cv.drawn[nxt] = 0
             nxt += 1
+        nested = {}          # 한 단계 더 들어간 방의 id → 이 캔버스 id
+        shell_ids = {}
         bg = bytes(BG)
-        ops = cv.through_ops[oid] = {}      # 너머 방의 창·문 id → [픽셀 수, x 합]. 글로 적을지는 describe_through 가 정한다
+        ops = cv.through_ops[oid] = {}      # 바로 너머 방의 창·문 id → [픽셀 수, x 합]
         for i in idx:
             if ncv.px[i * 3:i * 3 + 3] == bg:
                 continue
             px[i * 3:i * 3 + 3] = ncv.px[i * 3:i * 3 + 3]
             v = ncv.ids[i]
-            if 0 < v < 1000:
+            if 0 < v < 1000 and v in gid:
                 cv.ids[i] = gid[v]
-            elif v >= 1000:
+                cv.drawn[gid[v]] += 1
+            elif v in getattr(ncv, "through", {}):
+                if v not in nested:
+                    nb2, it2, _inner = ncv.through[v]
+                    nested[v] = nxt
+                    cv.through[nxt] = (nb2, it2, oid)
+                    cv.drawn[nxt] = 0
+                    nxt += 1
+                cv.ids[i] = nested[v]
+                cv.drawn[nested[v]] += 1
+            elif v in getattr(ncv, "shell_of", {}) or (v == 0 and depth > 0):
+                # 바로 너머 방의 벽·바닥이 아니라, 그 방의 문간 너머로 또 그린 방이다.
+                # 문간 id 로 남겨 두면 프롬프트가 그 자리를 빈 문간이라고 적는다.
+                shells = getattr(ncv, "shell_of", {})
+                scene = shells[v] if v in shells else nb
+                key = scene.room["id"]
+                sid = shell_ids.get(key)
+                if sid is None:
+                    sid = shell_ids[key] = nxt
+                    cv.shell_of[sid] = scene
+                    cv.drawn[sid] = 0
+                    nxt += 1
+                cv.ids[i] = sid
+                cv.drawn[sid] += 1
+                rec = cv.far_shell.setdefault(oid, {}).setdefault(key, [scene, 0])
+                rec[1] += 1
+            elif v in nb.ops:
                 c = ops.setdefault(v, [0, 0])
                 c[0] += 1
                 c[1] += i % cv.w
@@ -837,6 +1009,16 @@ def wide_faults(sc, cam, cv, st):
     return faults
 
 
+def void_faults(cv):
+    """화면에 남은 빈 문간(VOID). 너머 방을 못 그렸으면 컷으로 내지 않는다."""
+    void = bytes(VOID)
+    n = sum(1 for i in range(cv.w * cv.h) if cv.px[i * 3:i * 3 + 3] == void)
+    share = n / float(cv.w * cv.h or 1)
+    if share >= 0.003:
+        return ["화면에 안 그린 트인 문간이 {:.1%} 남았다. 너머 방을 집 데이터로 채우지 못했다".format(share)]
+    return []
+
+
 def _subject_share(cv, st, cam, subject_id):
     """카메라가 옆 방에 있을 때, 대상 방이 화면에서 차지하는 비율(벽·바닥·가구)."""
     A = float(cam.w * cam.h)
@@ -939,6 +1121,8 @@ def plan_wide(sc, ratio, cam_h, review_ids):
                     st = cv.stats()
                     if wide_faults(scene, cam, cv, st):
                         continue
+                    if stand != subject["id"] and void_faults(cv):
+                        continue
                     furn = _furn_share(cv, st, cam, subject["id"], stand)
                     if furn < 0.08:
                         continue
@@ -972,7 +1156,7 @@ def plan_wide(sc, ratio, cam_h, review_ids):
         cam = Cam(s["x"], s["y"], cam_h, s["yaw"], 0.0, hfov, W, H, s["lens"], cyf=HORIZON[ratio])
         scene = scenes[s["stand"]]
         cv = see_through(scene, cam, scene.render(cam))
-        if wide_faults(scene, cam, cv, cv.stats()):
+        if wide_faults(scene, cam, cv, cv.stats()) or void_faults(cv):
             continue
         if s["stand"] != subject["id"] and _subject_share(cv, cv.stats(), cam, subject["id"]) < 0.18:
             continue
@@ -1168,6 +1352,15 @@ def _look(it):
 def _label_en(it):
     cat = it.get("category") or "item"
     return (it.get("label_en") or cat.replace("_", " "))
+
+
+def _legend_label(it):
+    """범례는 사람용이라 영문 이름이 있으면 그것을, 없으면 분류를 적는다."""
+    for key in ("label_en", "label"):
+        lab = it.get(key) or ""
+        if lab and all(32 <= ord(c) < 127 for c in lab):
+            return lab
+    return _label_en(it)
 
 
 # ----------------------------------------------------------------------------- 가구별 규칙
@@ -1496,6 +1689,58 @@ def _span_ko(cam, o, room, narrow):
     return " · ".join(bits)
 
 
+def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members, n, W, H, A):
+    """parent 방의 문간 너머로 far_scene 이 더 보일 때, 스케치에 그려진 그 가구만 적는다."""
+    link = None
+    for m in parent.ops.values():
+        o = m["op"]
+        other = o.get("to") if o["room"] == parent.room["id"] else o["room"]
+        if o["type"] == "opening" and other == far_scene.room["id"]:
+            link = m
+            break
+    if link is None:
+        return n, [], [], ""
+    geom = _beyond_geom(link["op"], far_scene.room)
+    vis = []
+    for cid, it in members:
+        s = st.get(cid)
+        if not s or s[0] < 30 or s[0] / A < 0.004:
+            continue
+        vis.append((s[1] / s[0] / W, cid, it, s))
+    vis.sort(key=lambda t: t[0])
+    lines, labels = [], []
+    for hx, cid, it, s in vis:
+        n += 1
+        g = far_scene.ctx.geo[it["id"]]
+        sz = it.get("size") or {}
+        near = _past_mm(geom, g["rect"])
+        hpos, vp = _hpos(hx), _vpos(s[2] / s[0] / H)
+        parts = ["{}, {}".format(hpos if vp == "middle" else "{} {}".format(vp, hpos), _past_phrase(near)),
+                 _orient(cam, it, g)]
+        pw = _place_wall(it)
+        if pw and not it.get("on") and not P.CAT.get(it.get("category"), {}).get("floor"):
+            parts.insert(1, "{} to {}".format("head end" if it.get("category") == "bed" else "back",
+                                              REL_EN[_wall_rel(pw, cam)]))
+        if s[3] <= 0 or s[4] >= W - 1:
+            parts.append("cut off at the {} edge".format("left" if s[3] <= 0 else "right"))
+        dims = "{}x{}x{} cm. {}.".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
+                                         _cm(sz.get("h", 0) or item_height(it, g)), "; ".join(parts).capitalize())
+        lines.append("{}. {} ({} box): {}. {}".format(
+            n, _label_en(it).capitalize(), far_scene.color[it["id"]][1], _look(it), dims))
+        labels.append(P.label_of(it))
+    kind = far_scene.room.get("kind")
+    fin, here = room_finish(house, con, far_scene.room), room_finish(house, con, here_scene.room)
+    label, label_ko = KIND_EN.get(kind, "next room"), P.KIND_KO.get(kind or "", "옆 방")
+    head = "Through {} is the {} (walls: {}; floor: {}). {}".format(
+        _opening(parent, link, cam)["the"], label,
+        "same as here" if fin["walls"] == here["walls"] else fin["walls"],
+        "same as here" if fin["floor"] == here["floor"] else fin["floor"],
+        _span_sentence(cam, link["op"], far_scene.room, False))
+    tail = " Draw only these there:" if lines else " No furniture shows there."
+    check = "그 너머 {} — {}".format(label_ko, "·".join(labels) + " 만 보인다" if labels else "벽·바닥만 보인다")
+    return n, [head + tail] + lines, labels, check
+
+
 def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
     """문간 너머로 보이는 옆 방(see_through 가 그려 넣은 것)을 문간마다 정리한다. 품목 번호는 n0+1 부터 잇는다.
     seen_here: 이 컷에 보이는 이 방 품목(한 면으로 이어진 벽에 나란히 붙은 이 방 가구·너머 가구를 짝지어 적는다).
@@ -1505,8 +1750,14 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
     A = float(W * H)
     con = concept_of(house)
     groups = {oid: (nb, []) for oid, nb in getattr(cv, "doorways", {}).items()}
-    for cid, (nb, it, oid) in sorted(getattr(cv, "through", {}).items()):
-        groups[oid][1].append((cid, it))
+    far_of = {}
+    for cid, (room_sc, it, oid) in sorted(getattr(cv, "through", {}).items()):
+        if oid not in groups:
+            continue
+        if room_sc.room["id"] == groups[oid][0].room["id"]:
+            groups[oid][1].append((cid, it))
+        else:
+            far_of.setdefault(oid, {}).setdefault(room_sc.room["id"], (room_sc, []))[1].append((cid, it))
     out, n = [], n0
     for oid, (nb, members) in groups.items():
         ms = _merge([st.get(oid)] + [st[c] for c, _ in members if c in st])     # 문간 + 너머 방 품목
@@ -1665,6 +1916,19 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             "{} {}".format(a, b) for a, b in zip(labels, places)] + ko_lined + ko_ops
         if ko_ops:
             check += " · " + " · ".join(ko_ops)
+        merged = {}
+        for rid, (far_sc, far_members) in (far_of.get(oid) or {}).items():
+            merged[rid] = [far_sc, far_members]
+        for rid, (far_sc, npx) in (getattr(cv, "far_shell", {}).get(oid) or {}).items():
+            if npx >= 30:
+                merged.setdefault(rid, [far_sc, []])
+        for _rid, (far_sc, far_members) in merged.items():
+            n, extra, _flabels, fcheck = _far_room_lines(
+                cam, st, house, con, sc, nb, far_sc, far_members, n, W, H, A)
+            lines.extend(extra)
+            short.extend(extra)
+            if fcheck:
+                check += " · " + fcheck
         out.append(dict(oid=oid, room=nb.room["id"], label=label, label_ko=label_ko, share=area / A,
                         head=head, head_nopair=head_nopair, lines=lines, short=short, check=check, items=facts))
     return out
@@ -2120,11 +2384,17 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                 s["cam_faults"] = bad_cam          # 직접 적은 자리는 경고로 남긴다. 자동 자리는 후보에서 이미 뺐다
             elif bad_cam:
                 raise SystemExit("컷 {} 은 폰으로 찍을 수 없는 자리다:\n  {}".format(s["id"], "\n  ".join(bad_cam)))
+        empty = void_faults(cv)
+        if empty:
+            raise SystemExit("컷 {} 의 스케치에 비어 있는 문간이 남았다. 이 컷은 내지 않는다:\n  {}".format(
+                s["id"], "\n  ".join(empty)))
         # 범례는 스케치에 실제로 칠해진 색만 적는다. 트인 문간은 너머 방이 그려져 짙은 회색이 남지 않는 일이 많다
         painted = set(zip(cv.px[0::3], cv.px[1::3], cv.px[2::3]))
         colors = {c for c, _ in OPENING_LEGEND if tuple(c) in painted}
         sketch = os.path.join("sketch", s["id"] + ".png")
         cv.png(os.path.join(out_dir, sketch))
+        # 범례는 사람용이다. 모델에 넣는 레퍼런스는 위의 깨끗한 스케치다.
+        write_legend(cv, os.path.join(out_dir, "sketch", s["id"] + "-legend.png"), _legend_entries(sc, cv, st))
         seen_by[s["id"]] = (sc, cam, hfov, st, sketch, colors, describe(sc, cam, cv, st, house, rules))
         del cv
     looks = {sid: [t["room"] for t in sorted(v[6][7], key=lambda t: -t["share"]) if t["share"] >= NEIGHBOR_SHARE]
@@ -2247,7 +2517,8 @@ def shots_md(data):
     out = ["# {} 촬영 컷".format(data["house"] or ""), "",
            "컨셉: {} · 프로젝트 비율 {} (그림 {}) · 컷 {}개".format(data["concept_ko"], data["ratio"],
                                                             data["image_size"], len(data["shots"])),
-           "카메라 자리와 보는 방향: `shots.svg` · 덩어리 스케치: `sketch/` · 제품 보드: `boards/`(board 명령)",
+           "카메라 자리와 보는 방향: `shots.svg` · 모델에 넣는 스케치: `sketch/<컷>.png` · "
+           "사람용 범례: `sketch/<컷>-legend.png` · 제품 보드: `boards/`(board 명령)",
            "이미지 모델 {} · 품질 {} — 견적과 제출에 같은 값을 싣는다".format(
                "`{}`".format(data["model"]) if data.get("model") else "DemoCut 기본", data.get("quality", "medium")), "",
            "만드는 순서: **아래 번호 순서대로** 만든다. 대표 컷을 먼저 만들고 확인한 뒤 그 그림을 나머지 컷의 레퍼런스 1번으로 "
