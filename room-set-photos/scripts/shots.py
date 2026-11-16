@@ -352,48 +352,175 @@ def _png(w, h, px):
             + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
-# 5×7 비트맵. 범례는 사람용 파일이라 모델에 넣는 스케치에는 그리지 않는다.
-_GLYPH = {
-    "a": "01110100011000111111100011000110001",
-    "b": "11110100011111010001100011111010001",
-    "c": "01110100011000010000100001000101110",
-    "d": "11110100011000110001100011111010001",
-    "e": "11111100001111010000100001111110000",
-    "f": "01111100001111010000100001000010000",
-    "g": "01110100011000010111100011000101110",
-    "h": "10001100011111110001100011000110001",
-    "i": "01110001000010000100001000010001110",
-    "j": "00111000100001000010010010100011000",
-    "k": "10001100101010011000101001001010001",
-    "l": "10000100001000010000100001000011111",
-    "m": "10001110111010110001100011000110001",
-    "n": "10001110011010110011100011000110001",
-    "o": "01110100011000110001100011000101110",
-    "p": "11110100011000111110100001000010000",
-    "q": "01110100011000110001101011001001101",
-    "r": "11110100011000111110101001001010001",
-    "s": "01111100000111000001000010000111110",
-    "t": "11111001000010000100001000010000100",
-    "u": "10001100011000110001100011000101110",
-    "v": "10001100011000110001010100101000100",
-    "w": "10001100011000110101101011010101010",
-    "x": "10001100010101000100010101000110001",
-    "y": "10001100010101000100001000010000100",
-    "z": "11111000010001000100010001000011111",
-    "0": "01110100011001110101110011000101110",
-    "1": "00100011000010000100001000010001110",
-    "2": "01110100010000100110010001000011111",
-    "3": "11110000010011000001000011000101110",
-    "4": "00010001100101010010111110001000010",
-    "5": "11111100001111000001000011000101110",
-    "6": "00110010001000011110100011000101110",
-    "7": "11111000010001000100010000100001000",
-    "8": "01110100010111010001100011000101110",
-    "9": "01110100011000101110000100010001100",
-    "-": "00000000000000011111000000000000000",
-    " ": "00000000000000000000000000000000000",
-    "?": "01110100010001000100001000000000100",
+# 범례 글자. 글꼴 파일이 있으면 그 크기로 그리고, 없으면 아래 비트맵(DejaVu Sans 17px)을 정수배로 키운다.
+# 모델에 넣는 스케치에는 글자를 그리지 않는다.
+_BITMAP_H = 21
+_BITMAP = {
+    ' ': (6, [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),
+    'a': (11, [0,0,0,0,0,0,0,504,28,12,508,908,780,780,796,492,0,0,0,0,0]),
+    'b': (11, [0,0,0,768,768,768,768,888,972,902,774,774,774,902,972,888,0,0,0,0,0]),
+    'c': (10, [0,0,0,0,0,0,0,124,196,384,384,384,384,384,196,124,0,0,0,0,0]),
+    'd': (11, [0,0,0,4,4,4,4,244,412,780,780,772,780,780,412,244,0,0,0,0,0]),
+    'e': (11, [0,0,0,0,0,0,0,248,396,772,774,1022,768,768,388,248,0,0,0,0,0]),
+    'f': (6, [0,0,0,7,12,12,12,63,12,12,12,12,12,12,12,12,0,0,0,0,0]),
+    'g': (11, [0,0,0,0,0,0,0,244,412,780,780,772,780,780,412,244,12,12,284,248,0]),
+    'h': (11, [0,0,0,768,768,768,768,888,972,908,772,774,774,774,774,774,0,0,0,0,0]),
+    'i': (5, [0,0,0,12,12,0,0,12,12,12,12,12,12,12,12,12,0,0,0,0,0]),
+    'j': (5, [0,0,0,12,12,0,0,12,12,12,12,12,12,12,12,12,12,12,12,24,0]),
+    'k': (10, [0,0,0,384,384,384,384,390,396,440,496,480,432,408,396,390,0,0,0,0,0]),
+    'l': (5, [0,0,0,12,12,12,12,12,12,12,12,12,12,12,12,12,0,0,0,0,0]),
+    'm': (17, [0,0,0,0,0,0,0,56952,62412,58252,49932,49932,49932,49932,49932,49932,0,0,0,0,0]),
+    'n': (11, [0,0,0,0,0,0,0,888,972,908,772,774,774,774,774,774,0,0,0,0,0]),
+    'o': (11, [0,0,0,0,0,0,0,248,412,780,774,774,774,780,412,248,0,0,0,0,0]),
+    'p': (11, [0,0,0,0,0,0,0,888,972,902,774,774,774,902,972,888,768,768,768,768,0]),
+    'q': (11, [0,0,0,0,0,0,0,244,412,780,780,772,780,780,412,244,4,4,4,4,0]),
+    'r': (7, [0,0,0,0,0,0,0,55,61,56,48,48,48,48,48,48,0,0,0,0,0]),
+    's': (9, [0,0,0,0,0,0,0,124,198,192,224,124,14,6,134,124,0,0,0,0,0]),
+    't': (7, [0,0,0,0,48,48,48,126,48,48,48,48,48,48,24,30,0,0,0,0,0]),
+    'u': (11, [0,0,0,0,0,0,0,772,772,772,772,772,780,780,412,244,0,0,0,0,0]),
+    'v': (11, [0,0,0,0,0,0,0,518,780,780,408,408,408,240,240,96,0,0,0,0,0]),
+    'w': (14, [0,0,0,0,0,0,0,6342,6598,6630,6628,3372,3900,3900,1848,1560,0,0,0,0,0]),
+    'x': (11, [0,0,0,0,0,0,0,780,408,248,240,96,240,408,924,780,0,0,0,0,0]),
+    'y': (11, [0,0,0,0,0,0,0,774,780,780,408,408,248,240,240,96,96,96,192,896,0]),
+    'z': (9, [0,0,0,0,0,0,0,254,6,12,28,56,112,96,192,254,0,0,0,0,0]),
+    'A': (12, [0,0,0,0,224,240,240,432,408,280,780,1020,1540,1542,1542,3078,0,0,0,0,0]),
+    'B': (12, [0,0,0,0,2040,1820,1804,1804,1820,2040,1820,1804,1806,1806,1820,2040,0,0,0,0,0]),
+    'C': (12, [0,0,0,0,252,390,770,1536,1536,1536,1536,1536,1536,770,390,252,0,0,0,0,0]),
+    'D': (14, [0,0,0,0,8160,7224,7192,7180,7180,7180,7180,7180,7180,7192,7224,8160,0,0,0,0,0]),
+    'E': (11, [0,0,0,0,1022,896,896,896,896,1020,896,896,896,896,896,1022,0,0,0,0,0]),
+    'F': (10, [0,0,0,0,510,448,448,448,448,508,448,448,448,448,448,448,0,0,0,0,0]),
+    'G': (14, [0,0,0,0,1016,1564,3076,6144,6144,6144,6268,6156,6156,3084,1564,1016,0,0,0,0,0]),
+    'H': (13, [0,0,0,0,3596,3596,3596,3596,3596,4092,3596,3596,3596,3596,3596,3596,0,0,0,0,0]),
+    'I': (6, [0,0,0,0,28,28,28,28,28,28,28,28,28,28,28,28,0,0,0,0,0]),
+    'J': (6, [0,0,0,0,28,28,28,28,28,28,28,28,28,28,28,28,24,24,48,0,0]),
+    'K': (12, [0,0,0,0,1806,1820,1848,1888,1984,1920,1984,2016,1904,1816,1804,1798,0,0,0,0,0]),
+    'L': (10, [0,0,0,0,448,448,448,448,448,448,448,448,448,448,448,511,0,0,0,0,0]),
+    'M': (15, [0,0,0,0,15388,15388,15420,15932,13868,12908,13164,13260,12748,12748,12300,12300,0,0,0,0,0]),
+    'N': (13, [0,0,0,0,3596,3852,3852,3468,3532,3276,3180,3180,3132,3132,3100,3100,0,0,0,0,0]),
+    'O': (14, [0,0,0,0,1008,3640,3100,6156,6156,6158,6158,6156,6156,3100,3640,1008,0,0,0,0,0]),
+    'P': (11, [0,0,0,0,1016,908,902,902,902,908,1016,896,896,896,896,896,0,0,0,0,0]),
+    'Q': (14, [0,0,0,0,1008,3640,3100,6156,6156,6158,6158,6156,6156,3100,3640,1008,48,24,0,0,0]),
+    'R': (12, [0,0,0,0,2032,1816,1804,1804,1804,1816,2032,1816,1820,1804,1798,1798,0,0,0,0,0]),
+    'S': (11, [0,0,0,0,248,396,772,768,896,496,124,14,6,518,908,504,0,0,0,0,0]),
+    'T': (11, [0,0,0,0,2047,96,96,96,96,96,96,96,96,96,96,96,0,0,0,0,0]),
+    'U': (13, [0,0,0,0,3084,3084,3084,3084,3084,3084,3084,3084,3084,1548,1816,1008,0,0,0,0,0]),
+    'V': (12, [0,0,0,0,3078,1542,1542,1548,780,796,408,408,432,240,240,224,0,0,0,0,0]),
+    'W': (17, [0,0,0,0,50054,50054,50054,50830,26316,26316,25804,27736,15480,15480,14456,14384,0,0,0,0,0]),
+    'X': (12, [0,0,0,0,1542,780,408,440,240,96,240,240,408,796,1804,1542,0,0,0,0,0]),
+    'Y': (11, [0,0,0,0,1542,782,396,408,240,112,96,96,96,96,96,96,0,0,0,0,0]),
+    'Z': (12, [0,0,0,0,2046,14,28,56,48,96,224,448,896,768,1536,2046,0,0,0,0,0]),
+    '0': (11, [0,0,0,0,248,412,396,774,774,774,774,774,774,396,412,248,0,0,0,0,0]),
+    '1': (11, [0,0,0,0,240,432,48,48,48,48,48,48,48,48,48,508,0,0,0,0,0]),
+    '2': (11, [0,0,0,0,496,924,524,12,12,28,56,112,224,448,384,1020,0,0,0,0,0]),
+    '3': (11, [0,0,0,0,504,284,12,12,28,248,28,12,6,12,796,504,0,0,0,0,0]),
+    '4': (11, [0,0,0,0,56,56,120,216,216,408,792,792,1022,24,24,24,0,0,0,0,0]),
+    '5': (11, [0,0,0,0,508,384,384,384,504,284,12,12,12,12,796,504,0,0,0,0,0]),
+    '6': (11, [0,0,0,0,120,196,384,768,1016,972,902,774,774,390,460,248,0,0,0,0,0]),
+    '7': (11, [0,0,0,0,1022,12,12,24,24,56,48,48,96,96,96,192,0,0,0,0,0]),
+    '8': (11, [0,0,0,0,248,396,780,780,396,248,396,774,774,774,396,248,0,0,0,0,0]),
+    '9': (11, [0,0,0,0,248,412,780,782,782,782,414,246,12,12,280,496,0,0,0,0,0]),
+    '-': (7, [0,0,0,0,0,0,0,0,0,0,60,60,0,0,0,0,0,0,0,0,0]),
+    '?': (10, [0,0,0,0,248,412,12,12,24,48,96,96,96,0,96,96,0,0,0,0,0]),
 }
+
+
+_FONT_FILES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+)
+_FONT_CACHE = {}
+
+
+def _font_file():
+    for path in _FONT_FILES:
+        if os.path.isfile(path):
+            return path
+    roots = ("/usr/share/fonts", "/usr/local/share/fonts")
+    names = {"dejavusans.ttf", "liberationsans-regular.ttf", "notosans-regular.ttf"}
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for dirpath, _dirs, files in os.walk(root):
+            for name in files:
+                if name.lower() in names:
+                    return os.path.join(dirpath, name)
+    return None
+
+
+def _legend_font(px):
+    """요청한 크기의 트루타입. 없거나 PIL 이 없으면 None."""
+    try:
+        from PIL import ImageFont
+    except ImportError:
+        return None
+    path = _font_file()
+    if not path:
+        return None
+    key = (path, int(px))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = ImageFont.truetype(path, int(px))
+        _FONT_CACHE[key] = font
+    return font
+
+
+def _scale_rows(w, rows, k):
+    if k <= 1:
+        return w, list(rows)
+    nw = w * k
+    out = []
+    for bits in rows:
+        row = 0
+        for x in range(w):
+            if bits & (1 << (w - 1 - x)):
+                for dx in range(k):
+                    row |= 1 << (nw - 1 - (x * k + dx))
+        out.extend([row] * k)
+    return nw, out
+
+
+def _bitmap_glyph(ch, px):
+    spec = _BITMAP.get(ch) or _BITMAP.get(ch.lower()) or _BITMAP["?"]
+    k = max(1, int(round(float(px) / _BITMAP_H)))
+    return _scale_rows(spec[0], spec[1], k) + (k,)
+
+
+def _ttf_glyph(font, ch):
+    from PIL import Image, ImageDraw
+    ascent, descent = font.getmetrics()
+    h = ascent + descent
+    adv = max(3, int(math.ceil(font.getlength(ch) or (h * 0.35))))
+    im = Image.new("L", (adv + 2, h + 2), 0)
+    ImageDraw.Draw(im).text((1, ascent + 1), ch, font=font, fill=255, anchor="ls")
+    px = im.load()
+    rows = []
+    for y in range(h):
+        bits = 0
+        for x in range(adv):
+            if px[x + 1, y + 1] > 80:
+                bits |= 1 << (adv - 1 - x)
+        rows.append(bits)
+    return adv, h, rows
+
+
+def legend_glyphs(text, px=22, source=None):
+    """글자마다 (문자, 왼쪽 x, 너비, 높이, 행 비트). 상자는 겹치지 않고 글자를 잘라 내지 않는다.
+    source 가 bitmap 이면 글꼴 파일이 있어도 비트맵을 쓴다."""
+    px = max(8, int(px))
+    font = None if source == "bitmap" else _legend_font(px)
+    gap = max(2, px // 10)
+    out, x = [], 0
+    for ch in text:
+        if font is not None:
+            w, h, rows = _ttf_glyph(font, ch)
+        else:
+            w, rows, _k = _bitmap_glyph(ch, px)
+            h = len(rows)
+        out.append((ch, x, w, h, rows))
+        x += w + gap
+    return out
 
 
 def _legend_entries(sc, cv, st):
@@ -423,48 +550,51 @@ def _legend_entries(sc, cv, st):
     return out
 
 
-def write_legend(cv, path, entries):
+def write_legend(cv, path, entries, px=22):
     """사람용. 스케치 오른쪽에 색 견본과 이름을 붙인다. 모델에 넣는 파일은 이쪽이 아니다."""
-    scale = 2
-    cw, ch, gap = 5 * scale + scale, 7 * scale + 6, 4
-    tw = 22
-    panel = 8 + 14 + 8 + tw * cw
-    W, H = cv.w + panel, max(cv.h, 12 + len(entries) * (ch + gap))
-    px = bytearray(bytes((255, 255, 255)) * (W * H))
-    # 왼쪽은 깨끗한 스케치
+    layouts = [legend_glyphs(label, px) for _color, label in entries]
+    line_h = 1
+    text_w = 0
+    for gs in layouts:
+        if not gs:
+            continue
+        line_h = max(line_h, max(g[3] for g in gs))
+        text_w = max(text_w, gs[-1][1] + gs[-1][2])
+    sw = max(16, int(px))
+    gap = max(8, int(px) // 3)
+    panel = 10 + sw + 12 + text_w + 14
+    row_h = line_h + gap
+    W = cv.w + panel
+    H = max(cv.h, 12 + max(1, len(entries)) * row_h + 10)
+    buf = bytearray(bytes((255, 255, 255)) * (W * H))
     for y in range(cv.h):
-        px[y * W * 3:y * W * 3 + cv.w * 3] = cv.px[y * cv.w * 3:(y + 1) * cv.w * 3]
+        buf[y * W * 3:y * W * 3 + cv.w * 3] = cv.px[y * cv.w * 3:(y + 1) * cv.w * 3]
     for y in range(H):
         i = (y * W + cv.w) * 3
-        px[i:i + 3] = bytes((180, 180, 180))
+        buf[i:i + 3] = bytes((180, 180, 180))
 
     def pix(x, y, rgb):
         if 0 <= x < W and 0 <= y < H:
             i = (y * W + x) * 3
-            px[i:i + 3] = bytes(rgb)
+            buf[i:i + 3] = bytes(rgb)
 
-    def text(x, y, s, rgb=(30, 30, 30)):
-        for i, ch in enumerate(s[:tw].lower()):
-            bits = _GLYPH.get(ch, _GLYPH["?"])
-            ox = x + i * cw
-            for r in range(7):
-                row = int(bits[r * 5:(r + 1) * 5], 2)
-                for c in range(5):
-                    if row & (1 << (4 - c)):
-                        for dy in range(scale):
-                            for dx in range(scale):
-                                pix(ox + c * scale + dx, y + r * scale + dy, rgb)
-
-    y = 10
-    for color, label in entries:
-        x0 = cv.w + 8
-        for dy in range(12):
-            for dx in range(12):
-                pix(x0 + dx, y + dy, color if 0 < dx < 11 and 0 < dy < 11 else (40, 40, 40))
-        text(x0 + 18, y + 1, label)
-        y += ch + gap
+    y = 12
+    for (color, _label), gs in zip(entries, layouts):
+        x0 = cv.w + 10
+        for dy in range(sw):
+            for dx in range(sw):
+                pix(x0 + dx, y + dy, color if 1 <= dx < sw - 1 and 1 <= dy < sw - 1 else (40, 40, 40))
+        tx = x0 + sw + 12
+        ty = y + max(0, (sw - line_h) // 2)
+        for _ch, gx, w, h, rows in gs:
+            for r, bits in enumerate(rows):
+                for c in range(w):
+                    if bits & (1 << (w - 1 - c)):
+                        pix(tx + gx + c, ty + r, (20, 20, 20))
+        y += row_h
     with open(path, "wb") as f:
-        f.write(_png(W, H, px))
+        f.write(_png(W, H, buf))
+
 
 
 def _dot(a, b):
@@ -1009,6 +1139,86 @@ def wide_faults(sc, cam, cv, st):
     return faults
 
 
+def _proj_span(cam, boxes):
+    """상자의 여덟 모서리를 화면에 비춘 가로·세로(px). 화면 밖으로 나간 모서리도 포함한다.
+    모서리가 카메라 뒤나 아주 가까이 있으면 None. 그때는 잘린 다각형이 모서리 상자보다 커져 비교가 거짓이다."""
+    xs, ys = [], []
+    for rect, z0, z1 in boxes:
+        x0, y0, x1, y1 = rect
+        cams = [cam.to_cam(p) for p in (
+            (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+            (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1))]
+        if any(q[2] <= NEAR for q in cams):
+            return None
+        for q in cams:
+            u, v = cam.proj(q)
+            xs.append(u)
+            ys.append(v)
+    if len(xs) < 2:
+        return None
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def scale_faults(sc, cam, cv, st):
+    """그린 상자가 치수와 안 맞으면 이유. 비어 있으면 이 검사는 통과다.
+    올려 둔 물건은 받침 윗면에서 자기 높이만 차지해야 한다. 바닥에서 쌓거나 면을 부풀리면 걸린다.
+    가려져 작아진 것은 넘어간다. 비슷한 거리에서 이웃보다 화면 배율이 크면 그것도 건다."""
+    faults = []
+    rows = []
+    pairs = [(sc, it, sc.iid[it["id"]]) for it in sc.items]
+    for cid, (nb, it, _oid) in getattr(cv, "through", {}).items():
+        pairs.append((nb, it, cid))
+    for scene, it, iid in pairs:
+        boxes = scene.boxes.get(it["id"]) if getattr(scene, "boxes", None) else None
+        if not boxes:
+            continue
+        name = P.label_of(it)
+        if it.get("on"):
+            parent = next((x for x in scene.ctx.items if x["id"] == it["on"]), None)
+            if parent is None or it["on"] not in scene.ctx.geo:
+                faults.append("{} — 받침의 위치를 집 데이터에서 못 찾았다".format(name))
+            else:
+                top = base_z(scene.ctx, parent) + item_height(parent, scene.ctx.geo[parent["id"]])
+                z0 = min(z for _r, z, _z1 in boxes)
+                z1 = max(z for _r, _z0, z in boxes)
+                ih = item_height(it, scene.ctx.geo[it["id"]])
+                if abs(z0 - top) > 30:
+                    faults.append("{} — 받침 윗면({:.0f}cm)이 아니라 {:.0f}cm 높이에서 그린다".format(
+                        name, top / 10.0, z0 / 10.0))
+                if z1 - z0 > ih + 30:
+                    faults.append("{} — 높이 {:.0f}cm 인데 상자는 {:.0f}cm 다".format(name, ih / 10.0, (z1 - z0) / 10.0))
+                gx0, gy0, gx1, gy1 = scene.ctx.geo[it["id"]]["rect"]
+                for rect, _za, _zb in boxes:
+                    if rect[0] < gx0 - 15 or rect[1] < gy0 - 15 or rect[2] > gx1 + 15 or rect[3] > gy1 + 15:
+                        faults.append("{} — 바닥 면이 치수보다 크다".format(name))
+                        break
+        s = st.get(iid)
+        if not s or s[0] < 30:
+            continue
+        span = _proj_span(cam, boxes)
+        if not span:
+            continue
+        pw, ph = s[4] - s[3] + 1, s[6] - s[5] + 1
+        ew, eh = span
+        if ph > eh * 1.35 + 6 or pw > ew * 1.35 + 6:
+            faults.append("{} — 그린 크기 {:.0f}×{:.0f}px 가 치수 투영 {:.0f}×{:.0f}px 보다 크다".format(
+                name, pw, ph, ew, eh))
+        ih = item_height(it, scene.ctx.geo[it["id"]])
+        if ih >= 50 and eh > 1 and ph > 0.7 * eh:
+            dist = _gap_point(cam.x, cam.y, scene.ctx.geo[it["id"]]["rect"])
+            rows.append((it, ph / float(ih), dist, name))
+    if len(rows) >= 2:
+        near = min(r[2] for r in rows)
+        cohort = [r for r in rows if r[2] <= near * 1.6 and r[2] > 1]
+        if len(cohort) >= 2:
+            med = sorted(r[1] for r in cohort)[len(cohort) // 2] or 1
+            worst = max(cohort, key=lambda r: r[1])
+            if worst[1] > 1.75 * med:
+                faults.append("{} — 같은 거리의 다른 가구보다 키 대비 화면이 {:.1f}배 크다".format(
+                    worst[3], worst[1] / med))
+    return faults
+
+
 def void_faults(cv):
     """화면에 남은 빈 문간(VOID). 너머 방을 못 그렸으면 컷으로 내지 않는다."""
     void = bytes(VOID)
@@ -1156,7 +1366,7 @@ def plan_wide(sc, ratio, cam_h, review_ids):
         cam = Cam(s["x"], s["y"], cam_h, s["yaw"], 0.0, hfov, W, H, s["lens"], cyf=HORIZON[ratio])
         scene = scenes[s["stand"]]
         cv = see_through(scene, cam, scene.render(cam))
-        if wide_faults(scene, cam, cv, cv.stats()) or void_faults(cv):
+        if wide_faults(scene, cam, cv, cv.stats()) or void_faults(cv) or scale_faults(scene, cam, cv, cv.stats()):
             continue
         if s["stand"] != subject["id"] and _subject_share(cv, cv.stats(), cam, subject["id"]) < 0.18:
             continue
@@ -2388,6 +2598,10 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         if empty:
             raise SystemExit("컷 {} 의 스케치에 비어 있는 문간이 남았다. 이 컷은 내지 않는다:\n  {}".format(
                 s["id"], "\n  ".join(empty)))
+        blown = scale_faults(sc, cam, cv, st)
+        if blown:
+            raise SystemExit("컷 {} 의 상자가 치수와 안 맞는다. 이 컷은 내지 않는다:\n  {}".format(
+                s["id"], "\n  ".join(blown)))
         # 범례는 스케치에 실제로 칠해진 색만 적는다. 트인 문간은 너머 방이 그려져 짙은 회색이 남지 않는 일이 많다
         painted = set(zip(cv.px[0::3], cv.px[1::3], cv.px[2::3]))
         colors = {c for c, _ in OPENING_LEGEND if tuple(c) in painted}
