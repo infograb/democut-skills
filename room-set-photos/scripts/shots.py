@@ -728,24 +728,22 @@ def item_boxes(ctx, it):
             out.append((band(s, 45), b, b + h - 40))
         return out
     if cat == "sink":
-        # 볼은 상판 윗면에서 아래로 파고든다. bowl 이 없으면 16cm 로만 그려 자리를 보여주고, 충돌 검사는 하지 않는다.
-        bowl = it.get("bowl")
-        if bowl is None:
-            bowl = (it.get("size") or {}).get("bowl") or 160
-        bowl = min(float(bowl), b - 20) if b > 40 else float(bowl)
+        # 볼의 부피는 상판 안에 숨는다. 옆면을 통으로 그리면 카메라 쪽에서 상판 앞면을 가리는 큰 상자가 된다.
+        # 보이는 것은 윗면에 딱 붙은 어두운 개구와, 뒤 테두리의 가는 수전뿐이다.
         mrg = max(8.0, min(20.0, (x1 - x0) * 0.08, (y1 - y0) * 0.08))
         basin = (x0 + mrg, y0 + mrg, x1 - mrg, y1 - mrg)
-        stub = min(h if 60 <= h <= 400 else 140, 220)
+        stub = h if 40 <= h <= 450 else 140
+        half = 25.0                                 # 수전 폭 약 50mm
         cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
         if back == "n":
-            faucet = (cx - 20, y0, cx + 20, min(y1, y0 + 36))
+            faucet = (cx - half, y0, cx + half, min(y1, y0 + 40))
         elif back == "s":
-            faucet = (cx - 20, max(y0, y1 - 36), cx + 20, y1)
+            faucet = (cx - half, max(y0, y1 - 40), cx + half, y1)
         elif back == "w":
-            faucet = (x0, cy - 20, min(x1, x0 + 36), cy + 20)
+            faucet = (x0, cy - half, min(x1, x0 + 40), cy + half)
         else:
-            faucet = (max(x0, x1 - 36), cy - 20, x1, cy + 20)
-        return [(basin, max(0, b - bowl), max(b - 4, 0)), (faucet, b, b + stub)]
+            faucet = (max(x0, x1 - 40), cy - half, x1, cy + half)
+        return [(basin, b - 3, b - 0.5), (faucet, b, b + stub)]
     if cat == "chair":                 # 좌판 · 등받이 · 기둥: 판자 하나로 그리면 문처럼 읽힌다
         ins = 40
         seat = min(460, h)
@@ -880,12 +878,24 @@ class Scene:
             dx = max(x0 - cam.x, 0, cam.x - x1)
             dy = max(y0 - cam.y, 0, cam.y - y1)
             return math.hypot(dx, dy)
-        seq = sorted(self.items, key=near_dist, reverse=True)
-        for it in [x for x in seq if x.get("on")]:          # 올려 둔 것은 받침 다음에
-            par = it["on"]
-            seq.remove(it)
-            idx = next((i for i, x in enumerate(seq) if x["id"] == par), len(seq) - 1)
-            seq.insert(idx + 1, it)
+        seq = sorted(self.items, key=near_dist, reverse=True)   # 먼 것부터. 가까운 것이 나중에 덮는다
+        # 받침 위에 올린 것은 받침 바로 뒤에, 그 안에서는 다시 먼 것부터. 한 번에 받침 바로 뒤에 꽂으면
+        # 나중에 꽂은(가까운) 것이 앞자리를 차지해 먼 싱크가 가까운 건조대 위에 칠해진다.
+        kids = {}
+        for it in seq:
+            if it.get("on"):
+                kids.setdefault(it["on"], []).append(it)
+        base = [it for it in seq if not it.get("on")]
+
+        def _with_kids(it):
+            out = [it]
+            for child in kids.get(it["id"], []):
+                out.extend(_with_kids(child))
+            return out
+
+        seq = []
+        for it in base:
+            seq.extend(_with_kids(it))
         for it in seq:
             base = self.color[it["id"]][0]
             rim = base_z(self.ctx, it)
