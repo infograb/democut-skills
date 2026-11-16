@@ -91,9 +91,57 @@ def check_counter_scale():
     assert any("윗면" in f or "상자" in f for f in bad), bad
 
 
+def check_beyond_on_out_of_frame():
+    """문간 너머 상판은 보이는데 그 끝의 올린 물건은 화면 밖이면 같은 문장을 적는다."""
+    h = {
+        "version": 1, "name": "off frame", "type": "oneroom", "units": "mm", "wall": 100,
+        "rooms": [
+            {"id": "cook", "kind": "kitchen", "name": "kitchen", "rect": [0, 0, 3600, 1800]},
+            {"id": "hall", "kind": "hall", "name": "hall", "rect": [0, 1900, 1400, 1600]},
+            {"id": "entry", "kind": "entrance", "name": "entry", "rect": [1500, 1900, 900, 1200]},
+        ],
+        "openings": [
+            {"id": "to-hall", "type": "opening", "room": "cook", "wall": "s",
+             "offset": 0, "width": 1000, "to": "hall"},
+            {"id": "front", "type": "door", "room": "entry", "wall": "s",
+             "offset": 0, "width": 800, "to": "outside", "swing": "out", "hinge": "end"},
+        ],
+        "items": [
+            {"id": "counter", "room": "cook", "category": "kitchen_counter", "label": "counter",
+             "size": {"w": 3400, "d": 600, "h": 850}, "place": {"wall": "n", "offset": 0},
+             "owned": True, "look": "a white counter"},
+            {"id": "sink", "room": "cook", "category": "sink", "label": "sink",
+             "size": {"w": 360, "d": 360, "h": 150}, "place": {"x": 40, "y": 80, "facing": "s"},
+             "on": "counter", "owned": True, "look": "a sink"},
+            {"id": "jar", "room": "cook", "category": "other", "label_en": "jar",
+             "size": {"w": 100, "d": 100, "h": 120}, "place": {"x": 2800, "y": 40, "facing": "s"},
+             "on": "counter", "owned": True, "look": "a small jar"},
+        ],
+    }
+    ctx, _ = S.P.check(h)
+    W, H, _, sw, _ = S.RATIOS["9:16"]
+    cam = S.Cam(500, 2700, 1200, -1.35, 0.0, 2 * math.atan((sw / 2.0) / S.MAIN_LENS),
+                W, H, S.MAIN_LENS, S.HORIZON["9:16"])
+    hall = S.Scene(ctx, ctx.rooms["hall"], 2300)
+    cv = S.see_through(hall, cam, hall.render(cam))
+    blocks = S.describe_through(hall, cam, cv, cv.stats(), h, 0)
+    text = "\n".join(ln for b in blocks for ln in b["lines"] + b["short"])
+    assert "out of frame" in text and "jar" in text, text
+    # 보이는 싱크는 범례에 들어간다
+    ph = T.house()
+    ctx, _ = S.P.check(ph)
+    cam2 = S.Cam(1140, 4780, 1200, math.radians(-127.6), 0.0,
+                 2 * math.atan((sw / 2.0) / S.MAIN_LENS), W, H, S.MAIN_LENS, S.HORIZON["9:16"])
+    hall2 = S.Scene(ctx, ctx.rooms["hall"], 2300)
+    view = S.see_through(hall2, cam2, hall2.render(cam2))
+    labels = [t for _c, t in S._legend_entries(hall2, view, view.stats())]
+    assert "sink" in labels, labels
+
+
 def main():
     check_legend_text()
     check_counter_scale()
+    check_beyond_on_out_of_frame()
     print("ok legend-scale")
 
 

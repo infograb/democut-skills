@@ -45,6 +45,9 @@ def house():
             {"id": "rack", "room": "cook", "category": "other", "label": "dish rack",
              "size": {"w": 450, "d": 200, "h": 300}, "place": {"x": 80, "y": 400, "facing": "e"},
              "on": "counter", "owned": True, "look": "a dish rack"},
+            {"id": "sink", "room": "cook", "category": "sink", "label": "sink",
+             "size": {"w": 300, "d": 320, "h": 180}, "place": {"x": 80, "y": 40, "facing": "e"},
+             "on": "counter", "owned": True, "look": "a stainless sink"},
             {"id": "wardrobe", "room": "bed", "category": "wardrobe", "label": "wardrobe",
              "size": {"w": 800, "d": 500, "h": 1800}, "place": {"wall": "w", "offset_end": 0},
              "owned": True, "look": "a wood wardrobe"},
@@ -114,6 +117,7 @@ def main():
     assert camj["y"] >= 4200, camj
     assert "cook" not in (data.get("unshot") or [])
     assert "wardrobe" in shot["prompt"]
+    assert "sink" in shot["prompt"].lower()
     refs = [r["file"] for r in shot["refs"] if r["role"] == "sketch"]
     assert refs == ["sketch/{}.png".format(shot["id"])]
     clean, legend = os.path.join(out, refs[0]), os.path.join(out, "sketch", shot["id"] + "-legend.png")

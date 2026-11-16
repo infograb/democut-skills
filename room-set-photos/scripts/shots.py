@@ -727,6 +727,25 @@ def item_boxes(ctx, it):
         for s in lat:
             out.append((band(s, 45), b, b + h - 40))
         return out
+    if cat == "sink":
+        # 볼은 상판 윗면에서 아래로 파고든다. bowl 이 없으면 16cm 로만 그려 자리를 보여주고, 충돌 검사는 하지 않는다.
+        bowl = it.get("bowl")
+        if bowl is None:
+            bowl = (it.get("size") or {}).get("bowl") or 160
+        bowl = min(float(bowl), b - 20) if b > 40 else float(bowl)
+        mrg = max(8.0, min(20.0, (x1 - x0) * 0.08, (y1 - y0) * 0.08))
+        basin = (x0 + mrg, y0 + mrg, x1 - mrg, y1 - mrg)
+        stub = min(h if 60 <= h <= 400 else 140, 220)
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        if back == "n":
+            faucet = (cx - 20, y0, cx + 20, min(y1, y0 + 36))
+        elif back == "s":
+            faucet = (cx - 20, max(y0, y1 - 36), cx + 20, y1)
+        elif back == "w":
+            faucet = (x0, cy - 20, min(x1, x0 + 36), cy + 20)
+        else:
+            faucet = (max(x0, x1 - 36), cy - 20, x1, cy + 20)
+        return [(basin, max(0, b - bowl), max(b - 4, 0)), (faucet, b, b + stub)]
     if cat == "chair":                 # 좌판 · 등받이 · 기둥: 판자 하나로 그리면 문처럼 읽힌다
         ins = 40
         seat = min(460, h)
@@ -869,12 +888,15 @@ class Scene:
             seq.insert(idx + 1, it)
         for it in seq:
             base = self.color[it["id"]][0]
+            rim = base_z(self.ctx, it)
             for rect, z0, z1 in sorted(self.boxes[it["id"]], key=lambda bx: bx[1]):   # 아래 부품부터(위에서 내려다본다)
+                sunk = it.get("category") == "sink" and z1 <= rim + 2
                 for pts, nrm, k in _box_faces(rect, z0, z1):
                     p = pts[0]
                     if (cam.x - p[0]) * nrm[0] + (cam.y - p[1]) * nrm[1] + (cam.z - p[2]) * nrm[2] <= 0:
                         continue
-                    draw(pts, _shade(base, k), self.iid[it["id"]])
+                    shade = 0.55 if sunk else k
+                    draw(pts, _shade(base, shade), self.iid[it["id"]])
         return cv
 
 
@@ -892,6 +914,7 @@ def see_through(sc, cam, cv, depth=0, visited=None, palette_used=None):
         palette_used.update(c[1] for c in sc.color.values())
     cv.through, cv.doorways, cv.through_ops, cv.through_cover = {}, {}, {}, {}
     cv.shell_of, cv.far_shell = {}, {}
+    cv.undrawn = []          # (너머 방 Scene, 품목) — 카메라 화면에 한 픽셀도 안 그려진 것
     void, nxt = bytes(VOID), THROUGH
     for oid, m in sc.ops.items():
         o = m["op"]
@@ -909,6 +932,11 @@ def see_through(sc, cam, cv, depth=0, visited=None, palette_used=None):
         ncv = nb.render(cam, skip=side)
         if depth < 6:
             see_through(nb, cam, ncv, depth + 1, visited, palette_used)
+        for it in nb.items:
+            if not ncv.drawn.get(nb.iid[it["id"]]):
+                cv.undrawn.append((nb, it))
+        for pair in getattr(ncv, "undrawn", ()):
+            cv.undrawn.append(pair)
         cv.doorways[oid] = nb
         for pts, col in _reveal(o, min(DOOR_H, sc.ceil - 100)):    # 벽 두께 — 너머 방의 무엇보다 카메라에 가깝다
             _draw(ncv, cam, pts, col)
@@ -1182,11 +1210,16 @@ def scale_faults(sc, cam, cv, st):
                 z0 = min(z for _r, z, _z1 in boxes)
                 z1 = max(z for _r, _z0, z in boxes)
                 ih = item_height(it, scene.ctx.geo[it["id"]])
-                if abs(z0 - top) > 30:
-                    faults.append("{} — 받침 윗면({:.0f}cm)이 아니라 {:.0f}cm 높이에서 그린다".format(
-                        name, top / 10.0, z0 / 10.0))
-                if z1 - z0 > ih + 30:
-                    faults.append("{} — 높이 {:.0f}cm 인데 상자는 {:.0f}cm 다".format(name, ih / 10.0, (z1 - z0) / 10.0))
+                # 싱크 볼은 상판 아래로 파고든다. 테두리가 상판 윗면에 닿는지만 본다
+                if it.get("category") == "sink":
+                    if z1 < top - 30 or z0 > top + 30:
+                        faults.append("{} — 개수대 테두리가 받침 윗면({:.0f}cm)에 닿지 않는다".format(name, top / 10.0))
+                else:
+                    if abs(z0 - top) > 30:
+                        faults.append("{} — 받침 윗면({:.0f}cm)이 아니라 {:.0f}cm 높이에서 그린다".format(
+                            name, top / 10.0, z0 / 10.0))
+                    if z1 - z0 > ih + 30:
+                        faults.append("{} — 높이 {:.0f}cm 인데 상자는 {:.0f}cm 다".format(name, ih / 10.0, (z1 - z0) / 10.0))
                 gx0, gy0, gx1, gy1 = scene.ctx.geo[it["id"]]["rect"]
                 for rect, _za, _zb in boxes:
                     if rect[0] < gx0 - 15 or rect[1] < gy0 - 15 or rect[2] > gx1 + 15 or rect[3] > gy1 + 15:
@@ -1899,7 +1932,28 @@ def _span_ko(cam, o, room, narrow):
     return " · ".join(bits)
 
 
-def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members, n, W, H, A):
+def _on_out_of_frame(child, support, edge="", brief=False):
+    """받침은 보이는데 그 위 품목은 화면에 한 픽셀도 없을 때. 같은 방·문간 너머가 같은 말을 쓴다.
+    brief 는 프롬프트 한도로 문간 너머를 줄일 때다. 「out of frame」과 받침 위라는 말은 남긴다."""
+    if brief:
+        return " Its {0} stands on its top just out of frame{1}.".format(_label_en(child), edge)
+    return (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
+            "if more of its top shows, the {0} stands there too.").format(
+                _label_en(child), edge, _label_en(support))
+
+
+def _undrawn_on(cv, scene, seen):
+    """scene 에서 보이는 받침 위에 있으나 카메라 화면에 안 그려진 품목. 받침 id → [품목]."""
+    out = {}
+    for room_sc, it in getattr(cv, "undrawn", ()):
+        if room_sc.room["id"] != scene.room["id"]:
+            continue
+        if it.get("on") in seen and it["id"] not in seen:
+            out.setdefault(it["on"], []).append(it)
+    return out
+
+
+def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members, n, W, H, A, cv=None):
     """parent 방의 문간 너머로 far_scene 이 더 보일 때, 스케치에 그려진 그 가구만 적는다."""
     link = None
     for m in parent.ops.values():
@@ -1935,8 +1989,11 @@ def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members,
             parts.append("cut off at the {} edge".format("left" if s[3] <= 0 else "right"))
         dims = "{}x{}x{} cm. {}.".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
                                          _cm(sz.get("h", 0) or item_height(it, g)), "; ".join(parts).capitalize())
-        lines.append("{}. {} ({} box): {}. {}".format(
-            n, _label_en(it).capitalize(), far_scene.color[it["id"]][1], _look(it), dims))
+        line = "{}. {} ({} box): {}. {}".format(
+            n, _label_en(it).capitalize(), far_scene.color[it["id"]][1], _look(it), dims)
+        for a in _undrawn_on(cv, far_scene, {t[2]["id"] for t in vis}).get(it["id"], []):
+            line += _on_out_of_frame(a, it)
+        lines.append(line)
         labels.append(P.label_of(it))
     kind = far_scene.room.get("kind")
     fin, here = room_finish(house, con, far_scene.room), room_finish(house, con, here_scene.room)
@@ -2031,6 +2088,9 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
                 line += tail.format(end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)))
                 short[-1] += tail.format(end, "a " + _label_en(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)),
                                          _cm(asz.get("h", 0)))
+            for a in _undrawn_on(cv, nb, seen).get(it["id"], []):
+                line += _on_out_of_frame(a, it)
+                short[-1] += _on_out_of_frame(a, it, brief=True)
             lines.append(line)
             labels.append(P.label_of(it))
             places.append("문간에 붙음" if near <= 30 else "문간에서 {}cm".format(_cm(near)))
@@ -2134,7 +2194,7 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
                 merged.setdefault(rid, [far_sc, []])
         for _rid, (far_sc, far_members) in merged.items():
             n, extra, _flabels, fcheck = _far_room_lines(
-                cam, st, house, con, sc, nb, far_sc, far_members, n, W, H, A)
+                cam, st, house, con, sc, nb, far_sc, far_members, n, W, H, A, cv)
             lines.extend(extra)
             short.extend(extra)
             if fcheck:
@@ -2261,8 +2321,7 @@ def describe(sc, cam, cv, st, house, rules=()):
                 end, _look(a), _cm(asz.get("w", 0)), _cm(asz.get("d", 0)), _cm(asz.get("h", 0)))
         for a in atop.get(it["id"], []):
             edge = " past the {} edge".format("left" if v["cut_l"] else "right") if v["cut_l"] or v["cut_r"] else ""
-            lines[-1] += (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
-                          "if more of its top shows, the {0} stands there too.").format(_label_en(a), edge, _label_en(it))
+            lines[-1] += _on_out_of_frame(a, it, edge)
         facts.append(dict(id=it["id"], label=_label_en(it), look=_look(it), keep=keep or None,
                           size="{}x{}x{}".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
                                                  _cm(sz.get("h", 0) or item_height(it, g))),

@@ -118,6 +118,8 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 개구부로 보이는 창·문(창이 있는 방인데 안 보이면 안 보인다는 말), 보이는 가구와 그 가구가 문간에서 얼마나 떨어졌는지를 적는다
 (`Through the open right wall … It is 190 cm deep past this opening, no wider. … flush with the opening. Draw only these there`).
 그 너머 방에 또 트인 문간이 보이면 그 방도 같은 카메라로 이어서 그린다. 한 단계만 그리면 그 다음 문간이 빈 회색 판으로 남는다.
+문간 너머에서 받침은 보이는데 그 위에 올린 품목(`on`)이 화면에 한 픽셀도 없으면, 같은 방과 같이 「stands on its top just out of frame」 을 적는다.
+싱크(`category: sink`)는 상판 위의 어두운 오목한 면과 뒤쪽 수전으로 그린다. 범례에도 그 색이 들어간다.
 그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
 모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
 그 방의 첫 전체 컷이

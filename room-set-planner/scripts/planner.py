@@ -50,6 +50,7 @@ CAT = {
     "tv_stand": dict(label="TV장", wall=True, front=(450, 600)),
     "dining_table": dict(label="식탁", seats=(750, 900)),
     "kitchen_counter": dict(label="주방 상판", wall=True, front=(900, 1100)),
+    "sink": dict(label="싱크"),
     "fridge": dict(label="냉장고", wall=True, front=(800, 1000)),
     "washer": dict(label="세탁기", wall=True, front=(600, 800)),
     "dryer": dict(label="건조기", wall=True, front=(600, 800)),
@@ -300,6 +301,19 @@ class Ctx:
 
 def label_of(it):
     return it.get("label") or CAT.get(it.get("category"), CAT["other"])["label"]
+
+
+def _bowl_mm(it):
+    """싱크 볼이 상판 아래로 파고드는 깊이(mm). 집 데이터에 없으면 0 — 그때는 충돌을 보지 않는다."""
+    if it.get("category") != "sink":
+        return 0
+    v = it.get("bowl")
+    if v is None:
+        v = (it.get("size") or {}).get("bowl")
+    try:
+        return float(v) if v else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def z_span(ctx, it, depth=0):
@@ -686,8 +700,8 @@ def check(house):
             elif not inside(((g["rect"][0] + g["rect"][2]) / 2.0, (g["rect"][1] + g["rect"][3]) / 2.0) * 2, parent["rect"]):
                 ctx.add("error", "on_floating", "{}: 가운데가 {} 위에 있지 않다 — 받침 밖으로 떨어진다".format(nm, it["on"]),
                         [it["id"]])
-            elif not inside(g["rect"], parent["rect"], tol=50):
-                ctx.add("warning", "on_overhang", "{}: {} 밖으로 삐져나온다".format(nm, it["on"]), [it["id"]])
+            elif not inside(g["rect"], parent["rect"], tol=5):
+                ctx.add("error", "on_fit", "{}: 받침 {} 윗면 안에 다 들어가지 않는다".format(nm, it["on"]), [it["id"]])
         # 짝(with) — 짝 밑으로 들어가려면 짝의 상판보다 낮아야 한다(의자 등받이는 책상 밑에 못 들어간다)
         if it.get("with"):
             partner = next((x for x in ctx.items if x["id"] == it["with"]), None)
@@ -745,6 +759,49 @@ def check(house):
                 ctx.add("error", "collide", "{} 와 {} 가 부딪친다(바닥에서 {}~{}mm 높이에서 {}×{}mm 겹친다)".format(
                     ctx.iname(a), ctx.iname(b), fmt(lo), fmt(hi), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
                     [a["id"], b["id"]])
+
+    # 같은 받침 위. 올려 둔 것끼리는 위의 충돌 검사에서 빼 두므로, 상판을 나눠 쓰는 싱크·쿡탑·건조대가 서로 겹치면 여기서 본다
+    by_support = {}
+    for it in ctx.items:
+        if it.get("on"):
+            by_support.setdefault(it["on"], []).append(it)
+    for sup, group in by_support.items():
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                a, b = group[i], group[j]
+                c = inter(ctx.geo[a["id"]]["rect"], ctx.geo[b["id"]]["rect"])
+                if c:
+                    ctx.add("error", "on_overlap", "{} 와 {} 가 {} 윗면에서 겹친다({}×{}mm)".format(
+                        ctx.iname(a), ctx.iname(b), sup, fmt(c[2] - c[0]), fmt(c[3] - c[1])), [a["id"], b["id"]])
+
+    # 개수대 볼이 상판 아래로 파고드는 깊이(bowl, mm)가 있을 때만, 그 자리의 하부장·세탁기와 부딪치는지 본다
+    for it in ctx.items:
+        depth = _bowl_mm(it)
+        if not depth or not it.get("on") or it["on"] not in ctx.geo:
+            continue
+        parent = next((x for x in ctx.items if x["id"] == it["on"]), None)
+        pz = z_span(ctx, parent) if parent else None
+        if not pz:
+            continue
+        lo, hi = pz[1] - depth, pz[1]
+        for other in ctx.items:
+            if other["id"] in (it["id"], it["on"]) or other["room"] != it["room"]:
+                continue
+            c = inter(ctx.geo[it["id"]]["rect"], ctx.geo[other["id"]]["rect"])
+            oz = z_span(ctx, other)
+            if not c or not oz:
+                continue
+            if min(hi, oz[1]) - max(lo, oz[0]) > 1:
+                ctx.add("warning", "sink_bowl", "{} 의 개수대 볼({}mm)이 {} 와 {}×{}mm 겹친다".format(
+                    ctx.iname(it), fmt(depth), ctx.iname(other), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
+                    [it["id"], other["id"]])
+    for it in ctx.items:
+        if it.get("category") != "kitchen_counter":
+            continue
+        if any(x.get("category") == "sink" and x.get("on") == it["id"] for x in ctx.items):
+            continue
+        ctx.add("warning", "no_sink", "{} 에 싱크 품목이 없다. 개수대는 상판에 자동으로 그리지 않는다 — category 는 sink, on 은 이 상판".format(
+            ctx.iname(it)), [it["id"]])
 
     # 문
     for o in ctx.ops:
@@ -1580,10 +1637,24 @@ def furniture_symbol(it, g):
             d = deep * 0.18
             out.append(_svg_line((px - d, py - d), (px + d, py + d)) if f in "ns" else _svg_line((px - d, py + d), (px + d, py - d)))
     elif cat == "kitchen_counter":
-        a, b = _inner_edge(_band(rect, back, deep * 0.12), back)     # 상판 뒤 턱
+        a, b = _inner_edge(_band(rect, back, deep * 0.12), back)     # 상판 뒤 턱. 개수대는 그리지 않는다
         out.append(_svg_line(a, b))
-        sink = _split(_inset(rect, deep * 0.18), f, 3, deep * 0.1)[0]
-        out.append(_svg_rect(sink, 60))
+    elif cat == "sink":
+        basin = _inset(rect, max(12, m * 0.12))
+        out.append(_svg_rect(basin, 40))
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        r = max(18, m * 0.12)
+        if back == "n":
+            fy = y0 + r
+        elif back == "s":
+            fy = y1 - r
+        elif back == "w":
+            fx, fy = x0 + r, cy
+        else:
+            fx, fy = x1 - r, cy
+        if back in "ns":
+            fx = cx
+        out.append(_svg_ellipse((fx - r, fy - r, fx + r, fy + r)))
     elif cat == "shower":
         out.append(_svg_line((x0, y0), (x1, y1)))
         c = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)

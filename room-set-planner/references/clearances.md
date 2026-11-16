@@ -33,7 +33,8 @@
 | `shower` · `bathtub` | 정면 | 600 | 700 | 판단 |
 | `appliance` | 정면 | 600 | 750 | 판단 |
 
-빈 자리를 요구하지 않는 품목: `nightstand` · `side_table` · `coffee_table` · `chair` · `lamp` · `plant` · `tv` · `mirror` · `other`.
+빈 자리를 요구하지 않는 품목: `nightstand` · `side_table` · `coffee_table` · `chair` · `lamp` · `plant` · `tv` · `mirror` · `sink` · `other`.
+`sink` 는 상판 위 품목이다(`on` 이 그 상판). 도면 기호(볼·수전)는 이 품목에만 그린다. 상판에는 자동으로 그리지 않는다.
 `rug` 는 바닥에 깔려서 장애물이 아니다.
 
 품목 하나만 다르게 하려면 `"clearance": {"front": [min, rec]}` (침대는 `side`, 식탁은 `seat`)를 준다.
