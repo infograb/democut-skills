@@ -129,8 +129,9 @@ democut_set_cut_edit(slug, cut_id, rev, edit={"segments": [
 ```text
 16:9 music-video chorus, 8 seconds, a fast multi-shot edit of 8 shots separated by HARD CUTS (instant cuts, no
 transitions), one shot every two beats, every cut landing exactly on the beat of the attached music reference (130 BPM).
-Shot 1, 0.00-0.92s, frontal wide shot: <동작>.
-HARD CUT at 0.92s. Shot 2, 0.92-1.85s, floor-level low-angle close shot: <동작>.
+The camera is never static: it moves forward and back in sync with the beat.
+Shot 1, 0.00-0.92s, frontal wide shot, fast push-in to a knee-up shot on the first beat: <동작>.
+HARD CUT at 0.92s. Shot 2, 0.92-1.85s, floor-level low-angle close shot, pulling back on the beat: <동작>.
 …
 HARD CUT at 6.46s. Shot 8, 6.46-7.30s, frontal wide shot: <동작>, holding the pose to the end.
 ```
