@@ -40,10 +40,11 @@
 것은 「It stands on the kitchen counter (140x60 cm top), inside its edges.」, 침대는 「Made up with a 110x200 cm mattress lying
 flush on the frame from head to foot」, 10cm 안에 다른 가구가 선 것은 「Bare floor shows between
 it and the bed (7 cm gap).」. 짝은 보이는데 자기는 화면 밖이면 「Its chair is out of
-frame: draw no chair at it.」 를 붙인다(한 픽셀도 그려지지 않을 때만. 짝에 가려진 것은 아래 붙박이). 받침은 보이는데 그 위 소품이 화면 밖이면 「Its bedside lamp stands on its top just
-out of frame past the right edge: show no more of the nightstand than the sketch does; if more of its top shows, the bedside
-lamp stands there too.」 를 붙인다. 짝과 달리 소품은 그 받침 위에 있으므로 「그리지 말라」 고 쓰지 않는다. 2026-11-13
-끝에 조금 걸친 협탁을 모델이 거의 다 그리고 그 위 조명은 빼 맨 윗면이 나왔다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
+frame: draw no chair at it.」 를 붙인다(한 픽셀도 그려지지 않을 때만. 짝에 가려진 것은 아래 붙박이). 받침은 보이는데 그 위 소품이 화면 밖이면 「Its lamp stands on its top just
+out of frame past the right edge: show no more of the cabinet than the sketch does; if the cabinet top shows, the lamp
+stands on it.」 를 붙인다. 4,000자로 줄여도 조건은 남긴다(「If the cabinet top shows, the lamp stands on it.」). `Avoid:` 에
+`a bare cabinet top` 을 넣는다. 짝과 달리 소품은 그 받침 위에 있으므로 「그리지 말라」 고 쓰지 않는다. 2026-11-13
+끝에 조금 걸친 받침을 모델이 거의 다 그리고 그 위 조명은 빼 맨 윗면이 나왔다. 「just out of frame」만 남기면 같은 일이 다시 난다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
 room-set-planner 로 돌려보낸다.
 
 짝의 바닥 면 안에 든 붙박이(`with: counter` 로 싱크대 밑에 넣은 세탁기)는 화면 안이어도 짝의 상자에 가려 목록에 오르지
@@ -159,8 +160,8 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   `size.h`)뿐이다. 볼이 상판 아래로 파고든 부피는 그리지 않는다. 통으로 그리면 그 옆면이 상판 앞면을 가리고, 먼 싱크가
   가까운 건조대보다 앞에 있는 것처럼 보인다. `bowl` 이 없어도 개구는 그린다. 하부장과의 충돌은 planner 가 `bowl` 이
   있을 때만 본다.
-- 문간 너머에서도 받침이 보이는데 그 위 품목이 화면에 없으면 「stands on its top just out of frame」 을 적는다. 가려진 것과
-  구분한다. 한 픽셀도 그려지지 않았을 때만 적는다.
+- 문간 너머에서도 받침이 보이는데 그 위 품목이 화면에 없으면 「stands on its top just out of frame」 과 「if the 〈받침〉 top shows, the 〈품목〉 stands on it」 을 적는다. 가려진 것과
+  구분한다. 한 픽셀도 그려지지 않았을 때만 적는다. 한도로 생김새를 줄여도 이 조건은 남기고, `Avoid:` 에 `a bare 〈받침〉 top` 을 넣는다.
 
 ## 벽을 채우는 가구
 

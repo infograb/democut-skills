@@ -126,7 +126,11 @@ def check_beyond_on_out_of_frame():
     cv = S.see_through(hall, cam, hall.render(cam))
     blocks = S.describe_through(hall, cam, cv, cv.stats(), h, 0)
     text = "\n".join(ln for b in blocks for ln in b["lines"] + b["short"])
+    short = "\n".join(ln for b in blocks for ln in b["short"])
+    clause = "if the kitchen counter top shows, the jar stands on it"
     assert "out of frame" in text and "jar" in text, text
+    assert clause in text.lower() and clause in short.lower(), short
+    assert any(a == "a bare kitchen counter top" for b in blocks for a in b.get("avoids") or []), blocks
     # 보이는 싱크는 범례에 들어간다
     ph = T.house()
     ctx, _ = S.P.check(ph)

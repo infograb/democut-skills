@@ -93,6 +93,7 @@ AVOID_JAMB = "a door frame or jambs in a full-width opening"
 AVOID_SIDE = "furniture on the opposite side of the frame from this shot's sketch"
 AVOID_BARE_WALL = "an open bare wall above the counter"
 AVOID_NO_HOOD = "a cooktop with no hood"
+AVOID_BARE_TOP = "a bare {} top"          # 화면에 있는 받침인데 그 위 품목이 빠질 때. 이름은 집 모델에서 온다
 AVOID_TILE = "tile boundary shifted into the kitchen/room or set back into the entry"
 AVOID_TILE_UNDER = "tile spilling under the {}"
 AVOID_TILE_PARTWAY = "tile ending partway under the {}"
@@ -2079,14 +2080,45 @@ def _span_ko(cam, o, room, narrow):
     return " · ".join(bits)
 
 
+def _stack_clause(child, support):
+    """구조 문장. 받침 윗면이 보이면 그 위 품목이 서 있다고 적는다. 한도로 줄여도 빼지 않는다."""
+    return "if the {} top shows, the {} stands on it".format(_label_en(support), _label_en(child))
+
+
 def _on_out_of_frame(child, support, edge="", brief=False):
     """받침은 보이는데 그 위 품목은 화면에 한 픽셀도 없을 때. 같은 방·문간 너머가 같은 말을 쓴다.
-    brief 는 프롬프트 한도로 문간 너머를 줄일 때다. 「out of frame」과 받침 위라는 말은 남긴다."""
+    brief 는 프롬프트 한도로 문간 너머 생김새를 줄일 때다. 「just out of frame」만 남기면 모델이 윗면을 비운다.
+    조건(if the … top shows)은 구조라 brief 에도 그대로 둔다."""
+    clause = _stack_clause(child, support)
+    name = _label_en(child)
     if brief:
-        return " Its {0} stands on its top just out of frame{1}.".format(_label_en(child), edge)
+        return " Its {0} stands on its top just out of frame{1}. {2}.".format(name, edge, clause[0].upper() + clause[1:])
     return (" Its {0} stands on its top just out of frame{1}: show no more of the {2} than the sketch does; "
-            "if more of its top shows, the {0} stands there too.").format(
-                _label_en(child), edge, _label_en(support))
+            "{3}.").format(name, edge, _label_en(support), clause)
+
+
+def _mentioned(prompt, name):
+    """프롬프트에 그 이름이 단어로 몇 번 있나. 손으로 고친 글에도 같은 기준으로 센다."""
+    return len(re.findall(r"(?<!\w)" + re.escape(name) + r"(?!\w)", prompt or "", re.I))
+
+
+def missing_stacked(prompt, items, visible_ids):
+    """화면에 있는 받침(`visible_ids`)의 `on` 품목이 prompt 에 없으면 그 영어 이름.
+    생성한 프롬프트와, 손으로 고치거나 합친 최종 프롬프트에 같이 쓴다. 같은 이름이 여러 개면 그 횟수만큼 있어야 한다.
+    빈 목록이면 통과다."""
+    need = {}
+    for it in items:
+        base = it.get("on")
+        if not base or base not in visible_ids:
+            continue
+        name = _label_en(it)
+        need[name] = need.get(name, 0) + 1
+    missing = []
+    for name, n in need.items():
+        got = _mentioned(prompt, name)
+        if got < n:
+            missing.extend([name] * (n - got))
+    return missing
 
 
 def _undrawn_on(cv, scene, seen):
@@ -2110,7 +2142,7 @@ def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members,
             link = m
             break
     if link is None:
-        return n, [], [], [], ""
+        return n, [], [], [], "", [], []
     geom = _beyond_geom(link["op"], far_scene.room)
     vis = []
     for cid, it in members:
@@ -2119,7 +2151,7 @@ def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members,
             continue
         vis.append((s[1] / s[0] / W, cid, it, s))
     vis.sort(key=lambda t: t[0])
-    lines, briefs, labels = [], [], []
+    lines, briefs, labels, ids, bare = [], [], [], [], []
     for hx, cid, it, s in vis:
         n += 1
         g = far_scene.ctx.geo[it["id"]]
@@ -2140,10 +2172,14 @@ def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members,
         col = far_scene.color[it["id"]][1]
         line = "{}. {} ({} box): {}. {}".format(n, name, col, _look(it), dims)
         brief = "{}. {} ({} box): {}".format(n, name, col, dims)
+        ids.append(it["id"])
         for a in _undrawn_on(cv, far_scene, {t[2]["id"] for t in vis}).get(it["id"], []):
             note = _on_out_of_frame(a, it)
             line += note
             brief += _on_out_of_frame(a, it, brief=True)
+            top = AVOID_BARE_TOP.format(_label_en(it))
+            if top not in bare:
+                bare.append(top)
         lines.append(line)
         briefs.append(brief)
         labels.append(P.label_of(it))
@@ -2157,7 +2193,7 @@ def _far_room_lines(cam, st, house, con, here_scene, parent, far_scene, members,
         _span_sentence(cam, link["op"], far_scene.room, False))
     tail = " Draw only these there:" if lines else " No furniture shows there."
     check = "그 너머 {} — {}".format(label_ko, "·".join(labels) + " 만 보인다" if labels else "벽·바닥만 보인다")
-    return n, [head + tail] + lines, [head + tail] + briefs, labels, check
+    return n, [head + tail] + lines, [head + tail] + briefs, labels, check, ids, bare
 
 
 def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
@@ -2199,6 +2235,7 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
         vis.sort(key=lambda t: t[0])
         seen = {it["id"] for _, _, it, _ in vis}
         lines, short, facts, labels, places = [], [], [], [], []
+        stacked_avoid, far_ids = [], []
         for hx, cid, it, s in vis:
             n += 1
             g = nb.ctx.geo[it["id"]]
@@ -2243,6 +2280,9 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             for a in _undrawn_on(cv, nb, seen).get(it["id"], []):
                 line += _on_out_of_frame(a, it)
                 short[-1] += _on_out_of_frame(a, it, brief=True)
+                top = AVOID_BARE_TOP.format(_label_en(it))
+                if top not in stacked_avoid:
+                    stacked_avoid.append(top)
             lines.append(line)
             labels.append(P.label_of(it))
             places.append("문간에 붙음" if near <= 30 else "문간에서 {}cm".format(_cm(near)))
@@ -2354,14 +2394,21 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             if npx >= 30:
                 merged.setdefault(rid, [far_sc, []])
         for _rid, (far_sc, far_members) in merged.items():
-            n, extra, brief, _flabels, fcheck = _far_room_lines(
+            n, extra, brief, _flabels, fcheck, fids, fbare = _far_room_lines(
                 cam, st, house, con, sc, nb, far_sc, far_members, n, W, H, A, cv)
             lines.extend(extra)
             short.extend(brief)
+            far_ids.extend(fids)
+            for top in fbare:
+                if top not in stacked_avoid:
+                    stacked_avoid.append(top)
             if fcheck:
                 check += " · " + fcheck
+        for top in stacked_avoid:
+            if top not in extra_avoid:
+                extra_avoid.append(top)
         out.append(dict(oid=oid, room=nb.room["id"], label=label, label_ko=label_ko, share=area / A,
-                        head=head, lines=lines, short=short, check=check, items=facts,
+                        head=head, lines=lines, short=short, check=check, items=facts, far_ids=far_ids,
                         shallow=geom["depth"] <= SHALLOW_MM, depth_cm=_cm(geom["depth"]),
                         full_width=bool(opened.get("wide")), avoids=extra_avoid))
     return out
@@ -2485,6 +2532,9 @@ def describe(sc, cam, cv, st, house, rules=()):
         for a in atop.get(it["id"], []):
             edge = " past the {} edge".format("left" if v["cut_l"] else "right") if v["cut_l"] or v["cut_r"] else ""
             lines[-1] += _on_out_of_frame(a, it, edge)
+            top = AVOID_BARE_TOP.format(_label_en(it))
+            if top not in avoid:
+                avoid.append(top)
         facts.append(dict(id=it["id"], label=_label_en(it), look=_look(it), keep=keep or None,
                           size="{}x{}x{}".format(_cm(sz.get("w", 0)), _cm(sz.get("d", 0)),
                                                  _cm(sz.get("h", 0) or item_height(it, g))),
@@ -2937,6 +2987,8 @@ def _fit_prompt(shot_id, build, view, thru):
         structural = any("side by side" in (t.get("head") or "") for t in thru)
         why = ("나란히 선 가구 문장은 구조라 빼지 않는다. " if structural else
                "깊이·폭·벽이 이어진다는 문장은 구조라 빼지 않는다. ")
+        if "top shows" in prompt:
+            why += "받침 위 품목 문장(if the … top shows)도 구조라 빼지 않는다. "
         raise SystemExit("컷 {} 의 프롬프트가 {:,}자로 한도({:,}자)를 넘는다. {}"
                          "look 을 줄이고 plan 을 다시 돌린다. 이 컷은 내지 않는다.".format(
                              shot_id, len(prompt), PROMPT_MAX, why))
@@ -3175,6 +3227,16 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         def _build():
             return build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
         prompt, fit_notes = _fit_prompt(s["id"], _build, view, thru)
+        visible_ids = {v["it"]["id"] for v in vis}
+        for t in thru:
+            for it in t.get("items") or []:
+                visible_ids.add(it["id"])
+            for fid in t.get("far_ids") or ():
+                visible_ids.add(fid)
+        gaps = missing_stacked(prompt, ctx.items, visible_ids)
+        if gaps:
+            raise SystemExit("컷 {} 의 프롬프트에 화면에 있는 받침 위 품목이 없다: {}. "
+                             "이 문장은 구조라 한도로 줄이지 않는다.".format(s["id"], ", ".join(gaps)))
         warns.extend(fit_notes)
         if light_ko:
             checks.append("빛 — " + light_ko)
@@ -3192,7 +3254,8 @@ def plan(house, out_dir, max_hero=6, ratio=None):
             target=s.get("target"),
             items=[dict(id=v["it"]["id"], label=P.label_of(v["it"]), share=round(v["share"], 3),
                         x=round(v["hx"], 2), hidden=round(1 - v["frac"], 2), en=f) for v, f in zip(vis, facts)],
-            through=[dict(room=t["room"], label=t["label_ko"], share=round(t["share"], 3), items=t["items"]) for t in thru],
+            through=[dict(room=t["room"], label=t["label_ko"], share=round(t["share"], 3), items=t["items"],
+                          far_ids=t.get("far_ids") or []) for t in thru],
             refs=refs, prompt=prompt, prompt_chars=len(prompt), checks=checks, warnings=warns))
     order = shots                                 # shot_order 의 순서 = 만드는 순서
     seen = {i["id"] for sh in shots for i in sh["items"] + [j for t in sh["through"] for j in t["items"]]}
@@ -3508,6 +3571,38 @@ def fix(shots_path, shot_id, item_ids, images=None, scale=None, changes=()):
     return 0
 
 
+def stacked_check(house_path, prompt_path=None, shots_path=None, shot_id=None, visible=None):
+    """최종 프롬프트에, 화면에 있는 받침의 `on` 품목이 다 적혀 있는지. 없으면 종료 코드 1.
+    prompt_path 가 있으면 그 글(손으로 고친 것)을 보고, 없으면 shots.json 의 그 컷 프롬프트를 본다."""
+    with open(house_path, encoding="utf-8") as f:
+        house = json.load(f)
+    visible_ids = {x.strip() for x in (visible or "").split(",") if x.strip()}
+    prompt = ""
+    if shots_path and shot_id and not visible_ids:
+        with open(shots_path, encoding="utf-8") as f:
+            data = json.load(f)
+        shot = next((s for s in data.get("shots") or [] if s.get("id") == shot_id), None)
+        if shot is None:
+            raise SystemExit("컷이 없다: {}".format(shot_id))
+        visible_ids = {i["id"] for i in shot.get("items") or []}
+        for t in shot.get("through") or []:
+            for i in t.get("items") or []:
+                visible_ids.add(i["id"])
+            for fid in t.get("far_ids") or []:
+                visible_ids.add(fid)
+        prompt = shot.get("prompt") or ""
+    if prompt_path:
+        with open(prompt_path, encoding="utf-8") as f:
+            prompt = f.read()
+    if not prompt:
+        raise SystemExit("프롬프트가 없다. --prompt 또는 --shots 와 --shot 을 준다")
+    gaps = missing_stacked(prompt, house.get("items") or [], visible_ids)
+    if gaps:
+        raise SystemExit("받침 위 품목이 프롬프트에 없다: {}".format(", ".join(gaps)))
+    print("ok stacked")
+    return 0
+
+
 # ----------------------------------------------------------------------------- CLI
 
 def main(argv=None):
@@ -3525,6 +3620,12 @@ def main(argv=None):
     c.add_argument("shots")
     c.add_argument("--images", required=True)
     c.add_argument("-o", "--out")
+    e = sub.add_parser("stacked", help="화면에 있는 받침의 올린 품목이 프롬프트에 있는지 확인")
+    e.add_argument("house")
+    e.add_argument("--prompt", help="확인할 프롬프트 파일. 없으면 --shots 의 그 컷 프롬프트")
+    e.add_argument("--shots", help="plan 이 낸 shots.json. --shot 과 함께 보이던 품목 id 를 받침으로 쓴다")
+    e.add_argument("--shot", help="shots.json 의 컷 id")
+    e.add_argument("--visible", help="쉼표로 구분한 받침 id. 주면 --shot 의 목록 대신 이것을 쓴다")
     d = sub.add_parser("fix", help="만든 사진에서 틀린 제품만 제품 사진대로 고치는 편집 프롬프트·보드")
     d.add_argument("shots")
     d.add_argument("shot")
@@ -3561,6 +3662,8 @@ def main(argv=None):
                   "다른 크기일 수 있으니 그 말을 빼고 모양·색·재질만 적는다".format(
                       ", ".join("{}('{}')".format(k, v) for k, v in data["size_claims"].items())))
         return 0
+    if args.cmd == "stacked":
+        return stacked_check(args.house, args.prompt, args.shots, args.shot, args.visible)
     if args.cmd == "fetch":
         fetch(P.load(args.house), args.dest)
         return 0

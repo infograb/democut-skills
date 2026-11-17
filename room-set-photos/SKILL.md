@@ -120,10 +120,16 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 (`Through the open right wall … It is 60 cm deep past this opening, no wider. It is a shallow 60 cm-deep space, not a hallway or corridor; the far wall is only 60 cm past the opening and fills the frame as in the sketch. … flush with the opening. The fridge and the shoe cabinet stand side by side against it. Draw only these there`).
 깊이가 100cm 이하인 너머 방은 그 깊이를 cm 로 적고, 복도 종류(`hall`)가 아니면 hallway·corridor 라고 부르지 않는다. 「no wider」 만으로는 깊이가 늘지 않는다. 벽 전체가 트인 개구부는 문틀이 없다는 말과 함께, 양쪽 벽이 같은 폭의 한 면으로 이어지고 더 좁은 문간을 넣지 말라고 적는다.
 같은 문간을 반대쪽(시선이 약 180°, 40° 안)에서 본 앞 컷은 같은 방 대표(`role: master`, `same_room`)로 넣지 않는다. `role: neighbor` 에 `opposite_view` 로 넣고, 그 사진의 좌우를 베끼지 말라고 적는다. 도면에서 한 벽에 있는 가구는 그 벽에 두고, 화면에서만 좌우가 바뀐다. 좌우·깊이·먼 벽의 크기는 이 컷의 스케치가 정한다.
-나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장은 구조다. 4,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
+나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장, 화면에 있는 받침 위의 품목 문장은 구조다. 4,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
 `Styling:` 의 소품은 스케치와 목록에 없는 벽에 가구 줄을 만들지 않는다.
 그 너머 방에 또 트인 문간이 보이면 그 방도 같은 카메라로 이어서 그린다. 한 단계만 그리면 그 다음 문간이 빈 회색 판으로 남는다.
-문간 너머에서 받침은 보이는데 그 위에 올린 품목(`on`)이 화면에 한 픽셀도 없으면, 같은 방과 같이 「stands on its top just out of frame」 을 적는다.
+받침이 화면에 있고 그 위에 올린 품목(`on`)이 한 픽셀도 없으면, 같은 방·문간 너머 모두 「stands on its top just out of frame」 과 「if the 〈받침〉 top shows, the 〈품목〉 stands on it」 을 적는다. 4,000자로 줄여 문간 너머 생김새를 빼도(`brief`) 이 조건은 남긴다. 「just out of frame」만 남기면 모델이 받침 윗면을 비워 그린다. `Avoid:` 에 `a bare 〈받침〉 top` 을 넣는다. 이름은 집 모델의 그 가구다.
+손으로 프롬프트를 고치거나 여러 글을 합칠 때도, 화면에 있는 받침의 올린 품목은 하나도 빼지 않는다. 확인은 `shots.py stacked` 다. `house.json` 과 최종 프롬프트, 그리고 그 컷에서 보이던 받침 id 를 넣으면, 빠진 `on` 품목 이름으로 끝난다(없으면 `ok stacked`).
+
+```bash
+python3 <스킬>/scripts/shots.py stacked house.json --shots photos/shots.json --shot <컷>
+python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visible <받침 id, …>
+```
 싱크(`category: sink`)는 상판 윗면에 붙은 어두운 개구와 뒤쪽의 가는 수전으로 그린다. 볼이 상판 아래로 들어간 부피는 그리지 않는다. 범례에도 그 색이 들어간다.
 주방이 보이는 컷은 싱크 줄 위 상부장과 쿡탑 바로 위의 레인지후드를 적는다. `Avoid:` 에 `an open bare wall above the counter` 와 `a cooktop with no hood` 를 넣는다. 그 품목을 빼 둔 집(`kitchen.upper`·`kitchen.hood` 가 false)은 그 문장을 넣지 않는다.
 현관이 보이는 컷은 타일 구역을 집 모델에서 계산해 글과 스케치로 못 박는다. 타일 구역은 현관 방 전체와 옆방과 잇는 문간의 벽 두께 바닥이고, 경계는 옆방 벽 선 한 줄이다.
@@ -154,7 +160,8 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
   그 방 사진이 `role: neighbor` 로 붙으면 생김새는 사진이 맡는다. 붙지 않았는데 너머 가구가 크게 보이면 `look` 을 줄인다.
 - `반대 방향 참고` — 같은 문간을 반대쪽에서 본 앞 사진을 같은 방 대표로 넣지 않았다. 마감·빛·문간 폭만 맞추고, 좌우는 이 컷의 스케치를 따른다.
 - `얕은 너머` — 문간 너머가 100cm 이하다. 복도로 늘리지 않는다. 맞은편 벽은 그 깊이에서 스케치처럼 화면을 채운다.
-- `프롬프트가 한도를 넘는다` 로 plan 이 멈추면 나란히·깊이·폭·벽이 이어진다는 문장을 빼지 않은 것이다. `look` 을 줄이고 다시 plan 한다. 그 상태로 만들지 않는다.
+- `프롬프트가 한도를 넘는다` 로 plan 이 멈추면 나란히·깊이·폭·벽이 이어진다는 문장, 그리고 받침 위 품목 문장(`if the … top shows`)을 빼지 않은 것이다. `look` 을 줄이고 다시 plan 한다. 그 상태로 만들지 않는다.
+- `받침 위 품목이 프롬프트에 없다` — 화면에 있는 받침의 `on` 품목을 글에서 뺐다. 그 이름을 도로 넣고, `Avoid:` 에 `a bare 〈받침〉 top` 이 있는지도 본다.
 - `카메라 — …` — 직접 적은 전체 컷이 너무 가깝거나 한 물건이 화면을 덮는다. `photo.shots` 의 자리·렌즈를 고친다.
   자동 컷은 이런 자리를 내지 않는다.
 - `전체 컷 없음` — 그 방은 80cm 이상 물러설 자리가 안에도 트인 문간 너머에도 없다. 카메라를 직접 적거나 방을 뺀다.
