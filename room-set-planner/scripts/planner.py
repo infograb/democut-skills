@@ -197,6 +197,8 @@ class Ctx:
                 oid, self.rname(R["id"]), SIDE_KO[wall] + " 벽", fmt(end - start)), [oid])
         if typ == "window":
             res["sill"] = op.get("sill", 900)
+            # 높이가 없으면 1200. 창 위는 턱+높이이고 천장까지 닿지 않는다.
+            res["height"] = op.get("height") or 1200
             return res
         to = op.get("to")
         if to == "outside":
@@ -806,6 +808,18 @@ def check(house):
     # 문
     for o in ctx.ops:
         if o["type"] == "window":
+            R = ctx.rooms.get(o["room"])
+            x0, y0, x1, y1 = rr(R) if R else (0, 0, 0, 0)
+            small = htype == "oneroom" or (x1 - x0) * (y1 - y0) <= 18_000_000
+            raw = o.get("op") if isinstance(o.get("op"), dict) else {}
+            if small and o["width"] > 1500:
+                ctx.add("warning", "window_wide",
+                        "창 {} 폭 {}mm — 원룸·작은 방 창은 1000~1500mm(기본 1200)다. 1800mm 는 그 방에 크다".format(
+                            o["id"], fmt(o["width"])), [o["id"]])
+            if small and not raw.get("height"):
+                ctx.add("warning", "window_height",
+                        "창 {} 에 높이(height)가 없다 — 1200mm 로 둔다. 위 끝은 턱 {}mm + 높이이고 천장까지 닿지 않는다".format(
+                            o["id"], fmt(o.get("sill", 900))), [o["id"]])
             for it, g in obstacles:
                 if it["room"] != o["room"] or g["h"] <= o["sill"] + 100:
                     continue
@@ -1006,8 +1020,8 @@ def cmd_walls(args):
             on_this = (o["room"] == R["id"] and o["wall"] == wall) or (o.get("to") == R["id"] and OPP[o["wall"]] == wall)
             if o["type"] == "window":
                 if o["room"] == R["id"] and o["wall"] == wall:
-                    notes.append("창 {}~{} (폭 {}, 턱 높이 {}) — 턱보다 높은 가구는 창을 가린다".format(
-                        fmt(o["a"] - a0), fmt(o["b"] - a0), fmt(o["width"]), fmt(o["sill"])))
+                    notes.append("창 {}~{} (폭 {}, 높이 {}, 턱 {}) — 위 끝은 턱+높이. 턱보다 높은 가구는 창을 가린다".format(
+                        fmt(o["a"] - a0), fmt(o["b"] - a0), fmt(o["width"]), fmt(o.get("height") or 1200), fmt(o["sill"])))
                 continue
             rects = []
             if on_this:
@@ -1249,12 +1263,13 @@ def _shell_room(spec, notes):
         notes.append("문 자리를 받지 않아 아래쪽 벽 오른쪽 끝에 폭 {}mm 문을 두었다(방 안으로 열림)".format(fmt(dw)))
     wins = spec.get("windows")
     if wins is None:
-        ww = max(900, int(W * 0.6 / 100) * 100)
-        wins = [dict(wall="n", offset=(W - ww) / 2, width=ww)]
-        notes.append("창 자리를 받지 않아 위쪽 벽 가운데에 폭 {}mm 창을 두었다".format(fmt(ww)))
+        ww = min(1200, max(900, W - 400))
+        wins = [dict(wall="n", offset=(W - ww) / 2, width=ww, sill=900, height=1200)]
+        notes.append("창 자리를 받지 않아 위쪽 벽 가운데에 {}×{}mm 샷시(턱 900mm)를 두었다".format(fmt(ww), fmt(1200)))
     for i, w in enumerate(wins):
         ops.append(dict(id="w{}".format(i + 1), type="window", room=rid, wall=w.get("wall", "n"),
-                        offset=w.get("offset", "center"), width=w["width"], sill=w.get("sill", 900)))
+                        offset=w.get("offset", "center"), width=w["width"],
+                        sill=w.get("sill", 900), height=w.get("height", 1200)))
     return rooms, ops
 
 
@@ -1314,8 +1329,9 @@ def _shell_studio(bed, by, wall, notes):
     else:
         ops.append(dict(id="d_bath", type="door", room="bath1", wall="n", offset=max((bath["w"] - 750) / 2, 0),
                         width=min(750, bath["w"] - 100), to="room", swing="in", hinge="start"))
-    ww = max(900, int(W * 0.6 / 100) * 100)
-    ops.append(dict(id="w_room", type="window", room="room", wall="n", offset=(W - ww) / 2, width=ww, sill=900))
+    ww = min(1200, max(900, W - 400))
+    ops.append(dict(id="w_room", type="window", room="room", wall="n",
+                    offset=(W - ww) / 2, width=ww, sill=900, height=1200))
     return rooms, ops
 
 
@@ -1451,17 +1467,26 @@ def _shell_rows(typ, beds, by, wall, hall, notes):
     for r in s_rooms:
         w = r["w"]
         if r is core and core["kind"] == "living":
-            ww, sill = max(w - 600, 1200), 0
+            ww, sill, wh = max(w - 600, 1200), 0, 2100
         elif r is core:
-            ww, sill = 1200, 1000
+            ww, sill, wh = 1200, 1000, 1100
+        elif typ == "oneroom":
+            ww, sill, wh = min(1200, max(900, w - 400)), 900, 1200
         else:
-            ww, sill = max(900, int(w * 0.6 / 100) * 100), 900
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n", offset=(w - ww) / 2, width=ww, sill=sill))
+            ww, sill, wh = max(900, int(w * 0.6 / 100) * 100), 900, 1200
+        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n",
+                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
     for r in named[2:] + ([anchor] if anchor else []):
         w = r["w"]
-        ww, sill = (1200, 1000) if r["kind"] == "kitchen" else (max(900, int(w * 0.5 / 100) * 100), 900)
+        if r["kind"] == "kitchen":
+            ww, sill, wh = 1200, 1000, 1100
+        elif typ == "oneroom":
+            ww, sill, wh = min(1200, max(900, w - 400)), 900, 1200
+        else:
+            ww, sill, wh = max(900, int(w * 0.5 / 100) * 100), 900, 1200
         ww = min(ww, w - 200)
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s", offset=(w - ww) / 2, width=ww, sill=sill))
+        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s",
+                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
     return rooms, ops
 
 

@@ -22,7 +22,7 @@
 그 그림은 한눈에 AI 가 만든 티가 난다(2026-11-11 실제 생성에서 사용자가 지적). 그래서 공통 문장은 「사는 사람이 폰으로 찍은
 사진」 쪽 질감을 겨누고, `Avoid:` 줄이 HDR 광·과한 채도·선명한 햇빛 무늬를 막는다.
 
-창은 기본이 한국 샷시 미닫이다. PVC 또는 알루미늄 틀에 짝이 나란히 둘이고, 가로 레일 위를 한쪽만 밀어 연다. 다른 짝은 닫혀 있다. 도면이 `openings[].style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않는다. 창이 화면에 있으면 In view 줄은 「a N cm wide sliding sash」 이고, `open: true` 이면 「one pane slid open behind the other」 를 붙인다. `Avoid:` 에는 `casement, hinged, or push-out windows` 가 들어간다. 문장은 이 길이로 두고 더 늘리지 않는다. 프롬프트 한도는 4,000자다.
+창은 기본이 한국 샷시 미닫이다. PVC 또는 알루미늄 틀에 짝이 나란히 둘이고, 가로 레일 위를 한쪽만 밀어 연다. 다른 짝은 닫혀 있다. 도면이 `openings[].style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않는다. 창이 화면에 있으면 In view 줄은 「a WxH cm sliding sash on the far wall (center), above the desk, sill N cm」 이다. 폭·높이는 도면의 mm 를 cm 로 줄인 것이고, 바로 아래 가구가 있을 때만 above 를 붙인다. `open: true` 이면 「one pane slid open behind the other」 를 붙인다. `Avoid:` 에는 `casement, hinged, or push-out windows` 가 들어간다. 원룸 기본은 120×120cm, 턱 90cm다. 180cm 폭은 원룸에 크다. 위 끝은 턱+높이이고 천장까지 올리지 않는다. 문장은 이 길이로 두고 더 늘리지 않는다. 프롬프트 한도는 4,000자다.
 
 창밖을 적지 않으면 모델은 한국 집 창밖에 아파트 단지를 그린다. 원룸은 보통 3~4층 빌라에 있어서 그 창밖은 맞지 않는다
 (2026-11-13 사용자 지적). 그래서 `shots.py` 는 `type: "oneroom"` 이면 방을 「빌라 원룸」 으로 적고 창밖에 건너편 빌라를 넣고

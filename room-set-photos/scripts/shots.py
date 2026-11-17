@@ -60,7 +60,6 @@ WIDE_CLOSE = 750            # 전체 컷에서 화면을 크게 차지한 가구
 BIG_CUT = 600               # 그 검사를 받는 가구의 바닥 긴 변(mm)
 NEAR_GAP = 100              # 바닥 가구 둘 사이가 이보다 좁으면 사이를 적는다. 안 적으면 붙거나 한쪽이 밑으로 파고든다(mm)
 DEFAULT_CEIL = 2300
-WIN_HEAD = 2100             # 창 위 끝 높이
 DOOR_H = 2100
 NORMAL = {"n": (0, -1), "s": (0, 1), "w": (-1, 0), "e": (1, 0)}
 RATIOS = {                  # DemoCut 프로젝트 비율 → (스케치 가로, 세로, 그림 크기, 센서 가로 mm, 설명)
@@ -131,7 +130,7 @@ KIND_EN = {"bedroom": "bedroom", "living": "living room", "kitchen": "kitchen", 
 COMMON_LOOK = ("A real photo from an Ohouse (오늘의집) house-tour post, shot by the resident on a smartphone: "
                "phone-photo texture, muted natural colors, low contrast, light sensor noise, tidy but lived-in, "
                "not a 3D render or a staged ad.")
-HOME_DETAILS = ("Korean home details: PVC sash, white baseboards, silk wallpaper, a flat LED ceiling light.")
+HOME_DETAILS = ("Korean home: PVC sash, white baseboards, silk wallpaper, LED ceiling light.")
 # 공간 종류마다 마감·소품이 다르다. 방의 벽지·마루·침구 문장을 그대로 쓰면 화장실이 벽지·마루로 나오고 주방·현관에 침구
 # 소품이 붙는다(2026-11-13 원룸 계획에서 확인). {walls}·{floor} 는 컨셉 값. photo.rooms.<종류 또는 방 id> 로 덮어쓴다
 KIND_FINISH = {
@@ -155,6 +154,39 @@ FINISH_KEYS = ("walls", "floor", "details", "props")
 # 도면이 style 을 적지 않은 창은 한국 샷시다. 한쪽 짝만 옆으로 밀려 열린다.
 _SASH_STYLES = {"", "sash", "sliding", "sliding-sash", "pvc"}
 _SASH_AVOID = "casement, hinged, or push-out windows"
+
+
+def _win_size(o):
+    """(sill, height) mm. 높이가 없으면 1200. 위 끝은 턱+높이."""
+    raw = o.get("op") if isinstance(o.get("op"), dict) else {}
+    sill = o.get("sill", raw.get("sill", 900))
+    height = o.get("height", raw.get("height")) or 1200
+    return sill, height
+
+
+def _below_window(sc, o):
+    """창 바로 아래 가구의 영어 이름. 창이 그 가구 위에 앉는다."""
+    wall = o.get("wall")
+    if not wall or not sc:
+        return ""
+    a, b = sorted((o["a"], o["b"]))
+    sill, _h = _win_size(o)
+    best, best_ov = None, 0
+    for it in sc.items:
+        if it.get("on") or P.CAT.get(it.get("category"), {}).get("floor"):
+            continue
+        if _place_wall(it) != wall:
+            continue
+        g = sc.ctx.geo[it["id"]]
+        if item_height(it, g) > sill + 250:
+            continue
+        lo, hi = (g["rect"][0], g["rect"][2]) if wall in "ns" else (g["rect"][1], g["rect"][3])
+        ov = min(hi, b) - max(lo, a)
+        if ov > best_ov:
+            best, best_ov = it, ov
+    if not best or best_ov < 200:
+        return ""
+    return _label_en(best)
 
 
 def _window_words(o):
@@ -843,7 +875,8 @@ class Scene:
                 def mk(a, z, lv=lv):
                     return (lv, a, z)
             if o["type"] == "window":
-                z0, z1, col = o.get("sill", 900), min(WIN_HEAD, C - 150), WINDOW
+                sill, height = _win_size(o)
+                z0, z1, col = sill, sill + height, WINDOW
             elif o["type"] == "opening":
                 z0, z1, col = 0, min(DOOR_H, C - 100), VOID
             else:
@@ -2188,8 +2221,11 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             php = _hpos(xs_ / float(cnt) / W)
             if no["type"] == "window":
                 wname, _sash = _window_words(no)
-                shown.append("a {} cm wide {} on {} ({}), sill {} cm, {}".format(
-                    _cm(no["b"] - no["a"]), wname, REL_EN[rel], php, _cm(no.get("sill", 900)), con["curtains"]))
+                sill, height = _win_size(no)
+                under = _below_window(nb, no)
+                above = ", above the {}".format(under) if under else ""
+                shown.append("a {}x{} cm {} on {} ({}){}, sill {} cm, {}".format(
+                    _cm(no["b"] - no["a"]), _cm(height), wname, REL_EN[rel], php, above, _cm(sill), con["curtains"]))
                 ko_ops.append("창({})".format(WALL_KO[rel]))
                 win_seen = True
             else:
@@ -2386,8 +2422,11 @@ def describe(sc, cam, cv, st, house, rules=()):
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
             wname, sash = _window_words(o)
-            ops.append("a {} cm wide {} on {} ({}), sill {} cm, {}{}".format(
-                _cm(o["b"] - o["a"]), wname, REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains,
+            sill, height = _win_size(o)
+            under = _below_window(sc, o)
+            above = ", above the {}".format(under) if under else ""
+            ops.append("a {}x{} cm {} on {} ({}){}, sill {} cm, {}{}".format(
+                _cm(o["b"] - o["a"]), _cm(height), wname, REL_EN[rel], hp, above, _cm(sill), curtains,
                 ", " + view[0] if view else ""))
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
             if sash:

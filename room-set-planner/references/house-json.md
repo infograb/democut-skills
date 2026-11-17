@@ -49,7 +49,7 @@
 ```json
 {"id": "d_room", "type": "door", "room": "room", "wall": "s", "offset": 1950, "width": 900,
  "to": "outside", "swing": "in", "hinge": "end"}
-{"id": "w1", "type": "window", "room": "room", "wall": "n", "offset": "center", "width": 1800, "sill": 900}
+{"id": "w1", "type": "window", "room": "room", "wall": "n", "offset": "center", "width": 1200, "height": 1200, "sill": 900}
 ```
 
 | 칸 | 뜻 |
@@ -59,7 +59,8 @@
 | `to` | 반대편 방 id 또는 `"outside"`. 창에는 쓰지 않는다. 두 방의 마주 보는 벽이 문 폭만큼 겹쳐야 한다 |
 | `swing` | 여닫이만. `in` 은 `room` 쪽으로, `out` 은 `to` 쪽으로 열린다 |
 | `hinge` | 여닫이만. `start` 는 offset 쪽 끝, `end` 는 반대쪽 끝에 경첩 |
-| `sill` | 창턱 높이. 이보다 높은 가구가 창 앞 300 안에 있으면 주의 |
+| `sill` | 창턱 높이(mm). 이보다 높은 가구가 창 앞 300 안에 있으면 주의. 없으면 900 |
+| `height` | 창 높이(mm). 위 끝은 턱+높이다. 천장까지 닿는다고 두지 않는다. 없으면 1200. 원룸·작은 방(18㎡ 이하)에서 빠지면 주의 |
 
 바깥으로 나가는 문(`to: "outside"`)이 하나는 있어야 한다. 동선 검사가 그 문 밖에서 시작한다.
 
@@ -159,10 +160,10 @@
 {"type": "room", "name": "EP03 작업실",
  "rooms": [{"kind": "bedroom", "name": "작업실", "w": 3000, "d": 3400}],
  "door": {"wall": "s", "offset": 1950, "width": 900, "swing": "in", "hinge": "end"},
- "windows": [{"wall": "n", "offset": "center", "width": 1800, "sill": 900}]}
+ "windows": [{"wall": "n", "offset": "center", "width": 1200, "height": 1200, "sill": 900}]}
 ```
 
-`door`·`windows` 를 빼면 문은 아래쪽 벽 오른쪽 끝(안으로 열림), 창은 위쪽 벽 가운데 60% 폭이다. 가정은 `meta.notes` 에 남는다.
+`door`·`windows` 를 빼면 문은 아래쪽 벽 오른쪽 끝(안으로 열림), 창은 위쪽 벽 가운데 1200×1200mm 샷시(턱 900mm)다. 가정은 `meta.notes` 에 남는다. 원룸의 기본 창도 같다. 폭 1800mm 는 원룸·작은 방에 크고, 1500mm 를 넘으면 주의가 난다.
 
 **원룸형 · 아파트형**:
 
