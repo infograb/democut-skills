@@ -126,7 +126,13 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 문간 너머에서 받침은 보이는데 그 위에 올린 품목(`on`)이 화면에 한 픽셀도 없으면, 같은 방과 같이 「stands on its top just out of frame」 을 적는다.
 싱크(`category: sink`)는 상판 윗면에 붙은 어두운 개구와 뒤쪽의 가는 수전으로 그린다. 볼이 상판 아래로 들어간 부피는 그리지 않는다. 범례에도 그 색이 들어간다.
 주방이 보이는 컷은 싱크 줄 위 상부장과 쿡탑 바로 위의 레인지후드를 적는다. `Avoid:` 에 `an open bare wall above the counter` 와 `a cooktop with no hood` 를 넣는다. 그 품목을 빼 둔 집(`kitchen.upper`·`kitchen.hood` 가 false)은 그 문장을 넣지 않는다.
-현관 바닥이 보이는 컷은 타일 구역과 경계를 적는다. 경계는 개구부 선이고, 그 선에 면이 닿은 가구가 화면에 있으면 「level with the front of …」 로 그 가구를 가리킨다. `Avoid:` 에 `tile boundary shifted into the kitchen/room or set back into the entry` 를 넣는다.
+현관이 보이는 컷은 타일 구역을 집 모델에서 계산해 글과 스케치로 못 박는다. 타일 구역은 현관 방 전체와 옆방과 잇는 문간의 벽 두께 바닥이고, 경계는 옆방 벽 선 한 줄이다.
+- 스케치는 타일 구역을 슬레이트색 바둑판(30cm 칸)으로 칠한다. 마루는 회색 한 색이다. 스케치 설명과 범례에 「checkered slate floor = entry tile」 이 붙는다.
+- 글은 「Entry floor: … covering the whole entry wall to wall (about W x D cm). The tile ends in one straight line at the opening, level with the entry-side face of the 〈경계에 닿은 옆방 가구〉」 다음에, 화면에 있는 현관 가구는 「stands entirely on the tile; the tile runs past its full width and depth」, 경계에 닿은 옆방 가구는 「stands entirely on the wood floor; no tile under any part of it」 로 이름을 대어 적는다. 레퍼런스 사진보다 이 글과 스케치를 따른다고 적는다.
+- 스케치에 타일이 한 픽셀도 없으면(카메라가 현관 타일 위에 서서 발밑이 화면 밖) 「out of frame … draw no tile anywhere」 로 적는다. 「보이면 타일」 처럼 열어 두면 모델이 화면 아래에 타일을 지어 옆 냉장고 밑까지 깔았다(2026-11-17).
+- `Avoid:` 에 `tile boundary shifted into the kitchen/room or set back into the entry`, 그 컷의 가구 이름으로 `tile spilling under the 〈옆방 가구〉`·`tile ending partway under the 〈현관 가구〉`(타일이 화면 밖이면 `any tile floor in frame`)를 넣는다.
+- 이 문장들은 구조라 4,000자 한도로 줄이지 않는다(`_fit_prompt` 는 소품·레퍼런스·너머 생김새만 줄인다).
+- 같은 뷰를 다른 빛(저녁 등)으로 다시 만들 때, 먼저 만든 사진의 타일 경계가 틀렸으면 그 사진을 레이아웃 레퍼런스로 넣지 않는다. 틀린 경계를 그대로 베낀다(2026-11-17: 낮 사진의 타일이 냉장고 밑·신발장 중간에서 끝났고 저녁 컷이 그대로 따라 했다). 스케치와 글로 다시 만든다.
 그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
 모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
 그 방의 첫 전체 컷이

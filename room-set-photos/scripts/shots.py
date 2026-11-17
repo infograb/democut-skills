@@ -94,9 +94,17 @@ AVOID_SIDE = "furniture on the opposite side of the frame from this shot's sketc
 AVOID_BARE_WALL = "an open bare wall above the counter"
 AVOID_NO_HOOD = "a cooktop with no hood"
 AVOID_TILE = "tile boundary shifted into the kitchen/room or set back into the entry"
+AVOID_TILE_UNDER = "tile spilling under the {}"
+AVOID_TILE_PARTWAY = "tile ending partway under the {}"
+AVOID_TILE_IN_FRAME = "any tile floor in frame"
 
 BG = (250, 250, 250)
 FLOOR = (150, 150, 152)
+# 현관 타일 구역은 스케치에서 바둑판으로 칠한다. 바닥을 한 색으로 그리면 모델이 타일과 마루의 경계를 제 마음대로 두어,
+# 타일이 냉장고 밑까지 들어오거나 신발장 중간에서 끝났다(2026-11-17 저녁 컷). 타일 칸 크기는 TILE_GRID mm
+TILE = (112, 128, 150)
+TILE_ALT = (138, 152, 172)
+TILE_GRID = 300
 CEIL = (238, 238, 238)
 WALLS = {"n": (214, 214, 214), "s": (204, 204, 204), "w": (224, 224, 224), "e": (196, 196, 196)}
 WINDOW = (190, 225, 248)
@@ -223,7 +231,8 @@ CURTAINS = "sheer curtains"                          # photo.curtains 가 없을
 # 원룸은 보통 빌라라 창밖이 바로 옆 빌라다(2026-11-13 사용자 지적: 원룸 창밖에 고층 아파트 단지가 보였다)
 VIEWS = {"oneroom": ("facing the next villa's wall and windows 4 m away",
                      "창밖 — 4m 앞 건너편 빌라의 벽과 창(아파트 단지가 아니다)", "apartment towers")}
-OPENING_LEGEND = ((WINDOW, "pale blue = window"), (DOOR, "brown = door"), (VOID, "dark gray = open doorway"))
+OPENING_LEGEND = ((WINDOW, "pale blue = window"), (DOOR, "brown = door"), (VOID, "dark gray = open doorway"),
+                  (TILE, "checkered slate floor = entry tile, ending at its edge line"))
 
 CONCEPTS = {
     "natural": dict(
@@ -837,14 +846,66 @@ def _seam_sides(sc, nb, o):
     return [(side, u) for side, k, u in ends if abs(u - hr[k]) <= 1 and abs(u - nr[k]) <= 1]
 
 
-def _reveal(o, top):
-    """문간이 벽 두께를 지나는 네 면(양 옆·바닥·위). 두 방의 벽 선(line·other_line) 사이다."""
+def _reveal(o, top, floor=FLOOR):
+    """문간이 벽 두께를 지나는 네 면(양 옆·바닥·위). 두 방의 벽 선(line·other_line) 사이다.
+    floor: 바닥 면 색. 현관 타일 문간이면 TILE(경계는 옆방 벽 선이라 벽 두께 바닥도 타일이다)."""
     l0, l1, a, b = o["line"], o["other_line"], o["a"], o["b"]
 
     def pt(u, v, z):
         return _on_wall(o, u, v, z)
     return [([pt(u, l0, 0), pt(u, l1, 0), pt(u, l1, top), pt(u, l0, top)], WALLS["w"]) for u in (a, b)] + [
-        ([pt(a, l0, z), pt(b, l0, z), pt(b, l1, z), pt(a, l1, z)], col) for z, col in ((0, FLOOR), (top, CEIL))]
+        ([pt(a, l0, z), pt(b, l0, z), pt(b, l1, z), pt(a, l1, z)], col) for z, col in ((0, floor), (top, CEIL))]
+
+
+def tile_entry(room):
+    """타일 바닥 현관인가. floor 가 false, 타일이 아닌 material, 'tile' 이 없는 문자열이면 아니다."""
+    if not room or room.get("kind") != "entrance":
+        return False
+    f = room.get("floor")
+    if f is False:
+        return False
+    if isinstance(f, str):
+        return "tile" in f.lower()
+    if isinstance(f, dict):
+        return f.get("material") in (None, "tile") and f.get("tile") is not False
+    return True
+
+
+def entry_tile(ctx, eid):
+    """현관 타일 구역. 현관 방 전체와, 옆방과 잇는 문간의 벽 두께 바닥이다. 경계는 옆방 쪽 벽 선이다.
+    → (사각형 목록, 경계 목록[dict(op, room=옆방, line=경계 좌표, a, b)])"""
+    rects, edges = [tuple(P.rr(ctx.rooms[eid]))], []
+    for o in ctx.ops:
+        if o["type"] == "window" or eid not in (o["room"], o.get("to")):
+            continue
+        other = o["to"] if o["room"] == eid else o["room"]
+        if other not in ctx.rooms or "other_line" not in o:
+            continue
+        a, b = sorted((o["a"], o["b"]))
+        plane = o["line"] if o["room"] == other else o["other_line"]
+        near = o["other_line"] if o["room"] == other else o["line"]
+        lo, hi = sorted((plane, near))
+        rects.append((a, lo, b, hi) if o["axis"] == "x" else (lo, a, hi, b))
+        edges.append(dict(op=o, room=other, line=plane, a=a, b=b))
+    return rects, edges
+
+
+def tile_squares(rect, grid=TILE_GRID):
+    """바닥 사각형을 grid mm 바둑판으로 나눈 (다각형, 색) 목록. 스케치에서 타일 구역을 마루와 다르게 보인다."""
+    x0, y0, x1, y1 = rect
+    out = []
+    i = 0
+    x = x0
+    while x < x1 - 1:
+        xe = min(x1, x + grid)
+        j = 0
+        y = y0
+        while y < y1 - 1:
+            ye = min(y1, y + grid)
+            out.append(([(x, y, 0), (xe, y, 0), (xe, ye, 0), (x, ye, 0)], TILE if (i + j) % 2 == 0 else TILE_ALT))
+            y, j = ye, j + 1
+        x, i = xe, i + 1
+    return out
 
 
 class Scene:
@@ -852,8 +913,9 @@ class Scene:
         self.ctx, self.room, self.ceil = ctx, room, ceil
         x0, y0, x1, y1 = P.rr(room)
         C = ceil
-        self.shell = [         # (벽 이름 — 바닥·천장은 None, 다각형, 색)
-            (None, [(x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0)], FLOOR),
+        floor = ([(None, pts, col) for pts, col in tile_squares((x0, y0, x1, y1))] if tile_entry(room) else
+                 [(None, [(x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0)], FLOOR)])
+        self.shell = floor + [         # (벽 이름 — 바닥·천장은 None, 다각형, 색)
             (None, [(x0, y0, C), (x1, y0, C), (x1, y1, C), (x0, y1, C)], CEIL),
             ("n", [(x0, y0, 0), (x1, y0, 0), (x1, y0, C), (x0, y0, C)], WALLS["n"]),
             ("s", [(x0, y1, 0), (x1, y1, 0), (x1, y1, C), (x0, y1, C)], WALLS["s"]),
@@ -1004,7 +1066,8 @@ def see_through(sc, cam, cv, depth=0, visited=None, palette_used=None):
         for pair in getattr(ncv, "undrawn", ()):
             cv.undrawn.append(pair)
         cv.doorways[oid] = nb
-        for pts, col in _reveal(o, min(DOOR_H, sc.ceil - 100)):    # 벽 두께 — 너머 방의 무엇보다 카메라에 가깝다
+        tiled = any(tile_entry(sc.ctx.rooms.get(r)) for r in (o["room"], o.get("to")))
+        for pts, col in _reveal(o, min(DOOR_H, sc.ceil - 100), TILE if tiled else FLOOR):    # 벽 두께 — 너머 방의 무엇보다 카메라에 가깝다
             _draw(ncv, cam, pts, col)
         gid = {}
         for it in nb.items:
@@ -2510,52 +2573,111 @@ def kitchen_line(house, room_ids):
     return " ".join(bits), avoids
 
 
+def _standing(it):
+    """바닥에 서는 가구인가. 올린 것·벽에 높이 단 것·러그처럼 납작한 바닥 품목은 아니다."""
+    return not (it.get("on") or (it.get("z", 0) or 0) >= P.WALL_MOUNT_Z
+                or P.CAT.get(it.get("category"), {}).get("floor"))
+
+
 def _flush_at_entry(ctx, entry_id, visible_ids):
-    """개구부 선에 면이 닿는, 화면에 있는 가구. 타일 경계가 그 앞면과 맞다."""
-    best, best_d = None, 81
-    for o in ctx.ops:
-        if o["type"] == "window" or entry_id not in (o["room"], o.get("to")):
-            continue
-        other = o["to"] if o["room"] == entry_id else o["room"]
-        if other not in ctx.rooms:
-            continue
-        a, b = sorted((o["a"], o["b"]))
-        for rid in (other, entry_id):
-            plane = o["line"] if o["room"] == rid else o.get("other_line", o["line"])
-            for it in ctx.items:
-                if it.get("room") != rid or it.get("on") or it["id"] not in visible_ids:
-                    continue
-                g = ctx.geo.get(it["id"])
-                if not g:
-                    continue
-                rect = g["rect"]
-                if o["axis"] == "x":
-                    near = min(abs(rect[1] - plane), abs(rect[3] - plane))
-                    lo, hi = rect[0], rect[2]
-                else:
-                    near = min(abs(rect[0] - plane), abs(rect[2] - plane))
-                    lo, hi = rect[1], rect[3]
-                if min(hi, b) - max(lo, a) < 80 or near >= best_d:
-                    continue
-                best, best_d = it, near
-    return best
+    """타일 경계(옆방 벽 선)에 면이 닿는, 화면에 있는 옆방 가구. 그 가구는 마루 위에 서고 타일은 그 면에서 멈춘다."""
+    _rects, edges = entry_tile(ctx, entry_id)
+    out = []
+    for e in edges:
+        o = e["op"]
+        for it in ctx.items:
+            if it.get("room") != e["room"] or not _standing(it) or it["id"] not in visible_ids:
+                continue
+            g = ctx.geo.get(it["id"])
+            if not g:
+                continue
+            rect = g["rect"]
+            if o["axis"] == "x":
+                near = min(abs(rect[1] - e["line"]), abs(rect[3] - e["line"]))
+                lo, hi = rect[0], rect[2]
+            else:
+                near = min(abs(rect[0] - e["line"]), abs(rect[2] - e["line"]))
+                lo, hi = rect[1], rect[3]
+            if min(hi, e["b"]) - max(lo, e["a"]) < 80 or near > 80:
+                continue
+            if it not in out:
+                out.append(it)
+    return out
 
 
-def entry_floor_line(ctx, entry_ids, visible_ids):
-    """현관 바닥이 보일 때. 타일 경계는 현관 가장자리(개구부 선)이고, 닿아 있는 가구 앞면과 맞춘다."""
+def _on_tile(ctx, entry_id, visible_ids):
+    """현관 안에 서 있는, 화면에 있는 가구. 타일 구역은 현관 방 전체라 발판까지 통째로 타일 위다."""
+    return [it for it in ctx.items if it.get("room") == entry_id and _standing(it) and it["id"] in visible_ids]
+
+
+def _pl(items):
+    return len(items) > 1
+
+
+def entry_floor_line(ctx, entry_ids, visible_ids, floor_word=None, in_frame=True):
+    """현관 바닥이 보일 때 타일 구역을 글로 못 박는다. → (문장, Avoid 목록)
+    타일은 현관 방 전체(문간 벽 두께 포함)를 벽에서 벽까지 덮고, 경계는 옆방 벽 선 한 줄이다. 화면에 있는 현관 가구는
+    통째로 타일 위, 경계에 닿은 옆방 가구는 통째로 마루 위라고 이름으로 적는다. 레퍼런스 사진보다 이 글과 스케치를 따른다.
+    floor_word: 옆방 id → 그 방 바닥 이름(기본 'wood').
+    in_frame: 스케치에 타일이 한 픽셀이라도 칠해졌나. 아니면(카메라가 타일 위에 서서 발밑이 화면 밖) 「화면에 타일 없음」 을
+    적는다. 「보이면 타일」 처럼 열어 두면 모델이 화면 아래에 타일을 지어 냉장고 밑까지 깔았다(2026-11-17)."""
     for eid in entry_ids:
-        floor = ctx.rooms[eid].get("floor")
-        if floor is False or (isinstance(floor, dict) and floor.get("material") not in (None, "tile")):
+        if not tile_entry(ctx.rooms.get(eid)):
             continue
-        item = _flush_at_entry(ctx, eid, visible_ids)
-        if item:
-            line = ("The entry floor is tile, one small step down. The tile starts at the opening line, "
-                    "level with the front of the {}.".format(_label_en(item)))
-        else:
-            line = ("The entry floor is tile, one small step down. The tile starts at the opening line, "
-                    "not inside either room.")
-        return line, AVOID_TILE
-    return "", None
+        rects, _edges = entry_tile(ctx, eid)
+        xs = [v for r in rects for v in (r[0], r[2])]
+        ys = [v for r in rects for v in (r[1], r[3])]
+        w, d = (max(xs) - min(xs)) / 10.0, (max(ys) - min(ys)) / 10.0
+        tiled = _on_tile(ctx, eid, visible_ids)
+        flush = _flush_at_entry(ctx, eid, visible_ids)
+        fws = [(floor_word or {}).get(it["room"], "wood") if isinstance(floor_word, dict) else (floor_word or "wood")
+               for it in flush]
+        if not in_frame:
+            out = ["Entry floor: tile, one small step down, but it is out of frame in this shot. Every floor surface in "
+                   "frame is the {} floor; draw no tile anywhere.".format(fws[0] if fws else "wood")]
+            if flush:
+                out.append("The {} stand{} entirely on that floor.".format(
+                    _and(_label_en(it) for it in flush), "" if _pl(flush) else "s"))
+            out.append("Follow this text and the sketch, not any reference photo.")
+            return " ".join(out), [AVOID_TILE_IN_FRAME] + [AVOID_TILE_UNDER.format(_label_en(it)) for it in flush]
+        head = ("Entry floor: gray tile, one small step down, covering the whole entry wall to wall "
+                "(about {:.0f} x {:.0f} cm). The tile ends in one straight line at the opening".format(w, d))
+        if flush:
+            head += ", level with the entry-side face of the " + _and(_label_en(it) for it in flush)
+        out = [head + "."]
+        if tiled:
+            names = _and(_label_en(it) for it in tiled)
+            out.append("The {} stand{} entirely on the tile; the tile runs past {} full width and depth to the walls "
+                       "and the opening line.".format(names, "" if _pl(tiled) else "s", "their" if _pl(tiled) else "its"))
+        if flush:
+            words = {}
+            for it, fw in zip(flush, fws):
+                words.setdefault(fw, []).append(it)
+            for fw, its in words.items():
+                out.append("The {} stand{} entirely on the {} floor; no tile under any part of {}.".format(
+                    _and(_label_en(it) for it in its), "" if _pl(its) else "s", fw, "them" if _pl(its) else "it"))
+        out.append("The tile area and its boundary follow this text and the sketch, not any reference photo.")
+        avoids = [AVOID_TILE] + [AVOID_TILE_UNDER.format(_label_en(it)) for it in flush] + [
+            AVOID_TILE_PARTWAY.format(_label_en(it)) for it in tiled]
+        return " ".join(out), avoids
+    return "", []
+
+
+def entry_floor_checks(ctx, entry_ids, visible_ids, in_frame=True):
+    """사람용 확인 목록(한국어)."""
+    for eid in entry_ids:
+        if not tile_entry(ctx.rooms.get(eid)):
+            continue
+        if not in_frame:
+            return ["현관 타일은 화면 밖이다. 화면 안 바닥은 모두 마루이고 타일이 없다"] + [
+                "{} — 통째로 마루 위다".format(P.label_of(it)) for it in _flush_at_entry(ctx, eid, visible_ids)]
+        out = ["현관 타일은 현관 전체를 벽에서 벽까지 덮고, 경계는 개구부 선 한 줄이다. 옆방 안이나 현관 안쪽으로 밀리지 않는다"]
+        for it in _on_tile(ctx, eid, visible_ids):
+            out.append("{} — 통째로 타일 위다. 타일이 그 밑 중간에서 끝나지 않는다".format(P.label_of(it)))
+        for it in _flush_at_entry(ctx, eid, visible_ids):
+            out.append("{} — 통째로 마루 위다. 타일이 그 밑으로 들어가지 않는다".format(P.label_of(it)))
+        return out
+    return []
 
 
 def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, refs, light_dir=None, avoid=(), thru=()):
@@ -2628,7 +2750,8 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
             rt.append("Reference image {} is a photo of the {} seen through the opening: draw that part of it to "
                       "match the photo (same furniture, appliances, finishes and props).".format(i, ref["label"]))
         elif ref["role"] == "sketch" and view.get("short_refs"):
-            rt.append("Reference image {} is the massing sketch: left, right, and depth follow it.".format(i))
+            rt.append("Reference image {} is the massing sketch: left, right, and depth follow it{}.".format(
+                i, "; the checkered floor is the entry tile" if TILE in view.get("colors", ()) else ""))
         elif ref["role"] == "sketch":
             legend = [txt for col, txt in OPENING_LEGEND if col in view.get("colors", ())]   # 스케치에 있는 색만
             rt.append("Reference image {} is a massing sketch of this exact view: match its perspective and each colored "
@@ -2924,6 +3047,8 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         # 범례는 스케치에 실제로 칠해진 색만 적는다. 트인 문간은 너머 방이 그려져 짙은 회색이 남지 않는 일이 많다
         painted = set(zip(cv.px[0::3], cv.px[1::3], cv.px[2::3]))
         colors = {c for c, _ in OPENING_LEGEND if tuple(c) in painted}
+        if TILE_ALT in painted:
+            colors.add(TILE)                     # 바둑판의 다른 칸만 보여도 타일이 화면에 있다
         sketch = os.path.join("sketch", s["id"] + ".png")
         cv.png(os.path.join(out_dir, sketch))
         # 범례는 사람용이다. 모델에 넣는 레퍼런스는 위의 깨끗한 스케치다.
@@ -3034,12 +3159,19 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         for t in thru:
             for it in t.get("items") or []:
                 vids.add(it["id"])
-        eline, eavoid = entry_floor_line(ctx, eids, vids)
+        fwords = {}
+        for rid, r in ctx.rooms.items():
+            fl = room_finish(house, concept, r)["floor"].lower()
+            fwords[rid] = ("wood" if any(k in fl for k in ("oak", "wood", "laminate")) else
+                           KIND_EN.get(r.get("kind"), "room"))
+        tin = TILE in colors
+        eline, eavoids = entry_floor_line(ctx, eids, vids, fwords, tin)
         if eline:
-            view["entry_floor"] = eline
-            if eavoid not in avoid:
-                avoid.append(eavoid)
-            checks.append("현관 타일 경계는 개구부 선이다. 옆방 안이나 현관 안쪽으로 밀리지 않는다")
+            view["entry_floor"] = eline        # 구조 문장이다. _fit_prompt 가 줄이지 않는다
+            for a in eavoids:
+                if a not in avoid:
+                    avoid.append(a)
+            checks.extend(entry_floor_checks(ctx, eids, vids, tin))
         def _build():
             return build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
         prompt, fit_notes = _fit_prompt(s["id"], _build, view, thru)
