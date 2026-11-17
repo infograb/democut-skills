@@ -32,8 +32,8 @@ def _house(floor=None):
              "offset": 650, "width": 900, "to": "outside", "swing": "out", "hinge": "end"},
         ],
         "items": [
-            # 냉장고는 주방 서쪽 벽 남쪽 끝 — 옆면이 개구부 선(주방 벽 선)에 닿는다
-            {"id": "fridge", "room": "cook", "category": "fridge", "label_en": "fridge",
+            # 수납장은 주방 서쪽 벽 남쪽 끝 — 옆면이 개구부 선(주방 벽 선)에 닿는다. 이름은 집 모델에서 온다
+            {"id": "cab", "room": "cook", "category": "storage", "label_en": "cabinet",
              "size": {"w": 500, "d": 500, "h": 1100}, "place": {"wall": "w", "offset_end": 0}, "owned": True},
             # 신발장은 현관 서쪽 벽 — 현관 깊이를 다 채운다
             {"id": "shoes", "room": "entry", "category": "shoe_cabinet", "label_en": "shoe cabinet",
@@ -50,9 +50,9 @@ def test_tile_area():
     assert rects[0] == (0, 2000, 1600, 2600), rects
     assert (0, 1900, 1600, 2000) in rects, rects          # 문간 벽 두께 바닥도 타일
     assert len(edges) == 1 and edges[0]["room"] == "cook" and edges[0]["line"] == 1900, edges
-    fr = ctx.geo["fridge"]["rect"]
+    fr = ctx.geo["cab"]["rect"]
     sh = ctx.geo["shoes"]["rect"]
-    assert fr[3] == 1900, fr                              # 냉장고 면 = 경계
+    assert fr[3] == 1900, fr                              # 옆방 가구 면 = 경계
     assert 2000 <= sh[1] and sh[3] <= 2600, sh            # 신발장은 타일 구역 안에 통째로
     assert not S.tile_entry({"kind": "entrance", "floor": False})
     assert not S.tile_entry({"kind": "entrance", "floor": "oak laminate, no step"})
@@ -62,34 +62,34 @@ def test_tile_area():
 
 def test_prompt_line():
     ctx, _ = S.P.check(_house())
-    line, avoids = S.entry_floor_line(ctx, ["entry"], {"fridge", "shoes"})
+    line, avoids = S.entry_floor_line(ctx, ["entry"], {"cab", "shoes"})
     assert "covering the whole entry wall to wall (about 160 x 70 cm)" in line, line
-    assert "ends in one straight line at the opening, level with the entry-side face of the fridge" in line, line
+    assert "ends in one straight line at the opening, level with the entry-side face of the cabinet" in line, line
     assert "The shoe cabinet stands entirely on the tile; the tile runs past its full width and depth" in line, line
-    assert "The fridge stands entirely on the wood floor; no tile under any part of it." in line, line
+    assert "The cabinet stands entirely on the wood floor; no tile under any part of it." in line, line
     assert "not any reference photo" in line
     assert S.AVOID_TILE in avoids
-    assert "tile spilling under the fridge" in avoids, avoids
+    assert "tile spilling under the cabinet" in avoids, avoids
     assert "tile ending partway under the shoe cabinet" in avoids, avoids
-    ko = S.entry_floor_checks(ctx, ["entry"], {"fridge", "shoes"})
+    ko = S.entry_floor_checks(ctx, ["entry"], {"cab", "shoes"})
     assert any("통째로 타일 위" in c for c in ko) and any("통째로 마루 위" in c for c in ko), ko
     # 화면에 없는 가구는 이름을 대지 않는다
     bare, avoids2 = S.entry_floor_line(ctx, ["entry"], set())
-    assert "fridge" not in bare and "shoe cabinet" not in bare and "opening" in bare, bare
+    assert "cabinet" not in bare and "shoe cabinet" not in bare and "opening" in bare, bare
     assert avoids2 == [S.AVOID_TILE]
     # 마루가 아닌 옆방 바닥 이름
-    tiled, _ = S.entry_floor_line(ctx, ["entry"], {"fridge"}, {"cook": "kitchen"})
+    tiled, _ = S.entry_floor_line(ctx, ["entry"], {"cab"}, {"cook": "kitchen"})
     assert "on the kitchen floor" in tiled, tiled
     # 카메라가 타일 위에 서서 타일이 화면 밖이면 「화면에 타일 없음」
-    out, oav = S.entry_floor_line(ctx, ["entry"], {"fridge"}, None, in_frame=False)
+    out, oav = S.entry_floor_line(ctx, ["entry"], {"cab"}, None, in_frame=False)
     assert "out of frame" in out and "draw no tile anywhere" in out, out
-    assert "The fridge stands entirely on that floor." in out, out
-    assert S.AVOID_TILE_IN_FRAME in oav and "tile spilling under the fridge" in oav, oav
+    assert "The cabinet stands entirely on that floor." in out, out
+    assert S.AVOID_TILE_IN_FRAME in oav and "tile spilling under the cabinet" in oav, oav
     assert "If the entry floor" not in out and "covering the whole entry" not in out
-    assert any("화면 밖" in c for c in S.entry_floor_checks(ctx, ["entry"], {"fridge"}, False))
+    assert any("화면 밖" in c for c in S.entry_floor_checks(ctx, ["entry"], {"cab"}, False))
     # 타일이 아닌 현관은 글이 없다
     ctx2, _ = S.P.check(_house("oak laminate, no step"))
-    assert S.entry_floor_line(ctx2, ["entry"], {"fridge"}) == ("", [])
+    assert S.entry_floor_line(ctx2, ["entry"], {"cab"}) == ("", [])
 
 
 def _cam(x, y, yaw):
@@ -132,7 +132,7 @@ def test_sketch_tile():
 def test_never_trimmed():
     """한도를 넘겨 소품·레퍼런스·너머 생김새를 줄여도 타일 문장과 Avoid 는 남는다."""
     ctx, _ = S.P.check(_house())
-    line, avoids = S.entry_floor_line(ctx, ["entry"], {"fridge", "shoes"})
+    line, avoids = S.entry_floor_line(ctx, ["entry"], {"cab", "shoes"})
     house = {"photo": {"concept": "natural", "ceiling": 2300}, "type": "room", "name": "t"}
     concept = S.concept_of(house)
     room = ctx.rooms["cook"]
@@ -145,7 +145,7 @@ def test_never_trimmed():
 
     def build():
         return S.build_prompt(house, concept, "9:16", _cam(1000, 800, math.pi / 2), "a wide shot", view,
-                              ["1. Fridge: 50x50x110 cm."], [], [], refs, None, list(avoids), thru)
+                              ["1. Cabinet: 50x50x110 cm."], [], [], refs, None, list(avoids), thru)
     prompt, notes = S._fit_prompt("entry-wide", build, view, thru)
     assert notes and len(prompt) <= S.PROMPT_MAX, (notes, len(prompt))
     assert line in prompt
@@ -164,9 +164,9 @@ def test_plan():
         shots = {x["id"]: x for x in json.load(open(os.path.join(out, "shots.json")))["shots"]}
     into = shots["look-entry"]["prompt"]
     assert "The shoe cabinet stands entirely on the tile" in into, into
-    assert "The fridge stands entirely on the wood floor" in into, into
+    assert "The cabinet stands entirely on the wood floor" in into, into
     assert "checkered slate floor = entry tile" in into, into
-    assert "tile ending partway under the shoe cabinet" in into and "tile spilling under the fridge" in into
+    assert "tile ending partway under the shoe cabinet" in into and "tile spilling under the cabinet" in into
     away = shots["look-kitchen"]["prompt"]
     assert "out of frame in this shot" in away and "draw no tile anywhere" in away, away
     assert S.AVOID_TILE_IN_FRAME in away

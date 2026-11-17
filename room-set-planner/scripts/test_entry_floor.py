@@ -27,7 +27,7 @@ def house(floor=None):
              "offset": 200, "width": 900, "to": "outside", "swing": "out", "hinge": "end"},
         ],
         "items": [
-            {"id": "fridge", "room": "cook", "category": "fridge", "label": "fridge",
+            {"id": "cab", "room": "cook", "category": "storage", "label": "cabinet",
              "size": {"w": 600, "d": 500, "h": 1800}, "place": {"wall": "s", "offset": 0},
              "owned": True},
         ],
