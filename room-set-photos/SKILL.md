@@ -110,6 +110,7 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 80cm 이상이다. 방 안에 그런 자리가 없으면(폭 1.6m에 깊이 60cm 싱크대처럼) 트인 문간 너머 옆 방에서 그 방을 본다.
 닫힌 문뿐이고 안에도 설 자리가 없으면 그 방의 전체 컷은 내지 않고 이유만 알린다. 자세한 문턱은
 [`references/ohouse-look.md`](references/ohouse-look.md) 「전체 컷 카메라」.
+창의 기본은 한국 샷시 미닫이다. 흰 PVC(또는 알루미늄) 틀에 짝이 둘이고, 열린 창은 한쪽 짝만 다른 짝 뒤로 밀린다. 도면이 `style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않고, `Avoid:` 에 `casement, hinged, or push-out windows` 를 넣는다. 열린 창(`open: true`)이면 「one pane slid open behind the other」 를 짧게 붙인다.
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.

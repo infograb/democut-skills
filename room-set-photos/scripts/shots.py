@@ -131,8 +131,7 @@ KIND_EN = {"bedroom": "bedroom", "living": "living room", "kitchen": "kitchen", 
 COMMON_LOOK = ("A real photo from an Ohouse (오늘의집) house-tour post, shot by the resident on a smartphone: "
                "phone-photo texture, muted natural colors, low contrast, light sensor noise, tidy but lived-in, "
                "not a 3D render or a staged ad.")
-HOME_DETAILS = ("Korean home details: white PVC double-sash windows, white baseboards, silk wallpaper, "
-                "a flat round LED ceiling light.")
+HOME_DETAILS = ("Korean home details: PVC sash, white baseboards, silk wallpaper, a flat LED ceiling light.")
 # 공간 종류마다 마감·소품이 다르다. 방의 벽지·마루·침구 문장을 그대로 쓰면 화장실이 벽지·마루로 나오고 주방·현관에 침구
 # 소품이 붙는다(2026-11-13 원룸 계획에서 확인). {walls}·{floor} 는 컨셉 값. photo.rooms.<종류 또는 방 id> 로 덮어쓴다
 KIND_FINISH = {
@@ -151,6 +150,23 @@ KIND_FINISH = {
 }
 LIVING_KINDS = {"bedroom", "living", "dressroom", None}   # 컨셉 소품(침구·책)이 맞는 공간. None = 종류를 안 적은 방
 FINISH_KEYS = ("walls", "floor", "details", "props")
+
+
+# 도면이 style 을 적지 않은 창은 한국 샷시다. 한쪽 짝만 옆으로 밀려 열린다.
+_SASH_STYLES = {"", "sash", "sliding", "sliding-sash", "pvc"}
+_SASH_AVOID = "casement, hinged, or push-out windows"
+
+
+def _window_words(o):
+    """(짧은 이름, 기본 샷시인지). style 이 있으면 그 창이고, 금지어를 붙이지 않는다.
+    플래너가 감싼 개구부는 원본이 op 안에 있다."""
+    raw = o.get("op") if isinstance(o.get("op"), dict) else o
+    style = str(raw.get("style") or "").strip().lower().replace("_", "-")
+    if style not in _SASH_STYLES:
+        return style.replace("-", " "), False
+    if raw.get("open") in (True, "open", "slid", "yes"):
+        return "sliding sash, one pane slid open behind the other", True
+    return "sliding sash", True
 
 
 def negative(concept, extra=()):
@@ -2171,8 +2187,9 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             rel = _wall_rel(nm["side"], cam)
             php = _hpos(xs_ / float(cnt) / W)
             if no["type"] == "window":
-                shown.append("a {} cm wide window on {} ({}), sill {} cm, {}".format(
-                    _cm(no["b"] - no["a"]), REL_EN[rel], php, _cm(no.get("sill", 900)), con["curtains"]))
+                wname, _sash = _window_words(no)
+                shown.append("a {} cm wide {} on {} ({}), sill {} cm, {}".format(
+                    _cm(no["b"] - no["a"]), wname, REL_EN[rel], php, _cm(no.get("sill", 900)), con["curtains"]))
                 ko_ops.append("창({})".format(WALL_KO[rel]))
                 win_seen = True
             else:
@@ -2368,10 +2385,15 @@ def describe(sc, cam, cv, st, house, rules=()):
         rel = _wall_rel(m["side"], cam)
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
-            ops.append("a {} cm wide window on {} ({}), sill {} cm, {}{}".format(
-                _cm(o["b"] - o["a"]), REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains,
+            wname, sash = _window_words(o)
+            ops.append("a {} cm wide {} on {} ({}), sill {} cm, {}{}".format(
+                _cm(o["b"] - o["a"]), wname, REL_EN[rel], hp, _cm(o.get("sill", 900)), curtains,
                 ", " + view[0] if view else ""))
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
+            if sash:
+                checks.append("창 — 샷시 미닫이(한쪽 짝만 옆으로). 여닫이·들창·틸트 아님")
+                if _SASH_AVOID not in avoid:
+                    avoid.append(_SASH_AVOID)
             if view:
                 checks.append(view[1])
                 if view[2] and view[2] not in avoid:
@@ -2389,6 +2411,9 @@ def describe(sc, cam, cv, st, house, rules=()):
             checks.append("문 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
     thru = describe_through(sc, cam, cv, st, house, len(vis), [v["it"] for v in vis])
     checks.extend(t["check"] for t in thru)
+    if any("sliding sash" in ln for t in thru for ln in (t["head"],) + tuple(t["lines"])) and _SASH_AVOID not in avoid:
+        avoid.append(_SASH_AVOID)
+        checks.append("창 — 샷시 미닫이(한쪽 짝만 옆으로). 여닫이·들창·틸트 아님")
     return vis, lines, ops, checks, board, avoid, facts, thru
 
 
