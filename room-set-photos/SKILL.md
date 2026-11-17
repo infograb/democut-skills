@@ -117,10 +117,15 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·창·문·가구 상자를 같은 카메라로 그려 넣고,
 프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 문간에서 잰 그 방의 깊이·폭,
 개구부로 보이는 창·문(창이 있는 방인데 안 보이면 안 보인다는 말), 보이는 가구와 그 가구가 문간에서 얼마나 떨어졌는지를 적는다
-(`Through the open right wall … It is 190 cm deep past this opening, no wider. … flush with the opening. Draw only these there`).
+(`Through the open right wall … It is 60 cm deep past this opening, no wider. It is a shallow 60 cm-deep space, not a hallway or corridor; the far wall is only 60 cm past the opening and fills the frame as in the sketch. … flush with the opening. The fridge and the shoe cabinet stand side by side against it. Draw only these there`).
+깊이가 100cm 이하인 너머 방은 그 깊이를 cm 로 적고, 복도 종류(`hall`)가 아니면 hallway·corridor 라고 부르지 않는다. 「no wider」 만으로는 깊이가 늘지 않는다. 벽 전체가 트인 개구부는 문틀이 없다는 말과 함께, 양쪽 벽이 같은 폭의 한 면으로 이어지고 더 좁은 문간을 넣지 말라고 적는다.
+같은 문간을 반대쪽(시선이 약 180°, 40° 안)에서 본 앞 컷은 같은 방 대표(`role: master`, `same_room`)로 넣지 않는다. `role: neighbor` 에 `opposite_view` 로 넣고, 그 사진의 좌우를 베끼지 말라고 적는다. 도면에서 한 벽에 있는 가구는 그 벽에 두고, 화면에서만 좌우가 바뀐다. 좌우·깊이·먼 벽의 크기는 이 컷의 스케치가 정한다.
+나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장은 구조다. 4,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
+`Styling:` 의 소품은 스케치와 목록에 없는 벽에 가구 줄을 만들지 않는다.
 그 너머 방에 또 트인 문간이 보이면 그 방도 같은 카메라로 이어서 그린다. 한 단계만 그리면 그 다음 문간이 빈 회색 판으로 남는다.
 문간 너머에서 받침은 보이는데 그 위에 올린 품목(`on`)이 화면에 한 픽셀도 없으면, 같은 방과 같이 「stands on its top just out of frame」 을 적는다.
 싱크(`category: sink`)는 상판 윗면에 붙은 어두운 개구와 뒤쪽의 가는 수전으로 그린다. 볼이 상판 아래로 들어간 부피는 그리지 않는다. 범례에도 그 색이 들어간다.
+주방이 보이는 컷은 싱크 줄 위 상부장과 쿡탑 바로 위의 레인지후드를 적는다. `Avoid:` 에 `an open bare wall above the counter` 와 `a cooktop with no hood` 를 넣는다. 그 품목을 빼 둔 집(`kitchen.upper`·`kitchen.hood` 가 false)은 그 문장을 넣지 않는다.
 그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
 모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
 그 방의 첫 전체 컷이
@@ -140,6 +145,9 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 - `look 에 크기 관계 말이 있다` — 그 말을 빼고 모양·색·재질만 남긴다(2단계).
 - `프롬프트가 한도를 넘어 문간 너머 품목의 생김새를 뺐다` — 이 방의 글은 그대로이고 문간 너머 가구만 크기·자리로 적었다.
   그 방 사진이 `role: neighbor` 로 붙으면 생김새는 사진이 맡는다. 붙지 않았는데 너머 가구가 크게 보이면 `look` 을 줄인다.
+- `반대 방향 참고` — 같은 문간을 반대쪽에서 본 앞 사진을 같은 방 대표로 넣지 않았다. 마감·빛·문간 폭만 맞추고, 좌우는 이 컷의 스케치를 따른다.
+- `얕은 너머` — 문간 너머가 100cm 이하다. 복도로 늘리지 않는다. 맞은편 벽은 그 깊이에서 스케치처럼 화면을 채운다.
+- `프롬프트가 한도를 넘는다` 로 plan 이 멈추면 나란히·깊이·폭·벽이 이어진다는 문장을 빼지 않은 것이다. `look` 을 줄이고 다시 plan 한다. 그 상태로 만들지 않는다.
 - `카메라 — …` — 직접 적은 전체 컷이 너무 가깝거나 한 물건이 화면을 덮는다. `photo.shots` 의 자리·렌즈를 고친다.
   자동 컷은 이런 자리를 내지 않는다.
 - `전체 컷 없음` — 그 방은 80cm 이상 물러설 자리가 안에도 트인 문간 너머에도 없다. 카메라를 직접 적거나 방을 뺀다.
@@ -181,6 +189,7 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
    `democut_make_cut_image` → `democut_wait_jobs` → 그림을 받아 **눈으로 확인**(shots.md 의 확인 목록).
 4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤
    `shots.md` 의 번호 순서대로 만든다. 레퍼런스에 다른 컷의 그림(`role: neighbor`)이 있는 컷은 그 그림이 나와 확인한 뒤 넣는다.
+   `opposite_view` 인 참고는 마감과 빛만 맞춘다. 가구 배치·좌우·깊이는 그 컷의 스케치와 프롬프트를 따른다.
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).

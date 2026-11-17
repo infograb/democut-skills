@@ -15,6 +15,7 @@
 | 카메라 | 가슴 높이(약 1.2m), 수직선이 서 있는 사진, 세로 사진 | 어안 왜곡, 높은 부감, 극단적 광각 |
 | 한국 집 디테일 | 흰 PVC 이중창 샷시, 흰 걸레받이, 실크 벽지, 원형 평판 LED 천장등, 강마루·장판 | 서양식 몰딩·벽난로·카펫 바닥 |
 | 창 | 샷시 미닫이. 짝 둘이 가로 레일 위에 있고, 열린 창은 한쪽만 다른 짝 뒤로 밀린다. 틀과 레일이 보인다 | 여닫이·들창·틸트창. 도면 `style` 이 달리 적지 않으면 쓰지 않는다 |
+| 주방 | 싱크 줄 위 벽걸이 상부장, 쿡탑 바로 위 레인지후드 | 상판 위가 빈 벽, 후드 없는 쿡탑 |
 | 창밖 | 집 유형에 맞는 바깥. 원룸은 몇 미터 앞 건너편 빌라의 벽과 창, 아니면 커튼을 친 창 | 원룸 창밖의 고층 아파트 단지 |
 | 사람 | 없다 | 사람·반려동물·글자·로고 |
 
@@ -107,7 +108,7 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
 
 - 개구부는 크기로 부른다. 「an open doorway」 라고만 적으면 모델은 그 자리에 벽을 세우고 문틀 달린 좁은 문을 낸다
   (2026-11-13 주방·현관: 벽 전체 162cm 가 트인 자리에 벽과 문틀이 섰고, 현관은 그 벽만큼 넓어졌다). 벽 길이의 90% 넘게
-  트였으면 「the right wall is fully open to …, with no door frame」, 그보다 좁으면 「a 90 cm wide, 210 cm high open doorway
+  트였으면 「the right wall is fully open to …, with no door frame; both side walls continue as one flat wall, same width」, 그보다 좁으면 「a 90 cm wide, 210 cm high open doorway
   to … on …」 이다(폭 120cm 부터는 opening). 확인 목록은 「벽 전체가 트였다(폭 …cm, 벽·문틀 없음)」·「트인 문간(폭 …cm)」 이다.
 - 너머 방의 창·문도 적는다(`Visible there: a 180 cm wide window on the far wall …, sill 90 cm, {커튼}`). 창이 있는 방인데
   문간으로 안 보이면 「No window shows there.」 를 적는다. 너머를 글로 적지 않았을 때 모델은 그 방의 대표 사진(창과 침대)을
@@ -117,6 +118,7 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   120 cm right.」 처럼 맞은편 벽까지의 깊이, 그 방의 폭, 개구부 양끝 밖으로 더 나간 길이(left/right)를 적는다. 안 적으면 모델은 문간 너머를
   실제보다 깊고 넓은 공간으로 만든다(2026-11-16 주방: 문간에 붙은 옷장이 방 안쪽으로 들어가고 그 방이 넓게 보였다). 그 방이 화면
   가로의 18% 보다 좁은 띠면 「narrow in frame」 을 붙여 카메라를 그쪽으로 돌리지 말라고 한다.
+  깊이가 100cm 이하면 「shallow N cm-deep space, not a hallway or corridor; the far wall is only N cm past the opening and fills the frame as in the sketch」 를 붙인다. 「no wider」 는 폭만 말하고 깊이를 막지 못한다. 복도(`kind: hall`)가 아니면 hallway·corridor 로 부르지 않는다.
 - 너머 가구의 자리도 개구부에서 잰다. 카메라에서의 foreground/middle ground 는 그 방 안에서의 위치를 말하지 못해, middle ground 를
   방 한가운데로 읽었다. 가장 가까운 면이 개구부에 있으면 「flush with the opening」, 떨어져 있으면 「82 cm past the opening」 이다.
   이 방 가구가 그 가구를 가리면 「partly behind the counter」 처럼 가린 것을 적는다.
@@ -129,7 +131,7 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   side against it.」). 「한 줄」 만 적었을 때 모델은 그 모서리에 옆면·끝면 달린 벽 토막을 세우고 주방 벽을 냉장고 깊이만큼
   여전히 물렸다(2026-11-13 현관 두 번째). 스케치도 그 자리에 이 방 벽 끝·문간 테두리·벽 두께 면의 선이 세로줄 둘로 남아
   벽 토막처럼 보였다. 지금은 그 면을 벽 색으로 다시 칠해 한 벽으로 그린다. 확인 목록은 「…과 한 면(튀어나온 벽 없음)」·
-  「그 벽에 신발장·냉장고 나란히」 다. 프롬프트가 한도를 넘으면 너머 가구 생김새 다음으로 이 짝 문장을 뺀다.
+  「그 벽에 신발장·냉장고 나란히」 다. 이 짝 문장과 깊이·폭·벽이 한 면이라는 문장은 한도가 넘어도 빼지 않는다. 넘으면 너머 가구의 생김새, 소품, 레퍼런스 설명을 먼저 줄이고, 그래도 넘으면 plan 이 멈추고 그 컷을 내지 않는다.
 - 너머 방 마감이 이 방과 같으면 「same as here」 로 적는다. 이어진 한 바닥이라는 말이 되고 글자도 아낀다.
 - 너머 방 머리 줄은 화면 자리를 다시 적지 않는다. In view 줄이 적었고, 벽 이름으로 그 개구부를 가리킨다.
 - 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.

@@ -51,6 +51,8 @@ CAT = {
     "dining_table": dict(label="식탁", seats=(750, 900)),
     "kitchen_counter": dict(label="주방 상판", wall=True, front=(900, 1100)),
     "sink": dict(label="싱크"),
+    "upper_cabinet": dict(label="상부장"),
+    "hood": dict(label="레인지후드"),
     "fridge": dict(label="냉장고", wall=True, front=(800, 1000)),
     "washer": dict(label="세탁기", wall=True, front=(600, 800)),
     "dryer": dict(label="건조기", wall=True, front=(600, 800)),
@@ -614,7 +616,109 @@ class Grid:
 
 # ----------------------------------------------------------------------------- 검사
 
+def _kitchen_opt_out(house, key):
+    """kitchen.upper / kitchen.hood 가 false 면 그 기본 품목을 넣지 않는다."""
+    box = house.get("kitchen") or {}
+    return box.get(key) is False
+
+
+def _is_cooktop(it):
+    if it.get("category") == "cooktop":
+        return True
+    if it.get("category") != "appliance":
+        return False
+    text = " ".join(str(it.get(k) or "") for k in ("id", "label", "name", "label_en")).lower()
+    return any(w in text for w in ("cooktop", "induction", "hob", "인덕션", "가스레인지", "쿡탑"))
+
+
+def _has_upper(items, counter):
+    wall = (counter.get("place") or {}).get("wall")
+    for it in items:
+        if it.get("category") != "upper_cabinet" or it.get("room") != counter.get("room"):
+            continue
+        if it.get("over") == counter["id"]:
+            return True
+        if not it.get("over") and wall and (it.get("place") or {}).get("wall") == wall:
+            return True
+    return False
+
+
+def _has_hood(items, top):
+    room = [it for it in items if it.get("category") == "hood" and it.get("room") == top.get("room")]
+    if any(h.get("above") == top["id"] for h in room):
+        return True
+    cooktops = [it for it in items if _is_cooktop(it) and it.get("room") == top.get("room")]
+    free = [h for h in room if not h.get("above")]
+    bare = [c for c in cooktops if not any(h.get("above") == c["id"] for h in room)]
+    try:
+        idx = bare.index(top)
+    except ValueError:
+        return False
+    return idx < len(free)
+
+
+def _upper_item(counter):
+    sz = counter.get("size") or {}
+    ch = sz.get("h") or 850
+    return {
+        "id": "{}_upper".format(counter["id"]),
+        "room": counter.get("room"),
+        "category": "upper_cabinet",
+        "label": "상부장",
+        "label_en": "upper cabinet",
+        "size": {"w": sz.get("w") or 1000, "d": 340, "h": 700},
+        "place": dict(counter.get("place") or {}),
+        "z": ch + 550,
+        "over": counter["id"],
+        "owned": True,
+        "look": "white flat-panel wall cabinets",
+    }
+
+
+def _hood_item(items, top):
+    parent = next((x for x in items if x["id"] == top.get("on")), None)
+    ch = ((parent.get("size") or {}).get("h") if parent else None) or 850
+    sz = top.get("size") or {}
+    return {
+        "id": "{}_hood".format(top["id"]),
+        "room": top.get("room"),
+        "category": "hood",
+        "label": "레인지후드",
+        "label_en": "range hood",
+        "size": {"w": sz.get("w") or 600, "d": sz.get("d") or 500, "h": 450},
+        "place": dict(top.get("place") or {}),
+        "z": ch + 760,
+        "above": top["id"],
+        "owned": True,
+        "look": "a white range hood",
+    }
+
+
+def apply_kitchen_defaults(house):
+    """싱크가 있는 상판 위에 상부장, 쿡탑 위에 후드를 둔다. kitchen.upper / kitchen.hood 가 false 이거나
+    그 품목에 upper / hood 가 false 면 넣지 않는다."""
+    items = house.setdefault("items", [])
+    if not _kitchen_opt_out(house, "upper"):
+        for counter in list(items):
+            if counter.get("category") != "kitchen_counter" or counter.get("upper") is False:
+                continue
+            if not any(x.get("category") == "sink" and x.get("on") == counter.get("id") for x in items):
+                continue
+            if _has_upper(items, counter):
+                continue
+            items.append(_upper_item(counter))
+    if not _kitchen_opt_out(house, "hood"):
+        for top in list(items):
+            if not _is_cooktop(top) or top.get("hood") is False:
+                continue
+            if _has_hood(items, top):
+                continue
+            items.append(_hood_item(items, top))
+    return house
+
+
 def check(house):
+    apply_kitchen_defaults(house)
     ctx = Ctx(house)
     H = house
     htype = H.get("type", "apartment")
@@ -800,9 +904,17 @@ def check(house):
     for it in ctx.items:
         if it.get("category") != "kitchen_counter":
             continue
-        if any(x.get("category") == "sink" and x.get("on") == it["id"] for x in ctx.items):
+        has_sink = any(x.get("category") == "sink" and x.get("on") == it["id"] for x in ctx.items)
+        if not has_sink:
+            ctx.add("warning", "no_sink", "{} 에 싱크 품목이 없다. 개수대는 상판에 자동으로 그리지 않는다 — category 는 sink, on 은 이 상판".format(
+                ctx.iname(it)), [it["id"]])
+        elif not _has_upper(ctx.items, it):
+            ctx.add("warning", "no_upper", "{} 위에 상부장이 없다. 싱크 줄 위에는 벽걸이 상부장을 둔다. 빼려면 kitchen.upper 또는 이 상판의 upper 를 false 로 둔다".format(
+                ctx.iname(it)), [it["id"]])
+    for it in ctx.items:
+        if not _is_cooktop(it) or _has_hood(ctx.items, it):
             continue
-        ctx.add("warning", "no_sink", "{} 에 싱크 품목이 없다. 개수대는 상판에 자동으로 그리지 않는다 — category 는 sink, on 은 이 상판".format(
+        ctx.add("warning", "no_hood", "{} 위에 레인지후드가 없다. 인덕션·가스레인지 바로 위에 후드를 둔다. 빼려면 kitchen.hood 또는 이 품목의 hood 를 false 로 둔다".format(
             ctx.iname(it)), [it["id"]])
 
     # 문
