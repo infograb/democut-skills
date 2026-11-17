@@ -93,6 +93,7 @@ AVOID_JAMB = "a door frame or jambs in a full-width opening"
 AVOID_SIDE = "furniture on the opposite side of the frame from this shot's sketch"
 AVOID_BARE_WALL = "an open bare wall above the counter"
 AVOID_NO_HOOD = "a cooktop with no hood"
+AVOID_TILE = "tile boundary shifted into the kitchen/room or set back into the entry"
 
 BG = (250, 250, 250)
 FLOOR = (150, 150, 152)
@@ -2509,6 +2510,54 @@ def kitchen_line(house, room_ids):
     return " ".join(bits), avoids
 
 
+def _flush_at_entry(ctx, entry_id, visible_ids):
+    """개구부 선에 면이 닿는, 화면에 있는 가구. 타일 경계가 그 앞면과 맞다."""
+    best, best_d = None, 81
+    for o in ctx.ops:
+        if o["type"] == "window" or entry_id not in (o["room"], o.get("to")):
+            continue
+        other = o["to"] if o["room"] == entry_id else o["room"]
+        if other not in ctx.rooms:
+            continue
+        a, b = sorted((o["a"], o["b"]))
+        for rid in (other, entry_id):
+            plane = o["line"] if o["room"] == rid else o.get("other_line", o["line"])
+            for it in ctx.items:
+                if it.get("room") != rid or it.get("on") or it["id"] not in visible_ids:
+                    continue
+                g = ctx.geo.get(it["id"])
+                if not g:
+                    continue
+                rect = g["rect"]
+                if o["axis"] == "x":
+                    near = min(abs(rect[1] - plane), abs(rect[3] - plane))
+                    lo, hi = rect[0], rect[2]
+                else:
+                    near = min(abs(rect[0] - plane), abs(rect[2] - plane))
+                    lo, hi = rect[1], rect[3]
+                if min(hi, b) - max(lo, a) < 80 or near >= best_d:
+                    continue
+                best, best_d = it, near
+    return best
+
+
+def entry_floor_line(ctx, entry_ids, visible_ids):
+    """현관 바닥이 보일 때. 타일 경계는 현관 가장자리(개구부 선)이고, 닿아 있는 가구 앞면과 맞춘다."""
+    for eid in entry_ids:
+        floor = ctx.rooms[eid].get("floor")
+        if floor is False or (isinstance(floor, dict) and floor.get("material") not in (None, "tile")):
+            continue
+        item = _flush_at_entry(ctx, eid, visible_ids)
+        if item:
+            line = ("The entry floor is tile, one small step down. The tile starts at the opening line, "
+                    "level with the front of the {}.".format(_label_en(item)))
+        else:
+            line = ("The entry floor is tile, one small step down. The tile starts at the opening line, "
+                    "not inside either room.")
+        return line, AVOID_TILE
+    return "", None
+
+
 def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, refs, light_dir=None, avoid=(), thru=()):
     R = RATIOS[ratio]
     room = view["room"]
@@ -2517,18 +2566,25 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
     tilt = ("camera level so vertical lines stay vertical" if abs(cam.pitch) < math.radians(3)
             else "camera tilted slightly down" if cam.pitch < 0 else "camera tilted slightly up")
     fin = view["finish"]
-    out = [COMMON_LOOK + " " + fin["details"], concept["mood"],
-           "Camera: {} photo, {:.0f} mm full-frame-equivalent lens, camera height {} cm, {}.".format(
-               R[4], cam.lens_mm, _cm(cam.z), tilt),
-           "Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
-               view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]),
-           ("Light: {}. {}".format(concept["light"], light_dir) if light_dir else
-            "Light: soft even light from the LED ceiling light, with a little daylight from the opening."),
-           "View: {}.".format(kind_txt)]
+    out = [COMMON_LOOK + " " + fin["details"]]
+    if not view.get("short_style"):
+        out.append(concept["mood"])
+    out.append("Camera: {} photo, {:.0f} mm full-frame-equivalent lens, camera height {} cm, {}.".format(
+        R[4], cam.lens_mm, _cm(cam.z), tilt))
+    out.append("Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
+        view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]))
+    if view.get("short_style"):
+        out.append("Light: {}.".format(light_dir) if light_dir else "Light: soft daylight.")
+    else:
+        out.append("Light: {}. {}".format(concept["light"], light_dir) if light_dir else
+                   "Light: soft even light from the LED ceiling light, with a little daylight from the opening.")
+    out.append("View: {}.".format(kind_txt))
     if ops:
         out.append("In view: " + "; ".join(ops) + ".")
     if view.get("kitchen"):
         out.append(view["kitchen"])
+    if view.get("entry_floor"):
+        out.append(view["entry_floor"])
     out.append("Furniture in frame, left to right (position, depth; W x D x H). Draw exactly these, at true scale:")
     out.extend(lines)
     # 소품은 적은 것만 놓인다. 「Small soft props only」 는 작은 소품을 더 지어 놓아도 된다는 말로 읽혀, 목록에 없는
@@ -2572,8 +2628,7 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
             rt.append("Reference image {} is a photo of the {} seen through the opening: draw that part of it to "
                       "match the photo (same furniture, appliances, finishes and props).".format(i, ref["label"]))
         elif ref["role"] == "sketch" and view.get("short_refs"):
-            rt.append("Reference image {} is this shot's massing sketch: it sets left, right, depth and how large "
-                      "the far wall is. Box colors are labels only.".format(i))
+            rt.append("Reference image {} is the massing sketch: left, right, and depth follow it.".format(i))
         elif ref["role"] == "sketch":
             legend = [txt for col, txt in OPENING_LEGEND if col in view.get("colors", ())]   # 스케치에 있는 색만
             rt.append("Reference image {} is a massing sketch of this exact view: match its perspective and each colored "
@@ -2968,6 +3023,23 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         for a in kavoids:
             if a not in avoid:
                 avoid.append(a)
+        eids = set()
+        if room.get("kind") == "entrance":
+            eids.add(room["id"])
+        for t in thru:
+            tr = ctx.rooms.get(t["room"])
+            if tr and tr.get("kind") == "entrance":
+                eids.add(t["room"])
+        vids = {v["it"]["id"] for v in vis}
+        for t in thru:
+            for it in t.get("items") or []:
+                vids.add(it["id"])
+        eline, eavoid = entry_floor_line(ctx, eids, vids)
+        if eline:
+            view["entry_floor"] = eline
+            if eavoid not in avoid:
+                avoid.append(eavoid)
+            checks.append("현관 타일 경계는 개구부 선이다. 옆방 안이나 현관 안쪽으로 밀리지 않는다")
         def _build():
             return build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
         prompt, fit_notes = _fit_prompt(s["id"], _build, view, thru)

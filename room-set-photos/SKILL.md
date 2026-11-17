@@ -126,6 +126,7 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 문간 너머에서 받침은 보이는데 그 위에 올린 품목(`on`)이 화면에 한 픽셀도 없으면, 같은 방과 같이 「stands on its top just out of frame」 을 적는다.
 싱크(`category: sink`)는 상판 윗면에 붙은 어두운 개구와 뒤쪽의 가는 수전으로 그린다. 볼이 상판 아래로 들어간 부피는 그리지 않는다. 범례에도 그 색이 들어간다.
 주방이 보이는 컷은 싱크 줄 위 상부장과 쿡탑 바로 위의 레인지후드를 적는다. `Avoid:` 에 `an open bare wall above the counter` 와 `a cooktop with no hood` 를 넣는다. 그 품목을 빼 둔 집(`kitchen.upper`·`kitchen.hood` 가 false)은 그 문장을 넣지 않는다.
+현관 바닥이 보이는 컷은 타일 구역과 경계를 적는다. 경계는 개구부 선이고, 그 선에 면이 닿은 가구가 화면에 있으면 「level with the front of …」 로 그 가구를 가리킨다. `Avoid:` 에 `tile boundary shifted into the kitchen/room or set back into the entry` 를 넣는다.
 그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
 모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
 그 방의 첫 전체 컷이

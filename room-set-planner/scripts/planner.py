@@ -717,8 +717,33 @@ def apply_kitchen_defaults(house):
     return house
 
 
+ENTRY_STEP_MM = 50  # 현관 단차 기본. 집마다 달라 실측이 아니면 가정이다.
+
+
+def apply_entry_floor(house):
+    """현관 바닥은 타일, 거실·주방보다 한 단 낮고, 경계는 현관 방 가장자리(옆방과 만나는 개구부 선)다."""
+    for r in house.get("rooms") or []:
+        if r.get("kind") != "entrance":
+            continue
+        floor = r.get("floor")
+        if floor is False:
+            continue
+        if isinstance(floor, str) and floor.strip():
+            continue
+        if isinstance(floor, dict):
+            if floor.get("tile") is False or floor.get("material") not in (None, "tile"):
+                continue
+            floor.setdefault("material", "tile")
+            floor.setdefault("step_mm", ENTRY_STEP_MM)
+            floor.setdefault("boundary", "room_edge")
+            continue
+        r["floor"] = {"material": "tile", "step_mm": ENTRY_STEP_MM, "boundary": "room_edge"}
+    return house
+
+
 def check(house):
     apply_kitchen_defaults(house)
+    apply_entry_floor(house)
     ctx = Ctx(house)
     H = house
     htype = H.get("type", "apartment")
@@ -1341,7 +1366,10 @@ def shell(spec):
 
 
 def _room(rid, kind, name, x, y, w, d):
-    return {"id": rid, "kind": kind, "name": name, "rect": [x, y, w, d]}
+    room = {"id": rid, "kind": kind, "name": name, "rect": [x, y, w, d]}
+    if kind == "entrance":
+        room["floor"] = {"material": "tile", "step_mm": ENTRY_STEP_MM, "boundary": "room_edge"}
+    return room
 
 
 def _shell_room(spec, notes):
