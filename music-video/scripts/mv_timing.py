@@ -7,9 +7,11 @@
   python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--shot-beats 4] [--offset 0] [--json]
   python3 mv_timing.py energy song.mp3 [--from 0] [--to 20] [--window-ms 50] [--jump-db 6]
   python3 mv_timing.py tempo  song.mp3 [--from 0] [--to 60] [--min 70] [--max 180]
-  python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--from 0] [--to 0] [--cols 6] [--width 320]
+  python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--bpm 130] [--offset 0] [--from 0] [--to 0] [--cols 6] [--width 320]
 
 시각은 모두 초(소수) 또는 ms 정수다. 곡 시각은 곡 파일 맨 앞이 0 이다.
+sheet 의 --bpm 은 칸마다 박 번호를 적는다(박 1 = --offset, 기본 0). --fps 0 이면
+한 박에 칸 하나(--bpm 필수, fps = bpm / 60). 기본 --fps 2 는 그대로다.
 """
 import argparse
 import json
@@ -191,10 +193,55 @@ def cmd_tempo(a):
     print("어림값이다. 곡을 만든 설정이나 악보의 BPM 이 있으면 그것을 쓰고, 이 값은 대조에만 쓴다.")
 
 
+def _sheet_fps(a):
+    """--fps 0 이면 한 박에 칸 하나(bpm / 60). 그 외는 주어진 fps."""
+    if a.fps < 0:
+        sys.exit("--fps 는 0 또는 양수여야 한다.")
+    if a.fps == 0:
+        if a.bpm is None or a.bpm <= 0:
+            sys.exit("--fps 0 은 한 박에 칸 하나이므로 --bpm 이 0 보다 커야 한다.")
+        return a.bpm / 60.0
+    return a.fps
+
+
+def _beat_number(t, bpm, offset):
+    """박 1 = offset, 박 n = offset + (n-1) * 60/bpm."""
+    beat = 60.0 / bpm
+    return int(math.floor((t - offset) / beat + 1e-9)) + 1
+
+
+def _find_font():
+    """drawtext 용 글꼴. 없으면 None."""
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _sheet_drawtext_filter(fps, width, cols, rows, start, offset, bpm, font):
+    """타일 전에 각 프레임에 `1.85s  b4` 꼴을 그리는 -vf 값. 글꼴 경로는 이미 확인된 것이다."""
+    escaped_font = font.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    beat = 60.0 / bpm
+    draw = (
+        "drawtext=fontfile='%s':fontcolor=white:fontsize=16:x=6:y=6:borderw=2:bordercolor=black:"
+        "text='%%{eif\\:t+%.6f\\:d}.%%{eif\\:mod(t+%.6f\\,1)*100\\:d\\:2}s  "
+        "b%%{eif\\:1+floor((t+%.6f-%.6f)/%.8f)\\:d}'"
+        % (escaped_font, start, start, start, offset, beat)
+    )
+    return "fps=%g,scale=%d:-2,%s,tile=%dx%d" % (fps, width, draw, cols, rows)
+
+
 def cmd_sheet(a):
     _need_ffmpeg()
     if os.path.exists(a.out):
         sys.exit("%s 가 이미 있다. 다른 이름을 준다." % a.out)
+    fps = _sheet_fps(a)
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", a.path],
                            capture_output=True, text=True)
     try:
@@ -203,17 +250,43 @@ def cmd_sheet(a):
         sys.exit("영상 길이를 못 읽었다: %s" % probe.stderr.strip()[-200:])
     end = a.end if a.end else duration
     span = max(0.0, end - a.start)
-    count = max(1, int(math.floor(span * a.fps + 1e-6)))
+    count = max(1, int(math.floor(span * fps + 1e-6)))
     rows = int(math.ceil(count / float(a.cols)))
-    cmd = ["ffmpeg", "-v", "error", "-nostdin", "-y", "-ss", "%.3f" % a.start, "-t", "%.3f" % span, "-i", a.path,
-           "-vf", "fps=%g,scale=%d:-2,tile=%dx%d" % (a.fps, a.width, a.cols, rows), "-frames:v", "1", a.out]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    times = [a.start + i / fps for i in range(count)]
+    tiled = "fps=%g,scale=%d:-2,tile=%dx%d" % (fps, a.width, a.cols, rows)
+    drew_text = False
+    # --bpm 이 있을 때만 칸 위에 시각·박 번호를 겹친다. 없으면 예전과 같은 격자만 만든다.
+    vf = tiled
+    if a.bpm and a.bpm > 0:
+        font = _find_font()
+        if font:
+            vf = _sheet_drawtext_filter(fps, a.width, a.cols, rows, a.start, a.offset, a.bpm, font)
+    def _run_vf(vf_value):
+        cmd = ["ffmpeg", "-v", "error", "-nostdin", "-y", "-ss", "%.3f" % a.start, "-t", "%.3f" % span,
+               "-i", a.path, "-vf", vf_value, "-frames:v", "1", a.out]
+        return subprocess.run(cmd, capture_output=True, text=True)
+
+    proc = _run_vf(vf)
+    if proc.returncode != 0 and vf != tiled:
+        if os.path.exists(a.out):
+            os.remove(a.out)
+        proc = _run_vf(tiled)
+        vf = tiled
     if proc.returncode != 0:
         sys.exit("ffmpeg 실패: %s" % proc.stderr.strip()[-400:])
+    drew_text = vf != tiled
     print("%s  (%d칸, %d열 x %d행, 왼쪽 위부터 가로로 읽는다)" % (a.out, count, a.cols, rows))
-    for i in range(count):
-        t = a.start + i / a.fps
-        print("  칸 %2d (행 %d, 열 %d) = %.3f초" % (i, i // a.cols + 1, i % a.cols + 1, t))
+    if a.fps == 0:
+        print("한 박에 칸 하나 (fps = %.4f, BPM %.3f)" % (fps, a.bpm))
+    if a.bpm and a.bpm > 0:
+        print("박 1 = %.3f초, 한 박 = %.3f초" % (a.offset, 60.0 / a.bpm))
+        if not drew_text:
+            print("칸 위 시각·박 번호는 그리지 못했다(drawtext 또는 글꼴 없음). 박 번호는 아래에만 적는다.")
+    for i, t in enumerate(times):
+        extra = ""
+        if a.bpm and a.bpm > 0:
+            extra = "  박 %d" % _beat_number(t, a.bpm, a.offset)
+        print("  칸 %2d (행 %d, 열 %d) = %.3f초%s" % (i, i // a.cols + 1, i % a.cols + 1, t, extra))
 
 
 def main():
@@ -250,7 +323,11 @@ def main():
     s = sub.add_parser("sheet", help="영상을 칸 격자 한 장으로 만들고 칸마다 시각을 적는다")
     s.add_argument("path")
     s.add_argument("out")
-    s.add_argument("--fps", type=float, default=2.0)
+    s.add_argument("--fps", type=float, default=2.0,
+                   help="초당 칸 수. 0 이면 한 박에 칸 하나(--bpm 필수, fps = bpm / 60). 기본 2")
+    s.add_argument("--bpm", type=float, default=None,
+                   help="있으면 칸마다 박 번호를 적는다. 박 1 = --offset")
+    s.add_argument("--offset", type=float, default=0.0, help="박 1 이 되는 시각(초). 기본 0")
     s.add_argument("--from", dest="start", type=float, default=0.0)
     s.add_argument("--to", dest="end", type=float, default=0.0, help="0 이면 끝까지")
     s.add_argument("--cols", type=int, default=6)
