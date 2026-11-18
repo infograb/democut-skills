@@ -79,8 +79,8 @@ on the downbeat, feet visible: they spread out into a V formation.
   보이고 눈 위가 잘리지 않는다. `high-angle shot looking down, she lifts her head up to the lens while singing`.
 - **노래 직전 앵글 하드 컷:** 노래 직전에 카메라를 하이 앵글 같은 새 앵글로 박에 맞춰 하드 컷한다. 인물은 반 박
   늦게 그 카메라를 쳐다보며 부르기 시작한다(130 BPM 이면 약 0.23초). 입모양은 카메라 문장에 모음을 한 덩어리로
-  적지 않는다. '아이 어어어' 같은 나열은 사람에게 설명할 때만 쓰고, 프롬프트에는 음절마다 `"다" = 아` 꼴의
-  MOUTH MAP 한 블록을 둔다([`democut-mv.md`](democut-mv.md) 「한국어 가사의 입모양」).
+  적지 않는다. 프롬프트에는 단어·구의 시작과 끝만 적은 MOUTH MAP 한 블록을 둔다
+  ([`democut-mv.md`](democut-mv.md) 「한국어 가사의 입모양」).
   `HARD CUT on the beat to a new angle just before the singing starts; half a beat later she looks into the new camera`.
 - **전환 중에도 안무는 이어진다:** 장면이 바뀌거나 구조물이 생기는 동안 군무를 멈추지 않는다. 첫 포즈를 잡은 채
   전환이 끝나길 기다리지 않는다. 전환 구간의 박마다 발·손 동작을 따로 적는다. 검수 때 한 포즈로 얼어 있으면 실패다.

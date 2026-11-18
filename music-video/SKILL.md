@@ -142,7 +142,7 @@ python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-be
 하이 앵글, 정해진 각도의 패닝, 디테일 클로즈업에서 빠르게 빠지기, 핸드헬드, 블러 없는 아크 같은 구도는
 [`references/camera-moves.md`](references/camera-moves.md)의 레시피를 쓴다. 노래 직전에는 새 앵글(하이 앵글 등)로
 박에 맞춰 하드 컷하고, 인물은 반 박 늦게 그 카메라를 본다. 한국어 입모양은
-[`references/democut-mv.md`](references/democut-mv.md) 「한국어 가사의 입모양」의 음절별 MOUTH MAP 으로 적는다.
+[`references/democut-mv.md`](references/democut-mv.md) 「한국어 가사의 입모양」의 단어·구 MOUTH MAP 으로 적는다.
 사람이 정한 카메라 연출은 그 컷의 고정 조건이다. 초안을 줄이더라도 앵글을 '정면 또는 하이 앵글'처럼 약하게 바꾸지
 않는다. 고정 카메라는 정지 포즈처럼 멈춰 있어야 한다고 정한 장면에만 쓴다. 입을 맞추는 단독샷도 하이 앵글이나
 패닝이 확정이면 그 구도를 지킨다. 장면이 바뀌거나 구조물이 생기는 동안 안무를 멈추지 않는다. 전환 중 한 포즈로

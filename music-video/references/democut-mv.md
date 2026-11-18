@@ -128,24 +128,30 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 
 받침이 ㅁ·ㅂ·ㅍ 인 음절만, 그 박의 끝에서 입을 잠깐 다문다(`brief lip close at the end of the beat`).
 
-프롬프트에서는 음절과 모음을 하나씩 짝짓는다(`"다" = 아`). '아이 어어어'처럼 모음을 한 덩어리로 적지 않는다.
-그 나열은 사람에게 설명할 때만 쓴다.
+모음은 음절마다 고르되, 프롬프트의 MOUTH MAP 은 단어나 구로 묶는다. 음절마다 시각을 주면 모델은
+음절을 떼어 끊어서 발음한다. 짧은 말은 박보다 앞서고, 긴 말은 음절마다 잘려 화면보다 늦는다.
+실측: 「다시」는 빨랐고, 「일어서」는 음절마다 잘려 늦었다.
 
-방향은 긍정형으로 적는다. 박마다 `시각 "음절" = 모음, 모양` 이다. 크기는 긍정 낱말로 준다
-(`small relaxed jaw`, `soft`, `slightly`). 쉬는 박은 일어나는 일로 적는다(`lips rest lightly together`).
-부정 문장은 블록 맨 끝 한 줄만 둔다(`Avoid only a wide jaw.`). 금지를 반복하면 피해야 할 모양이 강조되고
-`image_prompt` 약 4,000자 한도를 낭비한다.
+구의 시작은 실제 소리의 onset 이고, 구의 끝(마지막 모음이 앉고 입이 닫히는 자리)은 그 박에 떨어진다.
+음절별 시각은 검수표에만 두고 프롬프트에 넣지 않는다. 이어지는 음절이 같은 모음이면(일·어·서 = 어)
+입을 음절마다 여닫지 않고, 한 번 벌린 채 살짝만 움직인다.
+
+방향은 긍정형으로 적는다. 구마다 시작과 끝만 주고, 안은 이어지는 모음 흐름이다
+(`sung smoothly as one phrase, legato, like a real singer`). 크기는 긍정 낱말로 준다
+(`small relaxed jaw`, `soft`, `slightly`). 다음 가사부터는 `lips stay together` 로 적는다.
+부정 문장은 블록 맨 끝 한 줄만 둔다(`Avoid only syllable-by-syllable chopping.`).
+금지를 반복하면 피해야 할 모양이 강조되고 `image_prompt` 약 4,000자 한도를 낭비한다.
+'아이 어어어'처럼 모음만 한 덩어리로 나열하는 것은 사람에게 설명할 때 쓴다.
 
 ```text
 MOUTH MAP:
-<컷 시각> "다" = 아, small relaxed open jaw
-<컷 시각> "미" = 이, lips slightly spread
-<컷 시각> "밤" = 아, small relaxed open jaw, brief lip close at the end of the beat
-<컷 시각> lips rest lightly together
-Avoid only a wide jaw.
+<시작>–<끝> "<단어>" = <모음 흐름>, one quick connected word, sung smoothly as one phrase, legato, like a real singer
+<시작>–<끝> "<구>" = <모음>, one smooth legato phrase flowing into the beat, the mouth holds one opening with a slight movement
+<컷 시각> lips stay together
+Avoid only syllable-by-syllable chopping.
 ```
 
-위 블록은 적는 꼴만 보인다. 시각은 아래처럼 실제 소리에서 잰 컷 시각이고, 박 칸을 눈대중으로 채운 값이 아니다.
+위 블록은 적는 꼴만 보인다. 시각은 아래 실측처럼 실제 소리에서 잰 컷 시각이고, 박 칸을 눈대중으로 채운 값이 아니다.
 
 카메라 문장은 그 줄에서 확정한 구도를 그대로 적는다. 하이 앵글이면 정면 고정의 예로 바꾸지 않는다.
 입 문장은 위의 MOUTH MAP 한 블록이고, 카메라 문장 안에 다시 적지 않는다.
@@ -156,7 +162,7 @@ Camera: high-angle shot looking down, she lifts her head up to the lens while si
 body visible, nothing cropped above the eyes.
 On the beat the camera pans about 45 degrees to the right, bringing the members who handed her the prop into
 the same frame.
-MOUTH MAP: the single block for this shot, in the per-syllable form above.
+MOUTH MAP: the single block for this shot, one phrase at a time, in the form above.
 She keeps a light body sway on the beat while singing.
 ```
 
@@ -183,16 +189,27 @@ onset·에너지와 듣기로 잰다.
 
 실패(실측): 「다시 일어서」의 박 칸을 눈대중으로 채워(4.62·4.85·5.31) 「일」이 불리는 박을 쉼으로 적었다.
 「일」과 「어」가 반 박 늦어, 화면에서는 「일」인 동안 이미 다른 모음이었고 「서」 뒤에 음절이 하나 더 있는 것처럼 보였다.
-실측한 컷 시각은 아래다.
+음절마다 시각을 준 프롬프트에서는 「다시」가 박보다 앞서고, 「일어서」가 음절마다 잘려 화면보다 늦었다.
+
+프롬프트에 넣는 MOUTH MAP 은 구의 시작과 끝만 적는다.
 
 ```text
-4.68s "다" = 아, small relaxed open jaw
-4.91s "시" = 이, lips slightly spread
-5.14s "일" = 어, small rounded opening
-5.37s "어" = 어, small rounded opening
-5.83s "서" = 어, small rounded opening, through 6.06s
+4.68–5.05 "다시" = 아→이, one quick connected word, sung smoothly as one phrase, legato, like a real singer
+5.14–6.06 "일어서" = 어, one smooth legato phrase flowing into the beat, the mouth holds one opening with a slight movement
 6.21s lips stay together
+Avoid only syllable-by-syllable chopping.
 ```
+
+음절 시각은 검수표다. 프롬프트에 넣지 않는다.
+
+| 음절 | 모음 | 컷 시각 |
+|---|---|---|
+| 다 | 아 | 4.68 |
+| 시 | 이 | 4.91 |
+| 일 | 어 | 5.14 |
+| 어 | 어 | 5.37 |
+| 서 | 어 | 5.83–6.06 |
+| 다음 가사 | lips stay together | 6.21부터 |
 
 #### 모델이 만든 소리
 
