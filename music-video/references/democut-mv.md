@@ -97,7 +97,7 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 
 | 립싱크 칸 | 화면 | 프롬프트에 넣는 것 |
 |---|---|---|
-| 멤버 이름 | 그 멤버 한 명만 나오는 단독샷. 얼굴을 크게 잡는다 | 아래 입 문장 |
+| 멤버 이름 | 그 멤버 한 명만 나오는 단독샷. 얼굴을 크게 잡는다 | 아래 MOUTH MAP 한 블록 |
 | 없음 | 단체샷이면 아무도 노래하지 않고 입을 다문 채 안무만 한다. 노래하지 않는 다른 장면(분신·소품, 넓은 샷)이어도 된다 | `nobody sings, every mouth stays closed` |
 
 - 한 단체샷 안에서 입을 맞추게 하지 않는다. 여럿이 함께 부르는 줄(후렴 구호 등)의 입을 보이려면 줄을 나눠
@@ -105,23 +105,58 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 - 단체샷에서 부르지 않는 멤버에게 입을 다물라고 적었는데도 그 멤버가 입을 벌린 프레임이 나왔다(한 번).
   입 다문 단체샷도 만든 뒤 「5. 확인과 자르기」의 확인용 파일로 입을 본다.
 
-입 문장(단독샷의 예. 멤버 자리와 가사는 그 줄의 것으로 바꾼다). 입을 크게 벌려 음절마다 또렷하게 맞추라고 적지 않는다.
-작고 자연스럽게 따라 부르는 정도로 적는다. 가사 음절과 박 위치(초, 단어 시각으로 잰 값)를 적는다.
-노래하는 동안에도 몸은 박에 맞춰 가볍게 흔들고, 마지막 음절은 그 박에 딱 맞춰 끝낸 뒤 입을 다문다.
+입 문장은 아래 MOUTH MAP 한 블록만 넣는다. 가사 음절과 박 위치(초, 단어 시각으로 잰 값)를 적는다.
+노래하는 동안에도 몸은 박에 맞춰 가볍게 흔든다.
 노래 구간 전에 동작을 너무 많이 넣으면 모델이 입을 늦게 열고 몰아 부른다. 노래 직전 동작은 줄인다.
-노래 직전에 새 앵글로 하드 컷하는 줄은, 인물이 반 박 늦게 그 카메라를 보게 하고 입모양은 그 구절의 모음만
-작게 적는다. 구도는 [`camera-moves.md`](camera-moves.md) 「노래 직전 앵글 하드 컷」.
+노래 직전에 새 앵글로 하드 컷하는 줄은, 인물이 반 박 늦게 그 카메라를 본다. 구도는
+[`camera-moves.md`](camera-moves.md) 「노래 직전 앵글 하드 컷」. 입은 그 구도의 문장에 다시 적지 않고 MOUTH MAP 을 가리킨다.
 
-카메라 문장은 그 줄에서 확정한 구도를 그대로 적는다. 하이 앵글이면 정면 고정의 예로 바꾸지 않는다.
+#### 한국어 가사의 입모양 (MOUTH MAP)
+
+영상 모델은 한글 음절의 자음과 받침을 조음하지 못한다. 자음과 받침은 빼고, 음절마다 핵심 모음 하나만 입모양으로 적는다.
+이 대응은 이 블록에만 둔다. 프롬프트의 다른 곳과 다른 문서에서는 이 절을 가리키고 표를 다시 적지 않는다.
+
+| 모음 | 적는 모양 | 입 |
+|---|---|---|
+| ㅏ · ㅑ · ㅘ | 아 | small relaxed open jaw |
+| ㅣ · ㅟ · ㅢ | 이 | lips slightly spread |
+| ㅓ · ㅕ · ㅝ | 어 | small rounded opening |
+| ㅗ · ㅛ | 오 | rounded lips |
+| ㅜ · ㅠ | 우 | pursed lips |
+| ㅡ | 으 | nearly closed, lips spread |
+| ㅐ · ㅔ · ㅒ · ㅖ | 에 | slightly open, lips spread |
+
+받침이 ㅁ·ㅂ·ㅍ 인 음절만, 그 박의 끝에서 입을 잠깐 다문다(`brief lip close at the end of the beat`).
+
+프롬프트에서는 음절과 모음을 하나씩 짝짓는다(`"다" = 아`). '아이 어어어'처럼 모음을 한 덩어리로 적지 않는다.
+그 나열은 사람에게 설명할 때만 쓴다.
+
+방향은 긍정형으로 적는다. 박마다 `시각 "음절" = 모음, 모양` 이다. 크기는 긍정 낱말로 준다
+(`small relaxed jaw`, `soft`, `slightly`). 쉬는 박은 일어나는 일로 적는다(`lips rest lightly together`).
+부정 문장은 블록 맨 끝 한 줄만 둔다(`Avoid only a wide jaw.`). 금지를 반복하면 피해야 할 모양이 강조되고
+`image_prompt` 약 4,000자 한도를 낭비한다.
 
 ```text
-Solo shot, only one performer in frame: the CENTER member alone. She lip-syncs on the beat to the lyrics,
-natural small mouth movements, not exaggerated or over-enunciated.
+MOUTH MAP:
+0.92s "다" = 아, small relaxed open jaw
+1.38s "미" = 이, lips slightly spread
+1.85s "밤" = 아, small relaxed open jaw, brief lip close at the end of the beat
+2.31s lips rest lightly together
+Avoid only a wide jaw.
+```
+
+시각은 그 줄의 단어 시각이다. 위 음절은 형식을 보이는 중립 예이고, 실제 프롬프트에는 그 줄의 가사를 음절마다 넣는다.
+
+카메라 문장은 그 줄에서 확정한 구도를 그대로 적는다. 하이 앵글이면 정면 고정의 예로 바꾸지 않는다.
+입 문장은 위의 MOUTH MAP 한 블록이고, 카메라 문장 안에 다시 적지 않는다.
+
+```text
+Solo shot, only one performer in frame: the CENTER member alone.
 Camera: high-angle shot looking down, she lifts her head up to the lens while singing, her full face and upper
 body visible, nothing cropped above the eyes.
 On the beat the camera pans about 45 degrees to the right, bringing the members who handed her the prop into
 the same frame.
-0.92s syllable <…>, 1.38s syllable <…>, last syllable ends on its beat, then the mouth closes.
+MOUTH MAP: the single block for this shot, in the per-syllable form above.
 She keeps a light body sway on the beat while singing.
 ```
 
@@ -171,6 +206,9 @@ HARD CUT at 6.46s. Shot 8, 6.46-7.30s, frontal wide shot: <동작>, holding the 
 4. 고정 문단: `CLEAR MEMBER POSITIONS locked: CENTER = …; LEFT = …; RIGHT = …`
 5. 공통 끝 문장: `Motion timed to the beat of the attached music reference, photorealistic adults, no on-screen text
    no logos no watermarks, no real celebrity likeness`(곡 없는 컷은 첫 구를 빼고 소리 문장을 넣는다)
+
+입을 맞추는 단독샷의 입 문장은 「한국어 가사의 입모양」 MOUTH MAP 블록 하나다. 카메라 문장이나 끝 문장에 입모양을
+다시 적지 않는다.
 
 ## 모델 고르기
 

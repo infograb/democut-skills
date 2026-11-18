@@ -78,9 +78,10 @@ on the downbeat, feet visible: they spread out into a V formation.
 - **하이 앵글 노래 컷:** 인물보다 위에서 내려다보고, 인물은 고개를 들어 카메라를 보며 부른다. 얼굴 전체와 상반신이
   보이고 눈 위가 잘리지 않는다. `high-angle shot looking down, she lifts her head up to the lens while singing`.
 - **노래 직전 앵글 하드 컷:** 노래 직전에 카메라를 하이 앵글 같은 새 앵글로 박에 맞춰 하드 컷한다. 인물은 반 박
-  늦게 그 카메라를 쳐다보며 부르기 시작한다(130 BPM 이면 약 0.23초). 입모양은 그 구절의 모음을 작은 모양으로
-  적는다. 자음을 크게 벌리라고 적지 않는다. `HARD CUT on the beat to a new angle just before the singing starts;
-  half a beat later she looks into the new camera and sings with small vowel mouth shapes`.
+  늦게 그 카메라를 쳐다보며 부르기 시작한다(130 BPM 이면 약 0.23초). 입모양은 카메라 문장에 모음을 한 덩어리로
+  적지 않는다. '아이 어어어' 같은 나열은 사람에게 설명할 때만 쓰고, 프롬프트에는 음절마다 `"다" = 아` 꼴의
+  MOUTH MAP 한 블록을 둔다([`democut-mv.md`](democut-mv.md) 「한국어 가사의 입모양」).
+  `HARD CUT on the beat to a new angle just before the singing starts; half a beat later she looks into the new camera`.
 - **전환 중에도 안무는 이어진다:** 장면이 바뀌거나 구조물이 생기는 동안 군무를 멈추지 않는다. 첫 포즈를 잡은 채
   전환이 끝나길 기다리지 않는다. 전환 구간의 박마다 발·손 동작을 따로 적는다. 검수 때 한 포즈로 얼어 있으면 실패다.
 - **패닝으로 함께 담기:** 주인공에서 정한 방향으로 약 45도처럼 각도를 숫자로 적어 박에 맞춰 패닝하고, 관련 인물(소품을
@@ -130,7 +131,7 @@ existing walls` 를 넣는다.
 | 박에 빼기 | `0.92-1.85s pulls back out to full-body wide, feet visible, landing on the next downbeat` | 대형이 드러나는 박, 이동이 시작하는 박 |
 | 핸드헬드 앞뒤 무빙 | `handheld camera rhythmically pushes in and pulls back, no motion blur, sharp landing frames` | 핸드헬드가 확정된 군무 컷 |
 | 하이 앵글 노래 | `high-angle shot looking down, she lifts her head up to the lens while singing` | 부르는 단독·중심 샷이 하이 앵글로 확정된 줄 |
-| 노래 직전 앵글 하드 컷 | `HARD CUT on the beat to a new angle just before the singing starts; half a beat later she looks into the new camera and sings with small vowel mouth shapes` | 노래가 시작하기 직전. 새 앵글이 확정된 줄 |
+| 노래 직전 앵글 하드 컷 | `HARD CUT on the beat to a new angle just before the singing starts; half a beat later she looks into the new camera` | 노래가 시작하기 직전. 새 앵글이 확정된 줄. 입은 MOUTH MAP 한 블록 |
 | 각도를 적은 패닝 | `on the beat the camera pans about 45 degrees to the right, bringing the other members into the same frame` | 관련 인물을 같은 화면에 넣어야 하는 줄. 방향·각도·박을 숫자로 적는다 |
 | 디테일에서 빠른 풀아웃 | `opens on a close-up of the shoes (or hands), the dance already in progress, then pulls out within about two beats to a head-to-toe full shot, landing on the downbeat` | 클로즈업으로 시작하는 군무. 카메라가 빠질 때까지 기다리지 않는다 |
 | 정면 고정 | `locked-off frontal shot, static, eye level` | 멈춰 있어야 한다고 *정한* 정지 포즈. 입을 맞추는 샷의 기본값은 아니다 |
