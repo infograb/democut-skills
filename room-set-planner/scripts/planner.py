@@ -59,6 +59,8 @@ CAT = {
     "shoe_cabinet": dict(label="신발장", wall=True, front=(600, 750)),
     "toilet": dict(label="변기", wall=True, front=(600, 700)),
     "washbasin": dict(label="세면대", wall=True, front=(600, 750)),
+    "towel_bar": dict(label="수건걸이", wall=True),
+    "towel_holder": dict(label="수건걸이", wall=True),
     "shower": dict(label="샤워부스", front=(600, 700)),
     "bathtub": dict(label="욕조", wall=True, front=(600, 700)),
     "chair": dict(label="의자"),
@@ -360,11 +362,18 @@ class Ctx:
                 X, Y = x1 - gap - fw, y0 + off
         else:
             X, Y = x0 + p.get("x", 0), y0 + p.get("y", 0)
-        return dict(rect=(X, Y, X + fw, Y + fd), facing=facing, h=size.get("h", 0), z=it.get("z", 0))
+        return dict(rect=(X, Y, X + fw, Y + fd), facing=facing, h=size.get("h", 0), z=_z_of(it))
 
 
 def label_of(it):
     return it.get("label") or CAT.get(it.get("category"), CAT["other"])["label"]
+
+
+def mount_txt(it):
+    """수건걸이의 설치 높이. 인벤토리·도면 툴팁에 붙인다."""
+    if is_towel(it) and _num(it.get("z")) and it["z"] > 0:
+        return " · 설치 {}".format(fmt(it["z"]))
+    return ""
 
 
 def _bowl_mm(it):
@@ -407,12 +416,18 @@ def on_chain(ctx, it):
     return out
 
 
+def _z_of(it):
+    """바닥에서 띄운 높이. 숫자가 아니면 0(설치 높이를 안 적은 것)."""
+    z = it.get("z", 0) if isinstance(it, dict) else 0
+    return z if _num(z) else 0
+
+
 def is_obstacle(it):
     if it.get("on") or it.get("with"):
         return False
     if CAT.get(it.get("category"), {}).get("floor"):
         return False
-    return it.get("z", 0) < WALL_MOUNT_Z
+    return _z_of(it) < WALL_MOUNT_Z
 
 
 def side_axis(rect, side):
@@ -801,6 +816,224 @@ def apply_entry_floor(house):
     return house
 
 
+# 수건걸이. 봉 크기와 설치 높이는 자리용 가정이다(판단). 제품 실측·가격이 아니다.
+# 설치 높이 1300 은 세면대(약 850)보다 위이고, 1200 이상이라 바닥 동선을 막지 않는다.
+TOWEL_CATS = ("towel_bar", "towel_holder")
+TOWEL_SIZE = {"w": 600, "d": 80, "h": 40}
+TOWEL_Z = 1300
+TOWEL_GAP = 80
+# 문 벽의 시작·끝 모서리가 만나는 옆 벽, 그리고 그 벽에서 모서리가 시작인지 끝인지
+_TOWEL_CORNER = {
+    ("n", "start"): ("w", "start"), ("n", "end"): ("e", "start"),
+    ("e", "start"): ("n", "end"), ("e", "end"): ("s", "end"),
+    ("s", "start"): ("w", "end"), ("s", "end"): ("e", "end"),
+    ("w", "start"): ("n", "start"), ("w", "end"): ("s", "start"),
+}
+_TOWEL_MSG = {
+    "towel_wall": "벽(place.wall)이 없다",
+    "towel_pos": "좌표가 없다 — place.offset(또는 offset_end)",
+    "towel_height": "설치 높이(z, mm)가 없다",
+    "towel_size": "크기(size.w·d·h)가 없다",
+}
+
+
+def is_towel(it):
+    c = str((it or {}).get("category") or "").strip().lower().replace("-", "_")
+    return c in TOWEL_CATS
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _along(room, wall):
+    w, d = room["rect"][2], room["rect"][3]
+    return w if wall in "ns" else d
+
+
+def _fits_towel(room, wall, offset, bar_w):
+    return wall in OPP and _num(offset) and offset >= -1 and offset + bar_w <= _along(room, wall) + 1
+
+
+def _corner_spot(room, wall, which, bar_w):
+    side, at = _TOWEL_CORNER[(wall, which)]
+    along = _along(room, side)
+    margin = 40
+    off = margin if at == "start" else along - bar_w - margin
+    if _fits_towel(room, side, off, bar_w):
+        return side, int(round(off))
+    return None
+
+
+def _spot_beside(room, wall, off, span, bar_w):
+    """wall 에서 off 부터 span 만큼 차지한 것(세면대·문) 바로 옆. 그 벽에 안 되면 가까운 모서리의 옆 벽."""
+    if not _num(off):
+        off = 0
+    if not _num(span) or span < 0:
+        span = 0
+    along = _along(room, wall)
+    after = off + span + TOWEL_GAP
+    if _fits_towel(room, wall, after, bar_w):
+        return wall, int(round(after))
+    before = off - TOWEL_GAP - bar_w
+    if _fits_towel(room, wall, before, bar_w):
+        return wall, int(round(before))
+    mid = off + span / 2.0
+    return _corner_spot(room, wall, "end" if mid >= along / 2.0 else "start", bar_w)
+
+
+def _along_offset(room, wall, off, span):
+    if off == "center":
+        return max((_along(room, wall) - span) / 2.0, 0)
+    return off if _num(off) else None
+
+
+def _basin_span(room, items):
+    for it in items or []:
+        if it.get("room") != room["id"] or it.get("category") != "washbasin":
+            continue
+        p = it.get("place") or {}
+        wall = p.get("wall")
+        if wall not in OPP:
+            continue
+        bw = (it.get("size") or {}).get("w") or 500
+        off = _along_offset(room, wall, p.get("offset", 0), bw)
+        if off is None:
+            continue
+        return wall, off, bw
+    return None
+
+
+def _door_span(room, openings):
+    rid = room["id"]
+    for o in openings or []:
+        if o.get("type") not in ("door", "sliding"):
+            continue
+        width = o.get("width") or 700
+        if o.get("room") == rid and o.get("wall") in OPP:
+            off = _along_offset(room, o["wall"], o.get("offset", 0), width)
+            if off is None:
+                continue
+            return o["wall"], off, width
+        if o.get("to") == rid and OPP.get(o.get("wall")):
+            # 맞은편 방에서 낸 문. 이 방의 벽 이름은 반대고, 오프셋은 그쪽 벽 기준이라 모서리 쪽에 둔다
+            return OPP[o["wall"]], 0, width
+    return None
+
+
+def towel_spot(room, openings, items):
+    """수건걸이를 붙일 (wall, offset, why). why 는 basin 또는 door. 둘 자리가 없으면 None."""
+    bar_w = TOWEL_SIZE["w"]
+    basin = _basin_span(room, items)
+    if basin:
+        spot = _spot_beside(room, basin[0], basin[1], basin[2], bar_w)
+        if spot:
+            return spot[0], spot[1], "basin"
+    door = _door_span(room, openings)
+    if door:
+        spot = _spot_beside(room, door[0], door[1], door[2], bar_w)
+        if spot:
+            return spot[0], spot[1], "door"
+    for wall in "nsew":
+        if _fits_towel(room, wall, 40, bar_w):
+            return wall, 40, "door"
+    return None
+
+
+def _towel_item(room, wall, offset):
+    return {
+        "id": room["id"] + "_towel",
+        "room": room["id"],
+        "category": "towel_bar",
+        "label": "수건걸이",
+        "label_en": "towel bar",
+        "name": "수건걸이",
+        "size": dict(TOWEL_SIZE),
+        "place": {"wall": wall, "offset": int(round(offset))},
+        "z": TOWEL_Z,
+        "placeholder": True,
+        "look": "a straight chrome towel bar mounted on the wall",
+    }
+
+
+def apply_bathroom_defaults(house):
+    """화장실에 수건걸이가 없으면 세면대 옆, 없으면 문 옆에 벽걸이 봉을 넣는다.
+    이미 항목이 있으면 고치지 않는다. 가격은 넣지 않는다. 제품은 오늘의집 고르기에서 정한다."""
+    items = house.setdefault("items", [])
+    notes = None
+    for room in house.get("rooms") or []:
+        if room.get("kind") != "bathroom" or "rect" not in room:
+            continue
+        if any(is_towel(it) and it.get("room") == room["id"] for it in items):
+            continue
+        spot = towel_spot(room, house.get("openings") or [], items)
+        if not spot:
+            continue
+        wall, offset, why = spot
+        item = _towel_item(room, wall, offset)
+        ids = {it.get("id") for it in items}
+        n = 2
+        while item["id"] in ids:
+            item["id"] = "{}_towel{}".format(room["id"], n)
+            n += 1
+        items.append(item)
+        if notes is None:
+            notes = house.setdefault("meta", {}).setdefault("notes", [])
+        where = "세면대 옆" if why == "basin" else "문 옆"
+        extra = "" if why == "basin" else " 세면대를 놓으면 그 옆으로 옮긴다."
+        sz = item["size"]
+        notes.append(
+            "{} 수건걸이는 {} {} 벽, 좌표 {}mm, 설치 높이 {}mm 로 두었다(크기 {}×{}×{}).{}"
+            " 제품·가격은 오늘의집에서 고른다.".format(
+                room.get("name") or "화장실", where, SIDE_KO[wall], item["place"]["offset"], item["z"],
+                sz["w"], sz["d"], sz["h"], extra))
+    return house
+
+
+def _towel_missing(it):
+    """빠진 칸의 코드. 벽·좌표·설치 높이·크기가 다 있으면 빈 목록."""
+    place = it.get("place") if isinstance(it.get("place"), dict) else {}
+    out = []
+    wall = place.get("wall")
+    if wall not in OPP:
+        out.append("towel_wall")
+    off_ok = ("offset_end" in place and _num(place.get("offset_end"))) or (
+        "offset" in place and (place.get("offset") == "center" or _num(place.get("offset"))))
+    if not off_ok:
+        out.append("towel_pos")
+    z = it.get("z") if "z" in it else None
+    if not _num(z) or z <= 0:
+        out.append("towel_height")
+    sz = it.get("size") if isinstance(it.get("size"), dict) else {}
+    if not all(_num(sz.get(k)) and sz.get(k) > 0 for k in ("w", "d", "h")):
+        out.append("towel_size")
+    return out
+
+
+def _check_towels(ctx):
+    by_room = {}
+    for it in ctx.h.get("items") or []:
+        if is_towel(it):
+            by_room.setdefault(it.get("room"), []).append(it)
+    for room in ctx.rooms.values():
+        if room.get("kind") != "bathroom":
+            continue
+        got = by_room.get(room["id"]) or []
+        if not got:
+            ctx.add("error", "no_towel",
+                    "{} 에 수건걸이가 없다. 벽(place.wall)·좌표(place.offset)·설치 높이(z)·크기(size.w·d·h)를 적는다. "
+                    "세면대 옆이나 문 옆에 둔다(예: 폭 {}·깊이 {}·높이 {}, 설치 높이 {}). "
+                    "틀이 만든 집은 이미 넣어 둔다. 제품 가격은 오늘의집에서 고를 때 적는다.".format(
+                        ctx.rname(room["id"]), TOWEL_SIZE["w"], TOWEL_SIZE["d"], TOWEL_SIZE["h"], TOWEL_Z))
+            continue
+        for it in got:
+            missing = _towel_missing(it)
+            iid = it.get("id")
+            nm = "{}({})".format(it.get("label") or "수건걸이", iid)
+            for code in missing:
+                ctx.add("error", code, "{}: 수건걸이 — {}".format(nm, _TOWEL_MSG[code]), [iid])
+
+
 def check(house):
     apply_kitchen_defaults(house)
     apply_entry_floor(house)
@@ -857,6 +1090,8 @@ def check(house):
             ctx.add("warning", "door_narrow", "화장실 문({}) 폭 {}mm (보통 700~800)".format(o["id"], fmt(w)), [o["id"]])
         elif "bedroom" in kinds and w < 750:
             ctx.add("warning", "door_narrow", "방문({}) 폭 {}mm — 침대·옷장 반입이 빠듯하다(보통 800~900)".format(o["id"], fmt(w)), [o["id"]])
+
+    _check_towels(ctx)
 
     obstacles = [(it, ctx.geo[it["id"]]) for it in ctx.items if is_obstacle(it)]
 
@@ -1315,7 +1550,7 @@ def cmd_inventory(args):
         for n, it in items:
             prod = it.get("product") or {}
             s = it.get("size", {})
-            dims = "{}×{}×{}".format(fmt(s.get("w", 0)), fmt(s.get("d", 0)), fmt(s.get("h", 0)))
+            dims = "{}×{}×{}{}".format(fmt(s.get("w", 0)), fmt(s.get("d", 0)), fmt(s.get("h", 0)), mount_txt(it))
             if it.get("owned"):
                 name, src = it.get("name", "보유 가구"), "보유 · " + DIMS_SOURCE.get(prod.get("dims_source", "user"), "사용자 실측")
             elif it.get("placeholder"):
@@ -1427,6 +1662,7 @@ def shell(spec):
         del house["budget"]
     if house["household"] is None:
         del house["household"]
+    apply_bathroom_defaults(house)
     return house
 
 
@@ -1848,6 +2084,16 @@ def furniture_symbol(it, g):
         out.append(_svg_ellipse(_inset(_band(rect, f, deep * 0.72), 40)))
     elif cat == "washbasin":
         out.append(_svg_ellipse(_inset(rect, m * 0.15)))
+    elif cat in ("towel_bar", "towel_holder"):
+        # 벽에 붙은 봉과 양쪽 브라켓. 바닥 치수는 봉이 벽에서 나온 깊이
+        a, b = _inner_edge(_band(rect, back, max(deep * 0.55, 8)), back)
+        out.append(_svg_line(a, b))
+        tick = max(24, m * 0.8)
+        for p in (a, b):
+            if f in "ns":
+                out.append(_svg_line((p[0], p[1] - tick), (p[0], p[1] + tick)))
+            else:
+                out.append(_svg_line((p[0] - tick, p[1]), (p[0] + tick, p[1])))
     elif cat == "bathtub":
         out.append(_svg_rect(_inset(rect, 70), 180))
     elif cat in ("washer", "dryer"):
@@ -2072,7 +2318,7 @@ def render(house, embed=False):
         cls = ["item"]
         if CAT.get(it.get("category"), {}).get("floor"):
             cls.append("rug")
-        if it.get("on") or it.get("with") or it.get("z", 0) >= WALL_MOUNT_Z:
+        if it.get("on") or it.get("with") or _z_of(it) >= WALL_MOUNT_Z:
             cls.append("light")
         if it.get("placeholder"):
             cls.append("ph")
@@ -2081,7 +2327,7 @@ def render(house, embed=False):
         elif bad.get(it["id"]) == "warning":
             cls.append("warn")
         s.append('<g class="{}" data-id="{}" data-ref="{}"><title>{}</title>'.format(" ".join(cls), _esc(it["id"]), _esc(it["id"]), _esc(
-            "{}. {} — {}×{}×{}mm".format(num[it["id"]], it.get("name") or label_of(it), it["size"]["w"], it["size"]["d"], it["size"].get("h", 0)))))
+            "{}. {} — {}×{}×{}mm{}".format(num[it["id"]], it.get("name") or label_of(it), it["size"]["w"], it["size"]["d"], it["size"].get("h", 0), mount_txt(it)))))
         s.append('<rect x="{:.0f}" y="{:.0f}" width="{:.0f}" height="{:.0f}"/>'.format(x0, y0, x1 - x0, y1 - y0))
         s.extend(furniture_symbol(it, g))
         if zones.get(it["id"]) or CAT.get(it.get("category"), {}).get("wall"):
@@ -2190,8 +2436,9 @@ def render(house, embed=False):
             count += 1
             q = " ×{}".format(it["qty"]) if it.get("qty", 1) > 1 else ""
             st = ' class="{}"'.format(bad[it["id"]]) if it["id"] in bad else ""
-            inv.append('<tr data-ref="{0}" data-id="{0}"{1}><td>{2}</td><td>{3}{4}</td><td>{5}</td><td class="nowrap">{6}×{7}×{8}</td><td>{9}</td><td class="num nowrap">{10}</td></tr>'.format(
-                _esc(it["id"]), st, n, _esc(label_of(it)), q, pname, fmt(sz["w"]), fmt(sz["d"]), fmt(sz.get("h", 0)), src, ptxt))
+            inv.append('<tr data-ref="{0}" data-id="{0}"{1}><td>{2}</td><td>{3}{4}</td><td>{5}</td><td class="nowrap">{6}×{7}×{8}{9}</td><td>{10}</td><td class="num nowrap">{11}</td></tr>'.format(
+                _esc(it["id"]), st, n, _esc(label_of(it)), q, pname, fmt(sz["w"]), fmt(sz["d"]), fmt(sz.get("h", 0)),
+                _esc(mount_txt(it)), src, ptxt))
         total += sub
         inv.append('</tbody><tfoot><tr><td colspan="5">소계</td><td class="num nowrap">{}원</td></tr></tfoot></table></div></section>'.format(fmt(sub)))
     budget = house.get("budget")
