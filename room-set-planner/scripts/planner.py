@@ -50,6 +50,9 @@ CAT = {
     "tv_stand": dict(label="TV장", wall=True, front=(450, 600)),
     "dining_table": dict(label="식탁", seats=(750, 900)),
     "kitchen_counter": dict(label="주방 상판", wall=True, front=(900, 1100)),
+    "sink": dict(label="싱크"),
+    "upper_cabinet": dict(label="상부장"),
+    "hood": dict(label="레인지후드"),
     "fridge": dict(label="냉장고", wall=True, front=(800, 1000)),
     "washer": dict(label="세탁기", wall=True, front=(600, 800)),
     "dryer": dict(label="건조기", wall=True, front=(600, 800)),
@@ -196,6 +199,8 @@ class Ctx:
                 oid, self.rname(R["id"]), SIDE_KO[wall] + " 벽", fmt(end - start)), [oid])
         if typ == "window":
             res["sill"] = op.get("sill", 900)
+            # 높이가 없으면 1200. 창 위는 턱+높이이고 천장까지 닿지 않는다.
+            res["height"] = op.get("height") or 1200
             return res
         to = op.get("to")
         if to == "outside":
@@ -300,6 +305,19 @@ class Ctx:
 
 def label_of(it):
     return it.get("label") or CAT.get(it.get("category"), CAT["other"])["label"]
+
+
+def _bowl_mm(it):
+    """싱크 볼이 상판 아래로 파고드는 깊이(mm). 집 데이터에 없으면 0 — 그때는 충돌을 보지 않는다."""
+    if it.get("category") != "sink":
+        return 0
+    v = it.get("bowl")
+    if v is None:
+        v = (it.get("size") or {}).get("bowl")
+    try:
+        return float(v) if v else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def z_span(ctx, it, depth=0):
@@ -598,7 +616,134 @@ class Grid:
 
 # ----------------------------------------------------------------------------- 검사
 
+def _kitchen_opt_out(house, key):
+    """kitchen.upper / kitchen.hood 가 false 면 그 기본 품목을 넣지 않는다."""
+    box = house.get("kitchen") or {}
+    return box.get(key) is False
+
+
+def _is_cooktop(it):
+    if it.get("category") == "cooktop":
+        return True
+    if it.get("category") != "appliance":
+        return False
+    text = " ".join(str(it.get(k) or "") for k in ("id", "label", "name", "label_en")).lower()
+    return any(w in text for w in ("cooktop", "induction", "hob", "인덕션", "가스레인지", "쿡탑"))
+
+
+def _has_upper(items, counter):
+    wall = (counter.get("place") or {}).get("wall")
+    for it in items:
+        if it.get("category") != "upper_cabinet" or it.get("room") != counter.get("room"):
+            continue
+        if it.get("over") == counter["id"]:
+            return True
+        if not it.get("over") and wall and (it.get("place") or {}).get("wall") == wall:
+            return True
+    return False
+
+
+def _has_hood(items, top):
+    room = [it for it in items if it.get("category") == "hood" and it.get("room") == top.get("room")]
+    if any(h.get("above") == top["id"] for h in room):
+        return True
+    cooktops = [it for it in items if _is_cooktop(it) and it.get("room") == top.get("room")]
+    free = [h for h in room if not h.get("above")]
+    bare = [c for c in cooktops if not any(h.get("above") == c["id"] for h in room)]
+    try:
+        idx = bare.index(top)
+    except ValueError:
+        return False
+    return idx < len(free)
+
+
+def _upper_item(counter):
+    sz = counter.get("size") or {}
+    ch = sz.get("h") or 850
+    return {
+        "id": "{}_upper".format(counter["id"]),
+        "room": counter.get("room"),
+        "category": "upper_cabinet",
+        "label": "상부장",
+        "label_en": "upper cabinet",
+        "size": {"w": sz.get("w") or 1000, "d": 340, "h": 700},
+        "place": dict(counter.get("place") or {}),
+        "z": ch + 550,
+        "over": counter["id"],
+        "owned": True,
+        "look": "white flat-panel wall cabinets",
+    }
+
+
+def _hood_item(items, top):
+    parent = next((x for x in items if x["id"] == top.get("on")), None)
+    ch = ((parent.get("size") or {}).get("h") if parent else None) or 850
+    sz = top.get("size") or {}
+    return {
+        "id": "{}_hood".format(top["id"]),
+        "room": top.get("room"),
+        "category": "hood",
+        "label": "레인지후드",
+        "label_en": "range hood",
+        "size": {"w": sz.get("w") or 600, "d": sz.get("d") or 500, "h": 450},
+        "place": dict(top.get("place") or {}),
+        "z": ch + 760,
+        "above": top["id"],
+        "owned": True,
+        "look": "a white range hood",
+    }
+
+
+def apply_kitchen_defaults(house):
+    """싱크가 있는 상판 위에 상부장, 쿡탑 위에 후드를 둔다. kitchen.upper / kitchen.hood 가 false 이거나
+    그 품목에 upper / hood 가 false 면 넣지 않는다."""
+    items = house.setdefault("items", [])
+    if not _kitchen_opt_out(house, "upper"):
+        for counter in list(items):
+            if counter.get("category") != "kitchen_counter" or counter.get("upper") is False:
+                continue
+            if not any(x.get("category") == "sink" and x.get("on") == counter.get("id") for x in items):
+                continue
+            if _has_upper(items, counter):
+                continue
+            items.append(_upper_item(counter))
+    if not _kitchen_opt_out(house, "hood"):
+        for top in list(items):
+            if not _is_cooktop(top) or top.get("hood") is False:
+                continue
+            if _has_hood(items, top):
+                continue
+            items.append(_hood_item(items, top))
+    return house
+
+
+ENTRY_STEP_MM = 50  # 현관 단차 기본. 집마다 달라 실측이 아니면 가정이다.
+
+
+def apply_entry_floor(house):
+    """현관 바닥은 타일, 거실·주방보다 한 단 낮고, 경계는 현관 방 가장자리(옆방과 만나는 개구부 선)다."""
+    for r in house.get("rooms") or []:
+        if r.get("kind") != "entrance":
+            continue
+        floor = r.get("floor")
+        if floor is False:
+            continue
+        if isinstance(floor, str) and floor.strip():
+            continue
+        if isinstance(floor, dict):
+            if floor.get("tile") is False or floor.get("material") not in (None, "tile"):
+                continue
+            floor.setdefault("material", "tile")
+            floor.setdefault("step_mm", ENTRY_STEP_MM)
+            floor.setdefault("boundary", "room_edge")
+            continue
+        r["floor"] = {"material": "tile", "step_mm": ENTRY_STEP_MM, "boundary": "room_edge"}
+    return house
+
+
 def check(house):
+    apply_kitchen_defaults(house)
+    apply_entry_floor(house)
     ctx = Ctx(house)
     H = house
     htype = H.get("type", "apartment")
@@ -686,8 +831,8 @@ def check(house):
             elif not inside(((g["rect"][0] + g["rect"][2]) / 2.0, (g["rect"][1] + g["rect"][3]) / 2.0) * 2, parent["rect"]):
                 ctx.add("error", "on_floating", "{}: 가운데가 {} 위에 있지 않다 — 받침 밖으로 떨어진다".format(nm, it["on"]),
                         [it["id"]])
-            elif not inside(g["rect"], parent["rect"], tol=50):
-                ctx.add("warning", "on_overhang", "{}: {} 밖으로 삐져나온다".format(nm, it["on"]), [it["id"]])
+            elif not inside(g["rect"], parent["rect"], tol=5):
+                ctx.add("error", "on_fit", "{}: 받침 {} 윗면 안에 다 들어가지 않는다".format(nm, it["on"]), [it["id"]])
         # 짝(with) — 짝 밑으로 들어가려면 짝의 상판보다 낮아야 한다(의자 등받이는 책상 밑에 못 들어간다)
         if it.get("with"):
             partner = next((x for x in ctx.items if x["id"] == it["with"]), None)
@@ -746,9 +891,72 @@ def check(house):
                     ctx.iname(a), ctx.iname(b), fmt(lo), fmt(hi), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
                     [a["id"], b["id"]])
 
+    # 같은 받침 위. 올려 둔 것끼리는 위의 충돌 검사에서 빼 두므로, 상판을 나눠 쓰는 싱크·쿡탑·건조대가 서로 겹치면 여기서 본다
+    by_support = {}
+    for it in ctx.items:
+        if it.get("on"):
+            by_support.setdefault(it["on"], []).append(it)
+    for sup, group in by_support.items():
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                a, b = group[i], group[j]
+                c = inter(ctx.geo[a["id"]]["rect"], ctx.geo[b["id"]]["rect"])
+                if c:
+                    ctx.add("error", "on_overlap", "{} 와 {} 가 {} 윗면에서 겹친다({}×{}mm)".format(
+                        ctx.iname(a), ctx.iname(b), sup, fmt(c[2] - c[0]), fmt(c[3] - c[1])), [a["id"], b["id"]])
+
+    # 개수대 볼이 상판 아래로 파고드는 깊이(bowl, mm)가 있을 때만, 그 자리의 하부장·세탁기와 부딪치는지 본다
+    for it in ctx.items:
+        depth = _bowl_mm(it)
+        if not depth or not it.get("on") or it["on"] not in ctx.geo:
+            continue
+        parent = next((x for x in ctx.items if x["id"] == it["on"]), None)
+        pz = z_span(ctx, parent) if parent else None
+        if not pz:
+            continue
+        lo, hi = pz[1] - depth, pz[1]
+        for other in ctx.items:
+            if other["id"] in (it["id"], it["on"]) or other["room"] != it["room"]:
+                continue
+            c = inter(ctx.geo[it["id"]]["rect"], ctx.geo[other["id"]]["rect"])
+            oz = z_span(ctx, other)
+            if not c or not oz:
+                continue
+            if min(hi, oz[1]) - max(lo, oz[0]) > 1:
+                ctx.add("warning", "sink_bowl", "{} 의 개수대 볼({}mm)이 {} 와 {}×{}mm 겹친다".format(
+                    ctx.iname(it), fmt(depth), ctx.iname(other), fmt(c[2] - c[0]), fmt(c[3] - c[1])),
+                    [it["id"], other["id"]])
+    for it in ctx.items:
+        if it.get("category") != "kitchen_counter":
+            continue
+        has_sink = any(x.get("category") == "sink" and x.get("on") == it["id"] for x in ctx.items)
+        if not has_sink:
+            ctx.add("warning", "no_sink", "{} 에 싱크 품목이 없다. 개수대는 상판에 자동으로 그리지 않는다 — category 는 sink, on 은 이 상판".format(
+                ctx.iname(it)), [it["id"]])
+        elif not _has_upper(ctx.items, it):
+            ctx.add("warning", "no_upper", "{} 위에 상부장이 없다. 싱크 줄 위에는 벽걸이 상부장을 둔다. 빼려면 kitchen.upper 또는 이 상판의 upper 를 false 로 둔다".format(
+                ctx.iname(it)), [it["id"]])
+    for it in ctx.items:
+        if not _is_cooktop(it) or _has_hood(ctx.items, it):
+            continue
+        ctx.add("warning", "no_hood", "{} 위에 레인지후드가 없다. 인덕션·가스레인지 바로 위에 후드를 둔다. 빼려면 kitchen.hood 또는 이 품목의 hood 를 false 로 둔다".format(
+            ctx.iname(it)), [it["id"]])
+
     # 문
     for o in ctx.ops:
         if o["type"] == "window":
+            R = ctx.rooms.get(o["room"])
+            x0, y0, x1, y1 = rr(R) if R else (0, 0, 0, 0)
+            small = htype == "oneroom" or (x1 - x0) * (y1 - y0) <= 18_000_000
+            raw = o.get("op") if isinstance(o.get("op"), dict) else {}
+            if small and o["width"] > 1500:
+                ctx.add("warning", "window_wide",
+                        "창 {} 폭 {}mm — 원룸·작은 방 창은 1000~1500mm(기본 1200)다. 1800mm 는 그 방에 크다".format(
+                            o["id"], fmt(o["width"])), [o["id"]])
+            if small and not raw.get("height"):
+                ctx.add("warning", "window_height",
+                        "창 {} 에 높이(height)가 없다 — 1200mm 로 둔다. 위 끝은 턱 {}mm + 높이이고 천장까지 닿지 않는다".format(
+                            o["id"], fmt(o.get("sill", 900))), [o["id"]])
             for it, g in obstacles:
                 if it["room"] != o["room"] or g["h"] <= o["sill"] + 100:
                     continue
@@ -949,8 +1157,8 @@ def cmd_walls(args):
             on_this = (o["room"] == R["id"] and o["wall"] == wall) or (o.get("to") == R["id"] and OPP[o["wall"]] == wall)
             if o["type"] == "window":
                 if o["room"] == R["id"] and o["wall"] == wall:
-                    notes.append("창 {}~{} (폭 {}, 턱 높이 {}) — 턱보다 높은 가구는 창을 가린다".format(
-                        fmt(o["a"] - a0), fmt(o["b"] - a0), fmt(o["width"]), fmt(o["sill"])))
+                    notes.append("창 {}~{} (폭 {}, 높이 {}, 턱 {}) — 위 끝은 턱+높이. 턱보다 높은 가구는 창을 가린다".format(
+                        fmt(o["a"] - a0), fmt(o["b"] - a0), fmt(o["width"]), fmt(o.get("height") or 1200), fmt(o["sill"])))
                 continue
             rects = []
             if on_this:
@@ -1158,7 +1366,10 @@ def shell(spec):
 
 
 def _room(rid, kind, name, x, y, w, d):
-    return {"id": rid, "kind": kind, "name": name, "rect": [x, y, w, d]}
+    room = {"id": rid, "kind": kind, "name": name, "rect": [x, y, w, d]}
+    if kind == "entrance":
+        room["floor"] = {"material": "tile", "step_mm": ENTRY_STEP_MM, "boundary": "room_edge"}
+    return room
 
 
 def _shell_room(spec, notes):
@@ -1192,12 +1403,13 @@ def _shell_room(spec, notes):
         notes.append("문 자리를 받지 않아 아래쪽 벽 오른쪽 끝에 폭 {}mm 문을 두었다(방 안으로 열림)".format(fmt(dw)))
     wins = spec.get("windows")
     if wins is None:
-        ww = max(900, int(W * 0.6 / 100) * 100)
-        wins = [dict(wall="n", offset=(W - ww) / 2, width=ww)]
-        notes.append("창 자리를 받지 않아 위쪽 벽 가운데에 폭 {}mm 창을 두었다".format(fmt(ww)))
+        ww = min(1200, max(900, W - 400))
+        wins = [dict(wall="n", offset=(W - ww) / 2, width=ww, sill=900, height=1200)]
+        notes.append("창 자리를 받지 않아 위쪽 벽 가운데에 {}×{}mm 샷시(턱 900mm)를 두었다".format(fmt(ww), fmt(1200)))
     for i, w in enumerate(wins):
         ops.append(dict(id="w{}".format(i + 1), type="window", room=rid, wall=w.get("wall", "n"),
-                        offset=w.get("offset", "center"), width=w["width"], sill=w.get("sill", 900)))
+                        offset=w.get("offset", "center"), width=w["width"],
+                        sill=w.get("sill", 900), height=w.get("height", 1200)))
     return rooms, ops
 
 
@@ -1257,8 +1469,9 @@ def _shell_studio(bed, by, wall, notes):
     else:
         ops.append(dict(id="d_bath", type="door", room="bath1", wall="n", offset=max((bath["w"] - 750) / 2, 0),
                         width=min(750, bath["w"] - 100), to="room", swing="in", hinge="start"))
-    ww = max(900, int(W * 0.6 / 100) * 100)
-    ops.append(dict(id="w_room", type="window", room="room", wall="n", offset=(W - ww) / 2, width=ww, sill=900))
+    ww = min(1200, max(900, W - 400))
+    ops.append(dict(id="w_room", type="window", room="room", wall="n",
+                    offset=(W - ww) / 2, width=ww, sill=900, height=1200))
     return rooms, ops
 
 
@@ -1394,17 +1607,26 @@ def _shell_rows(typ, beds, by, wall, hall, notes):
     for r in s_rooms:
         w = r["w"]
         if r is core and core["kind"] == "living":
-            ww, sill = max(w - 600, 1200), 0
+            ww, sill, wh = max(w - 600, 1200), 0, 2100
         elif r is core:
-            ww, sill = 1200, 1000
+            ww, sill, wh = 1200, 1000, 1100
+        elif typ == "oneroom":
+            ww, sill, wh = min(1200, max(900, w - 400)), 900, 1200
         else:
-            ww, sill = max(900, int(w * 0.6 / 100) * 100), 900
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n", offset=(w - ww) / 2, width=ww, sill=sill))
+            ww, sill, wh = max(900, int(w * 0.6 / 100) * 100), 900, 1200
+        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n",
+                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
     for r in named[2:] + ([anchor] if anchor else []):
         w = r["w"]
-        ww, sill = (1200, 1000) if r["kind"] == "kitchen" else (max(900, int(w * 0.5 / 100) * 100), 900)
+        if r["kind"] == "kitchen":
+            ww, sill, wh = 1200, 1000, 1100
+        elif typ == "oneroom":
+            ww, sill, wh = min(1200, max(900, w - 400)), 900, 1200
+        else:
+            ww, sill, wh = max(900, int(w * 0.5 / 100) * 100), 900, 1200
         ww = min(ww, w - 200)
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s", offset=(w - ww) / 2, width=ww, sill=sill))
+        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s",
+                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
     return rooms, ops
 
 
@@ -1580,10 +1802,24 @@ def furniture_symbol(it, g):
             d = deep * 0.18
             out.append(_svg_line((px - d, py - d), (px + d, py + d)) if f in "ns" else _svg_line((px - d, py + d), (px + d, py - d)))
     elif cat == "kitchen_counter":
-        a, b = _inner_edge(_band(rect, back, deep * 0.12), back)     # 상판 뒤 턱
+        a, b = _inner_edge(_band(rect, back, deep * 0.12), back)     # 상판 뒤 턱. 개수대는 그리지 않는다
         out.append(_svg_line(a, b))
-        sink = _split(_inset(rect, deep * 0.18), f, 3, deep * 0.1)[0]
-        out.append(_svg_rect(sink, 60))
+    elif cat == "sink":
+        basin = _inset(rect, max(12, m * 0.12))
+        out.append(_svg_rect(basin, 40))
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        r = max(18, m * 0.12)
+        if back == "n":
+            fy = y0 + r
+        elif back == "s":
+            fy = y1 - r
+        elif back == "w":
+            fx, fy = x0 + r, cy
+        else:
+            fx, fy = x1 - r, cy
+        if back in "ns":
+            fx = cx
+        out.append(_svg_ellipse((fx - r, fy - r, fx + r, fy + r)))
     elif cat == "shower":
         out.append(_svg_line((x0, y0), (x1, y1)))
         c = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)

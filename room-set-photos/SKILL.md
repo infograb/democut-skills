@@ -100,19 +100,48 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 |---|---|
 | `shots.md` | 컷마다 카메라, 보이는 품목, 레퍼런스 순서, 확인 목록, 프롬프트. **사람에게 보여 주는 문서** |
 | `shots.json` | 같은 내용(기계용). 생성 단계는 이 파일의 `prompt`·`refs` 를 그대로 쓴다 |
-| `sketch/<컷>.png` | 카메라 시점 덩어리 스케치(레퍼런스) |
+| `sketch/<컷>.png` | 카메라 시점 덩어리 스케치. **모델에 넣는 레퍼런스는 이 파일**이다. 글자·범례가 없다 |
+| `sketch/<컷>-legend.png` | 같은 그림 오른쪽에 색 견본과 이름을 붙인 것. 사람이 스케치를 읽을 때 쓴다. 모델에는 넣지 않는다 |
 | `shots.svg` | 평면도에 카메라 자리와 화각(주황 = 전체 컷, 보라 = 제품 컷) |
 
-컷은 자동으로 정한다. 가구가 있는 방(침실·주방·욕실·현관)마다 **전체 컷 한두 장**(모서리·문간 후보 중 보이는 제품과
-창이 많은 자리, 서로 60° 이상 다른 방향)과 리뷰할 제품마다 **제품 컷 하나**(정면이나 3/4 방향, 제품이 화면의 약 30%).
-큰 가구가 렌즈 0.75m 안을 막는 자리는 점수를 깎고, 둘째 전체 컷은 가까운 큰 가구가 화면 끝에 걸리지 않을 때만 만든다.
-폭 2m 안팎의 주방·욕실은 둘째 자리가 대개 싱크대·변기에 렌즈를 붙인 그림이라 한 장만 나온다.
+컷은 자동으로 정한다. 가구가 있는 방마다 **전체 컷 한두 장**과 리뷰할 제품마다 **제품 컷 하나**(정면이나 3/4, 제품이 화면의 약 30%).
+전체 컷 렌즈는 폰 기본 카메라 **26mm**(세로 사진 가로 화각 약 50°)다. 그 렌즈로 방이 안 들어올 때만 초광각 **16mm**를 쓰고,
+그래도 가구에 바짝 붙는 자리는 고르지 않는다. 서는 곳은 벽에서 30cm, 가구 면에서 35cm 밖이고, 화면에 들어온 가구까지는
+80cm 이상이다. 방 안에 그런 자리가 없으면(폭 1.6m에 깊이 60cm 싱크대처럼) 트인 문간 너머 옆 방에서 그 방을 본다.
+닫힌 문뿐이고 안에도 설 자리가 없으면 그 방의 전체 컷은 내지 않고 이유만 알린다. 자세한 문턱은
+[`references/ohouse-look.md`](references/ohouse-look.md) 「전체 컷 카메라」.
+창의 기본은 한국 샷시 미닫이다. 흰 PVC(또는 알루미늄) 틀에 짝이 둘이고, 열린 창은 한쪽 짝만 다른 짝 뒤로 밀린다. 도면이 `style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않고, `Avoid:` 에 `casement, hinged, or push-out windows` 를 넣는다. 열린 창(`open: true`)이면 「one pane slid open behind the other」 를 짧게 붙인다. 원룸 창의 기본 크기는 120×120cm, 턱 90cm다. 스케치와 프롬프트는 도면의 오프셋·폭·높이·턱으로 창을 두고, 바로 아래 가구가 있으면 「above the desk」 처럼 그 이름을 붙인다. 위 끝은 턱+높이이고 천장까지 올리지 않는다.
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
 트인 문간(문짝 없는 개구부)은 비워 두지 않는다. 스케치에는 그 너머 방의 벽·바닥·창·문·가구 상자를 같은 카메라로 그려 넣고,
-프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 개구부로 보이는 창·문(창이 있는 방인데
-안 보이면 안 보인다는 말), 보이는 가구를 적는다(`Through the open right wall … Draw only these there`). 그 방의 첫 전체 컷이
+프롬프트에는 개구부의 크기(벽 전체가 트였으면 그쪽에 벽·문틀이 없다는 말), 그 방의 마감, 문간에서 잰 그 방의 깊이·폭,
+개구부로 보이는 창·문(창이 있는 방인데 안 보이면 안 보인다는 말), 보이는 가구와 그 가구가 문간에서 얼마나 떨어졌는지를 적는다
+(`Through the open right wall … It is 60 cm deep past this opening, no wider. It is a shallow 60 cm-deep space, not a hallway or corridor; the far wall is only 60 cm past the opening and fills the frame as in the sketch. … flush with the opening. The fridge and the shoe cabinet stand side by side against it. Draw only these there`).
+깊이가 100cm 이하인 너머 방은 그 깊이를 cm 로 적고, 복도 종류(`hall`)가 아니면 hallway·corridor 라고 부르지 않는다. 「no wider」 만으로는 깊이가 늘지 않는다. 벽 전체가 트인 개구부는 문틀이 없다는 말과 함께, 양쪽 벽이 같은 폭의 한 면으로 이어지고 더 좁은 문간을 넣지 말라고 적는다.
+같은 문간을 반대쪽(시선이 약 180°, 40° 안)에서 본 앞 컷은 같은 방 대표(`role: master`, `same_room`)로 넣지 않는다. `role: neighbor` 에 `opposite_view` 로 넣고, 그 사진의 좌우를 베끼지 말라고 적는다. 도면에서 한 벽에 있는 가구는 그 벽에 두고, 화면에서만 좌우가 바뀐다. 좌우·깊이·먼 벽의 크기는 이 컷의 스케치가 정한다.
+나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장, 화면에 있는 받침 위의 품목 문장은 구조다. 4,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
+`Styling:` 의 소품은 스케치와 목록에 없는 벽에 가구 줄을 만들지 않는다.
+그 너머 방에 또 트인 문간이 보이면 그 방도 같은 카메라로 이어서 그린다. 한 단계만 그리면 그 다음 문간이 빈 회색 판으로 남는다.
+받침이 화면에 있고 그 위에 올린 품목(`on`)이 한 픽셀도 없으면, 같은 방·문간 너머 모두 「stands on its top just out of frame」 과 「if the 〈받침〉 top shows, the 〈품목〉 stands on it」 을 적는다. 4,000자로 줄여 문간 너머 생김새를 빼도(`brief`) 이 조건은 남긴다. 「just out of frame」만 남기면 모델이 받침 윗면을 비워 그린다. `Avoid:` 에 `a bare 〈받침〉 top` 을 넣는다. 이름은 집 모델의 그 가구다.
+손으로 프롬프트를 고치거나 여러 글을 합칠 때도, 화면에 있는 받침의 올린 품목은 하나도 빼지 않는다. 확인은 `shots.py stacked` 다. `house.json` 과 최종 프롬프트, 그리고 그 컷에서 보이던 받침 id 를 넣으면, 빠진 `on` 품목 이름으로 끝난다(없으면 `ok stacked`).
+
+```bash
+python3 <스킬>/scripts/shots.py stacked house.json --shots photos/shots.json --shot <컷>
+python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visible <받침 id, …>
+```
+싱크(`category: sink`)는 상판 윗면에 붙은 어두운 개구와 뒤쪽의 가는 수전으로 그린다. 볼이 상판 아래로 들어간 부피는 그리지 않는다. 범례에도 그 색이 들어간다.
+주방이 보이는 컷은 싱크 줄 위 상부장과 쿡탑 바로 위의 레인지후드를 적는다. `Avoid:` 에 `an open bare wall above the counter` 와 `a cooktop with no hood` 를 넣는다. 그 품목을 빼 둔 집(`kitchen.upper`·`kitchen.hood` 가 false)은 그 문장을 넣지 않는다.
+현관이 보이는 컷은 타일 구역을 집 모델에서 계산해 글과 스케치로 못 박는다. 타일 구역은 현관 방 전체와 옆방과 잇는 문간의 벽 두께 바닥이고, 경계는 옆방 벽 선 한 줄이다.
+- 스케치는 타일 구역을 슬레이트색 바둑판(30cm 칸)으로 칠한다. 마루는 회색 한 색이다. 스케치 설명과 범례에 「checkered slate floor = entry tile」 이 붙는다.
+- 글은 「Entry floor: … covering the whole entry wall to wall (about W x D cm). The tile ends in one straight line at the opening, level with the entry-side face of the 〈경계에 닿은 옆방 가구〉」 다음에, 화면에 있는 현관 가구는 「stands entirely on the tile; the tile runs past its full width and depth」, 경계에 닿은 옆방 가구는 「stands entirely on the wood floor; no tile under any part of it」 로 이름을 대어 적는다. 레퍼런스 사진보다 이 글과 스케치를 따른다고 적는다.
+- 스케치에 타일이 한 픽셀도 없으면(카메라가 현관 타일 위에 서서 발밑이 화면 밖) 「out of frame … draw no tile anywhere」 로 적는다. 「보이면 타일」 처럼 열어 두면 모델이 화면 아래에 타일을 지어 옆방 바닥까지 깔았다(2026-11-17).
+- `Avoid:` 에 `tile boundary shifted into the kitchen/room or set back into the entry`, 그 컷의 가구 이름으로 `tile spilling under the 〈옆방 가구〉`·`tile ending partway under the 〈현관 가구〉`(타일이 화면 밖이면 `any tile floor in frame`)를 넣는다.
+- 이 문장들은 구조라 4,000자 한도로 줄이지 않는다(`_fit_prompt` 는 소품·레퍼런스·너머 생김새만 줄인다).
+- 같은 뷰를 다른 빛(저녁 등)으로 다시 만들 때, 먼저 만든 사진의 타일 경계가 틀렸으면 그 사진을 레이아웃 레퍼런스로 넣지 않는다. 틀린 경계를 그대로 베낀다(2026-11-17: 낮 사진의 타일이 옆방 가구 밑·현관 가구 중간에서 끝났고 저녁 컷이 그대로 따라 했다). 스케치와 글로 다시 만든다.
+그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
+모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
+그 방의 첫 전체 컷이
 먼저 만들어지고 레퍼런스 칸이 남으면 그 사진도 넣는다(`role: neighbor`). 벽을 다 채우는 가구는 비율 대신 「모서리까지 채운다」
 로 적는다. 소품은 `Styling:` 에 적은 것만 놓이고 그 밖의 받침 윗면과 바닥은 비운다.
 모두 [`references/ohouse-look.md`](references/ohouse-look.md) 「문간 너머」·「벽을 채우는 가구」·「소품은 적은 것만」.
@@ -129,6 +158,16 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 - `look 에 크기 관계 말이 있다` — 그 말을 빼고 모양·색·재질만 남긴다(2단계).
 - `프롬프트가 한도를 넘어 문간 너머 품목의 생김새를 뺐다` — 이 방의 글은 그대로이고 문간 너머 가구만 크기·자리로 적었다.
   그 방 사진이 `role: neighbor` 로 붙으면 생김새는 사진이 맡는다. 붙지 않았는데 너머 가구가 크게 보이면 `look` 을 줄인다.
+- `반대 방향 참고` — 같은 문간을 반대쪽에서 본 앞 사진을 같은 방 대표로 넣지 않았다. 마감·빛·문간 폭만 맞추고, 좌우는 이 컷의 스케치를 따른다.
+- `얕은 너머` — 문간 너머가 100cm 이하다. 복도로 늘리지 않는다. 맞은편 벽은 그 깊이에서 스케치처럼 화면을 채운다.
+- `프롬프트가 한도를 넘는다` 로 plan 이 멈추면 나란히·깊이·폭·벽이 이어진다는 문장, 그리고 받침 위 품목 문장(`if the … top shows`)을 빼지 않은 것이다. `look` 을 줄이고 다시 plan 한다. 그 상태로 만들지 않는다.
+- `받침 위 품목이 프롬프트에 없다` — 화면에 있는 받침의 `on` 품목을 글에서 뺐다. 그 이름을 도로 넣고, `Avoid:` 에 `a bare 〈받침〉 top` 이 있는지도 본다.
+- `카메라 — …` — 직접 적은 전체 컷이 너무 가깝거나 한 물건이 화면을 덮는다. `photo.shots` 의 자리·렌즈를 고친다.
+  자동 컷은 이런 자리를 내지 않는다.
+- `전체 컷 없음` — 그 방은 80cm 이상 물러설 자리가 안에도 트인 문간 너머에도 없다. 카메라를 직접 적거나 방을 뺀다.
+- `안 그린 트인 문간` — 화면에 문간이 보이는데 그 너머 방을 집 데이터로 그리지 못했다. 그 컷은 내지 않는다. 문간이 가리키는 방이 없거나 밖이면 카메라가 그 문간을 보지 않게 한다.
+- `상자가 치수와 안 맞는다` — 올려 둔 물건이 받침 윗면이 아닌 높이에서 그려졌거나, 그린 크기가 치수를 화면에 비춘 것보다 크다. 직접 적은 컷은 내지 않는다. 자동 제품 컷이면 그 컷만 빼 두고 다음 컷을 만든다.
+- `자동 제품 컷을 빼 두었다` — 그 제품 컷이 치수 검사에 걸렸다. 키 12cm 미만의 상판 위 물건은 키로 배율을 재지 않는다.
 
 스케치를 **반드시 열어 본다**(Read 로 PNG 를 본다). 이런 컷은 고친다.
 
@@ -164,6 +203,7 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
    `democut_make_cut_image` → `democut_wait_jobs` → 그림을 받아 **눈으로 확인**(shots.md 의 확인 목록).
 4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤
    `shots.md` 의 번호 순서대로 만든다. 레퍼런스에 다른 컷의 그림(`role: neighbor`)이 있는 컷은 그 그림이 나와 확인한 뒤 넣는다.
+   `opposite_view` 인 참고는 마감과 빛만 맞춘다. 가구 배치·좌우·깊이는 그 컷의 스케치와 프롬프트를 따른다.
 5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).
@@ -210,7 +250,7 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 ```
 
 - 카메라 `x`·`y` 는 도면 좌표(mm). 방향은 `look_at`(바라볼 점) 또는 `yaw`(도, 0 = 도면 오른쪽, 90 = 아래).
-  `pitch` 는 도(아래가 −), `lens` 는 35mm 환산 초점거리(전체 컷 18, 제품 컷 28 이 기본).
+  `pitch` 는 도(아래가 −), `lens` 는 35mm 환산 초점거리(전체 컷·제품 컷 기본 26. 방이 안 들어가면 전체 컷만 16).
 - 직접 적은 컷의 첫 전체 컷(창이 보이면 그것)이 대표 컷이 된다.
 
 ## 가구별 규칙
@@ -244,7 +284,7 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 | `support` · `support_ko` · `support_size` · `on_fit` · `on_fit_ko` | `on` 이 있는 품목 | 받침 이름과 윗면 크기, 받침 가장자리 안에 있는지(`inside its edges`) 몇 cm 나오는지 |
 | `on_scale` · `on_scale_ko` | `on` 이 있는 품목 | 받침과의 비율(`about 1/4 that top's width and 1/5 the nightstand's height`). 납작한 것은 폭만 |
 | `partner` · `partner_ko` · `partner_top` | `with` 가 있는 품목 | 짝 이름과 높이 |
-| `near` · `near_ko` · `near_gap` · `near_fit` · `near_fit_ko` | `near` 가 맞는 품목 | 가장 가까운 곁 가구 이름과 사이(cm). `near_fit` 은 10cm 안의 곁 가구를 모두 적은 문장이다(`Bare floor shows between it and the desk (5 cm gap) and the bed (7 cm gap)` · 붙었으면 `It touches the … without overlapping`) |
+| `near` · `near_ko` · `near_gap` · `near_fit` · `near_fit_ko` | `near` 가 맞는 품목 | 가장 가까운 곁 가구 이름과 사이(cm), 높이 차. `near_fit` 은 10cm 안의 곁 가구를 모두 적은 문장이다(`Bare floor shows between it and the desk (9 cm gap, 29 cm shorter)` · 높이가 2cm 안이면 `same height` · 붙었으면 `It touches the … without overlapping`) |
 | `mattress` · `mattress_fit` · `mattress_fit_ko` | 침대 | 프레임에 들어가는 가장 큰 표준 매트리스(폭 S 100 · SS 110 · D 140 · Q 150 · K 160, 길이 200)와 프레임 위에 놓인 모양 |
 
 - 그 품목에 없는 변수를 쓰면 `plan` 이 멈춘다. `match` 로 그 관계가 있는 품목에만 건다.
