@@ -88,6 +88,62 @@ PATH_KS = (5, 7)   # 지나갈 수 있는 통로: k=5 → 약 550mm 이상, k=7 
 APPROACH = 500     # 문 앞에 비워 둘 깊이
 WINDOW_BAND = 300  # 창 앞 이 깊이 안의 높은 가구는 창을 가린다
 WALL_MOUNT_Z = 1200  # 이 높이 이상에 매단 것은 바닥 장애물이 아니다
+SMALL_ROOM = 18_000_000  # 18㎡. 이하면 원룸·작은 방 창 기본(크기·간유리·바깥 쇠창살)을 쓴다
+_CLEAR_GLASS = {"clear", "transparent", "clear-glass"}
+_FROSTED_GLASS = {"frosted", "translucent", "opaque", "privacy", "간유리"}
+
+
+def _one_room_window(htype, room=None, w=None, d=None):
+    """원룸·작은 방 창인가. 집 유형이 oneroom 이거나 그 방 바닥이 18㎡ 이하다.
+    창 크기 주의와 간유리·쇠창살 기본이 이 정의를 같이 쓴다."""
+    if htype == "oneroom":
+        return True
+    if room is not None:
+        x0, y0, x1, y1 = rr(room)
+        return (x1 - x0) * (y1 - y0) <= SMALL_ROOM
+    return (w or 0) * (d or 0) <= SMALL_ROOM
+
+
+def _glass_key(value):
+    return str(value).strip().lower().replace("_", "-")
+
+
+def _explicit_clear(value):
+    return value not in (None, "") and _glass_key(value) in _CLEAR_GLASS
+
+
+def _window_face(op, small):
+    """(glass, bars). 원룸·작은 방은 간유리와 바깥 쇠창살. 도면에 적혀 있으면 그 값."""
+    g = op.get("glass")
+    if g in (None, ""):
+        glass = "frosted" if small else "clear"
+    else:
+        key = _glass_key(g)
+        if key in _FROSTED_GLASS:
+            glass = "frosted"
+        elif key in _CLEAR_GLASS:
+            glass = "clear"
+        else:
+            glass = key
+    if "bars" not in op or op.get("bars") in (None, ""):
+        bars = "outside" if small else None
+    else:
+        b = op.get("bars")
+        if b in (False, "none", "no", "off", "false"):
+            bars = None
+        elif b in (True, "outside", "out", "external", "yes", "true"):
+            bars = "outside"
+        else:
+            bars = str(b).strip().lower()
+    return glass, bars
+
+
+def _stamp_window(op, htype, w, d):
+    """틀이 만드는 창에 원룸·작은 방 기본을 적는다. 도면이 이미 적은 값은 그대로 둔다."""
+    if _one_room_window(htype, w=w, d=d):
+        op.setdefault("glass", "frosted")
+        op.setdefault("bars", "outside")
+    return op
 
 
 # ----------------------------------------------------------------------------- 기하
@@ -201,6 +257,10 @@ class Ctx:
             res["sill"] = op.get("sill", 900)
             # 높이가 없으면 1200. 창 위는 턱+높이이고 천장까지 닿지 않는다.
             res["height"] = op.get("height") or 1200
+            # 원룸·작은 방은 간유리이고 바깥 쇠창살 실루엣이 그 유리에 비친다(2026-11-18).
+            glass, bars = _window_face(op, _one_room_window(self.h.get("type"), R))
+            res["glass"] = glass
+            res["bars"] = bars
             return res
         to = op.get("to")
         if to == "outside":
@@ -946,9 +1006,12 @@ def check(house):
     for o in ctx.ops:
         if o["type"] == "window":
             R = ctx.rooms.get(o["room"])
-            x0, y0, x1, y1 = rr(R) if R else (0, 0, 0, 0)
-            small = htype == "oneroom" or (x1 - x0) * (y1 - y0) <= 18_000_000
+            small = _one_room_window(htype, R) if R else True
             raw = o.get("op") if isinstance(o.get("op"), dict) else {}
+            if small and _explicit_clear(raw.get("glass")):
+                ctx.add("warning", "window_glass",
+                        "창 {} 유리가 맑다 — 원룸·작은 방 창은 간유리(반투명)이고 바깥 쇠창살 실루엣이 그 유리에 비친다. "
+                        "맑은 유리로 두면 나무·하늘·건물이 선명히 보인다".format(o["id"]), [o["id"]])
             if small and o["width"] > 1500:
                 ctx.add("warning", "window_wide",
                         "창 {} 폭 {}mm — 원룸·작은 방 창은 1000~1500mm(기본 1200)다. 1800mm 는 그 방에 크다".format(
@@ -1345,6 +1408,8 @@ def shell(spec):
         if o["offset"] != "center":
             o["offset"] = int(round(o["offset"]))
         o["width"] = int(round(o["width"]))
+    if any(o.get("type") == "window" and o.get("glass") == "frosted" for o in ops):
+        notes.append("원룸·작은 방 창은 간유리(반투명)이고 바깥에 쇠창살이 있다. 다르게 하려면 그 창의 glass·bars 를 적는다")
     house = {
         "version": 1,
         "name": spec.get("name", "우리집"),
@@ -1407,9 +1472,11 @@ def _shell_room(spec, notes):
         wins = [dict(wall="n", offset=(W - ww) / 2, width=ww, sill=900, height=1200)]
         notes.append("창 자리를 받지 않아 위쪽 벽 가운데에 {}×{}mm 샷시(턱 900mm)를 두었다".format(fmt(ww), fmt(1200)))
     for i, w in enumerate(wins):
-        ops.append(dict(id="w{}".format(i + 1), type="window", room=rid, wall=w.get("wall", "n"),
-                        offset=w.get("offset", "center"), width=w["width"],
-                        sill=w.get("sill", 900), height=w.get("height", 1200)))
+        ops.append(_stamp_window(dict(id="w{}".format(i + 1), type="window", room=rid, wall=w.get("wall", "n"),
+                                      offset=w.get("offset", "center"), width=w["width"],
+                                      sill=w.get("sill", 900), height=w.get("height", 1200),
+                                      **{k: w[k] for k in ("glass", "bars", "style", "open") if k in w}),
+                                 "room", W, D))
     return rooms, ops
 
 
@@ -1470,8 +1537,8 @@ def _shell_studio(bed, by, wall, notes):
         ops.append(dict(id="d_bath", type="door", room="bath1", wall="n", offset=max((bath["w"] - 750) / 2, 0),
                         width=min(750, bath["w"] - 100), to="room", swing="in", hinge="start"))
     ww = min(1200, max(900, W - 400))
-    ops.append(dict(id="w_room", type="window", room="room", wall="n",
-                    offset=(W - ww) / 2, width=ww, sill=900, height=1200))
+    ops.append(_stamp_window(dict(id="w_room", type="window", room="room", wall="n",
+                                  offset=(W - ww) / 2, width=ww, sill=900, height=1200), "oneroom", W, D))
     return rooms, ops
 
 
@@ -1614,8 +1681,8 @@ def _shell_rows(typ, beds, by, wall, hall, notes):
             ww, sill, wh = min(1200, max(900, w - 400)), 900, 1200
         else:
             ww, sill, wh = max(900, int(w * 0.6 / 100) * 100), 900, 1200
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n",
-                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
+        ops.append(_stamp_window(dict(id="w_" + r["id"], type="window", room=r["id"], wall="n",
+                                      offset=(w - ww) / 2, width=ww, sill=sill, height=wh), typ, w, r["d"]))
     for r in named[2:] + ([anchor] if anchor else []):
         w = r["w"]
         if r["kind"] == "kitchen":
@@ -1625,8 +1692,8 @@ def _shell_rows(typ, beds, by, wall, hall, notes):
         else:
             ww, sill, wh = max(900, int(w * 0.5 / 100) * 100), 900, 1200
         ww = min(ww, w - 200)
-        ops.append(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s",
-                        offset=(w - ww) / 2, width=ww, sill=sill, height=wh))
+        ops.append(_stamp_window(dict(id="w_" + r["id"], type="window", room=r["id"], wall="s",
+                                      offset=(w - ww) / 2, width=ww, sill=sill, height=wh), typ, w, r["d"]))
     return rooms, ops
 
 

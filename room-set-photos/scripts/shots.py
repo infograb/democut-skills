@@ -217,6 +217,57 @@ def _window_words(o):
     return "sliding sash", True
 
 
+# 원룸·작은 방 창은 간유리다. 바깥 쇠창살 실루엣이 그 유리에 비치고, 나무·하늘·건물은 선명하지 않다(2026-11-18).
+_FROSTED = "frosted translucent glass with the outside security-bar silhouette on it"
+_FROSTED_PLAIN = "frosted translucent glass"
+_GLASS_AVOID = "clear transparent glass, a sharp outdoor view of trees, sky, or buildings"
+_GLASS_CHECK = "창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다"
+_GLASS_CHECK_PLAIN = "창 — 간유리(반투명). 맑은 유리로 나무·하늘·건물이 선명하지 않다"
+_SASH_CHECK = "창 — 샷시 미닫이(한쪽 짝만 옆으로). 여닫이·들창·틸트 아님"
+
+
+def _glass_phrase(o):
+    """플래너가 채운 glass·bars. 간유리면 짧은 영어 구, 아니면 빈 문자열."""
+    raw = o.get("op") if isinstance(o.get("op"), dict) else {}
+    glass = o.get("glass", raw.get("glass"))
+    bars = o.get("bars") if "bars" in o else raw.get("bars")
+    if glass != "frosted":
+        return ""
+    if bars == "outside":
+        return _FROSTED
+    return _FROSTED_PLAIN
+
+
+def _window_text(o, rel, hp, above, curtains, view):
+    """In view 의 창 한 토막. 간유리면 창밖이 선명한 문장은 붙이지 않는다."""
+    wname, sash = _window_words(o)
+    _sill, height = _win_size(o)
+    phrase = _glass_phrase(o)
+    outdoor = "" if phrase else (", " + view[0] if view else "")
+    text = "a {}x{} cm {}{} on {} ({}){}, sill {} cm, {}{}".format(
+        _cm(o["b"] - o["a"]), _cm(height), wname, (", " + phrase) if phrase else "",
+        rel, hp, above, _cm(_sill), curtains, outdoor)
+    return text, sash, phrase
+
+
+def _note_window(checks, avoid, sash, phrase, view):
+    if sash and _SASH_CHECK not in checks:
+        checks.append(_SASH_CHECK)
+    if sash and _SASH_AVOID not in avoid:
+        avoid.append(_SASH_AVOID)
+    if phrase:
+        chk = _GLASS_CHECK if "security-bar" in phrase else _GLASS_CHECK_PLAIN
+        if chk not in checks:
+            checks.append(chk)
+        if _GLASS_AVOID not in avoid:
+            avoid.append(_GLASS_AVOID)
+    elif view:
+        if view[1] not in checks:
+            checks.append(view[1])
+        if view[2] and view[2] not in avoid:
+            avoid.append(view[2])
+
+
 def negative(concept, extra=()):
     """Avoid 줄. 식물은 사용자가 원할 때만(photo.plants) 넣고, 그 밖에는 막는다. extra 는 보이는 품목의 가구별 규칙이 더한다."""
     # 「glossy」 를 막으면 유광 제품(일광전구 스노우맨 갓)도 무광으로 바뀐다 — 광고 사진 같은 광만 막는다(2026-11-13)
@@ -1683,10 +1734,17 @@ def light_direction(sc, cam, st):
     elif tf > 0.3:
         en.append("away from the camera"); ko.append("안쪽")
     way = " and ".join(en)
-    return (("Daylight comes only from the window on {}{}, traveling {}: sides facing the window are brighter, "
-             "soft shadows fall {}. Ceiling light off.").format(
-                REL_EN[rel], "" if seen else ", out of frame", way, way),
-            "창({}{})에서 빛이 들어와 그림자가 {}으로 진다".format(WALL_KO[rel], "" if seen else ", 화면 밖", "·".join(ko)))
+    where = "{}{}".format(REL_EN[rel], "" if seen else ", out of frame")
+    where_ko = "{}{}".format(WALL_KO[rel], "" if seen else ", 화면 밖")
+    shadow = "·".join(ko)
+    # 간유리여도 낮·저녁 빛은 퍼져 들어온다. 직사와 선명한 밖은 아니다.
+    if _glass_phrase(m["op"]):
+        return (("Diffuse daylight comes only through the frosted glass of the window on {}, traveling {}: "
+                 "sides facing the window are brighter, soft shadows fall {}. Ceiling light off.").format(where, way, way),
+                "창({})의 간유리로 퍼진 빛이 들어와 그림자가 {}으로 진다".format(where_ko, shadow))
+    return (("Daylight comes only from the window on {}, traveling {}: sides facing the window are brighter, "
+             "soft shadows fall {}. Ceiling light off.").format(where, way, way),
+            "창({})에서 빛이 들어와 그림자가 {}으로 진다".format(where_ko, shadow))
 
 
 def _wall_desc(sc, side):
@@ -1730,6 +1788,81 @@ def _look(it):
 def _label_en(it):
     cat = it.get("category") or "item"
     return (it.get("label_en") or cat.replace("_", " "))
+
+
+# 개수·좌우는 빈 방 프롬프트에 적고, 그 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때도 그대로 옮긴다.
+_COUNT_SKIP = {"plant", "lamp", "mirror", "tv"}
+_COUNT_CHECK = "가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)"
+_LAYOUT_CHECK = "좌우 — 화면의 왼쪽·오른쪽이 도면과 같다"
+_NUM_WORD = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+             6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+
+def _plural(name, n):
+    if n == 1 or name.endswith("s"):
+        return name
+    return name + "s"
+
+
+def _count_sentence(name, n):
+    if n == 1:
+        return "Exactly one {} in the whole room. No second {}, no extra empty {}.".format(name, name, name)
+    word = _NUM_WORD.get(n, str(n))
+    return "Exactly {} {} in the whole room. No extra {}, no extra empty {}.".format(
+        word, _plural(name, n), name, name)
+
+
+def room_count_lines(items):
+    """이 방 가구의 개수 문장. 항목 하나당 하나다. qty 는 가격용이라 세지 않는다.
+    러그·화분·받침 위 소품은 빼 글자를 아낀다. 화면 밖 가구도 방 안에 있으면 센다."""
+    groups = {}
+    order = []
+    for it in items:
+        if it.get("on") or P.CAT.get(it.get("category"), {}).get("floor"):
+            continue
+        if it.get("category") in _COUNT_SKIP:
+            continue
+        name = _label_en(it)
+        if name not in groups:
+            order.append(name)
+        groups[name] = groups.get(name, 0) + 1
+    return [_count_sentence(name, groups[name]) for name in order]
+
+
+def _join_names(names):
+    seen, count = [], {}
+    for n in names:
+        if n not in count:
+            seen.append(n)
+        count[n] = count.get(n, 0) + 1
+    return _and(_plural(n, count[n]) if count[n] > 1 else n for n in seen)
+
+
+def frame_layout(vis):
+    """화면에서 본 좌우. house.json 자리를 이 카메라로 비춘 것이다."""
+    sides = {"left": [], "center": [], "right": []}
+    for v in vis:
+        it = v["it"]
+        if it.get("on") or P.CAT.get(it.get("category"), {}).get("floor"):
+            continue
+        if it.get("category") in _COUNT_SKIP:
+            continue
+        hx = v["hx"]
+        side = "left" if hx < 0.45 else "right" if hx > 0.55 else "center"
+        sides[side].append(_label_en(it))
+    bits = []
+    if sides["left"]:
+        bits.append("{} on the left side of the frame".format(_join_names(sides["left"])))
+    if sides["center"]:
+        bits.append("{} in the center of the frame".format(_join_names(sides["center"])))
+    if sides["right"]:
+        bits.append("{} on the right side of the frame".format(_join_names(sides["right"])))
+    return ", ".join(bits)
+
+
+def person_same_furniture(name):
+    """레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구. 소품으로 따로 적지 않고 같은 물건이라고 적는다."""
+    return "the single {} from the reference, and she is sitting in that same {}".format(name, name)
 
 
 def _legend_label(it):
@@ -2353,14 +2486,14 @@ def describe_through(sc, cam, cv, st, house, n0, seen_here=()):
             rel = _wall_rel(nm["side"], cam)
             php = _hpos(xs_ / float(cnt) / W)
             if no["type"] == "window":
-                wname, _sash = _window_words(no)
-                sill, height = _win_size(no)
                 under = _below_window(nb, no)
                 above = ", above the {}".format(under) if under else ""
-                shown.append("a {}x{} cm {} on {} ({}){}, sill {} cm, {}".format(
-                    _cm(no["b"] - no["a"]), _cm(height), wname, REL_EN[rel], php, above, _cm(sill), con["curtains"]))
+                text, _sash, phrase = _window_text(no, REL_EN[rel], php, above, con["curtains"], None)
+                shown.append(text)
                 ko_ops.append("창({})".format(WALL_KO[rel]))
                 win_seen = True
+                if phrase and _GLASS_AVOID not in extra_avoid:
+                    extra_avoid.append(_GLASS_AVOID)
             else:
                 far = no.get("to") if no["room"] == nb.room["id"] else no["room"]
                 dest = "outside" if far == "outside" else (
@@ -2568,22 +2701,12 @@ def describe(sc, cam, cv, st, house, rules=()):
         rel = _wall_rel(m["side"], cam)
         hp = _hpos(s[1] / s[0] / W)
         if o["type"] == "window":
-            wname, sash = _window_words(o)
-            sill, height = _win_size(o)
             under = _below_window(sc, o)
             above = ", above the {}".format(under) if under else ""
-            ops.append("a {}x{} cm {} on {} ({}){}, sill {} cm, {}{}".format(
-                _cm(o["b"] - o["a"]), _cm(height), wname, REL_EN[rel], hp, above, _cm(sill), curtains,
-                ", " + view[0] if view else ""))
+            text, sash, phrase = _window_text(o, REL_EN[rel], hp, above, curtains, view)
+            ops.append(text)
             checks.append("창 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
-            if sash:
-                checks.append("창 — 샷시 미닫이(한쪽 짝만 옆으로). 여닫이·들창·틸트 아님")
-                if _SASH_AVOID not in avoid:
-                    avoid.append(_SASH_AVOID)
-            if view:
-                checks.append(view[1])
-                if view[2] and view[2] not in avoid:
-                    avoid.append(view[2])
+            _note_window(checks, avoid, sash, phrase, None if phrase else view)
         elif o["type"] == "opening":
             other = o.get("to") if o["room"] == room["id"] else o["room"]
             dest = "outside" if other == "outside" else ("the " + KIND_EN.get(rooms.get(other, {}).get("kind"), "next room"))
@@ -2599,9 +2722,31 @@ def describe(sc, cam, cv, st, house, rules=()):
             checks.append("문 — {}, 화면 {}".format(WALL_KO[rel], HPOS_KO[hp]))
     thru = describe_through(sc, cam, cv, st, house, len(vis), [v["it"] for v in vis])
     checks.extend(t["check"] for t in thru)
-    if any("sliding sash" in ln for t in thru for ln in (t["head"],) + tuple(t["lines"])) and _SASH_AVOID not in avoid:
+    thru_txt = [ln for t in thru for ln in (t["head"],) + tuple(t["lines"])]
+    if any("sliding sash" in ln for ln in thru_txt) and _SASH_AVOID not in avoid:
         avoid.append(_SASH_AVOID)
-        checks.append("창 — 샷시 미닫이(한쪽 짝만 옆으로). 여닫이·들창·틸트 아님")
+        if _SASH_CHECK not in checks:
+            checks.append(_SASH_CHECK)
+    if any("frosted translucent glass" in ln for ln in thru_txt):
+        if _GLASS_AVOID not in avoid:
+            avoid.append(_GLASS_AVOID)
+        chk = _GLASS_CHECK if any("security-bar" in ln for ln in thru_txt) else _GLASS_CHECK_PLAIN
+        if chk not in checks:
+            checks.append(chk)
+    # 방 사진을 레퍼런스로 사람을 앉히면 빈 의자가 더 생기고 좌우가 뒤집혔다(2026-11-18).
+    # 개수는 이 방 항목 수(화면 밖 포함)이고, 좌우는 이 화면에서 본 쪽이다.
+    counts = room_count_lines(sc.items)
+    layout = frame_layout(vis)
+    prefix = []
+    if layout:
+        prefix.append("Layout: " + layout + ".")
+    prefix.extend(counts)
+    if prefix:
+        lines[0:0] = prefix
+    if counts and _COUNT_CHECK not in checks:
+        checks.append(_COUNT_CHECK)
+    if layout and _LAYOUT_CHECK not in checks:
+        checks.append(_LAYOUT_CHECK)
     return vis, lines, ops, checks, board, avoid, facts, thru
 
 
@@ -2745,20 +2890,33 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
         R[4], cam.lens_mm, _cm(cam.z), tilt))
     out.append("Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
         view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]))
+    light = concept["light"]
+    # 컨셉이 햇빛을 말해도 간유리 창의 빛은 퍼진 낮·저녁 빛이다. 이미 diffuse 인 문장은 그대로 둔다.
+    if light_dir and "frosted glass" in light_dir and "diffuse" not in light.lower():
+        light = light.rstrip(".") + ", diffuse through the frosted glass, no direct sun"
     if view.get("short_style"):
         out.append("Light: {}.".format(light_dir) if light_dir else "Light: soft daylight.")
     else:
-        out.append("Light: {}. {}".format(concept["light"], light_dir) if light_dir else
+        out.append("Light: {}. {}".format(light, light_dir) if light_dir else
                    "Light: soft even light from the LED ceiling light, with a little daylight from the opening.")
     out.append("View: {}.".format(kind_txt))
+    rules, body = [], []
+    for ln in lines:
+        if ln.startswith("Layout: ") or ln.startswith("Exactly "):
+            rules.append(ln)
+        else:
+            body.append(ln)
     if ops:
         out.append("In view: " + "; ".join(ops) + ".")
+    if rules:
+        # 개수·좌우는 가구 목록과 따로다. 한도로 줄이지 않는다.
+        out.append(" ".join(rules))
     if view.get("kitchen"):
         out.append(view["kitchen"])
     if view.get("entry_floor"):
         out.append(view["entry_floor"])
     out.append("Furniture in frame, left to right (position, depth; W x D x H). Draw exactly these, at true scale:")
-    out.extend(lines)
+    out.extend(body)
     # 소품은 적은 것만 놓인다. 「Small soft props only」 는 작은 소품을 더 지어 놓아도 된다는 말로 읽혀, 목록에 없는
     # 조명·상자가 수납장 위에 올라갔다(2026-11-13). 어느 방이든 받침 윗면과 바닥에는 적은 소품 말고는 아무것도 없다
     props = fin["props"] and fin["props"] + (", " + concept["plants"] if concept.get("plants") else "")
@@ -3284,7 +3442,11 @@ def shots_md(data):
            "이미지 모델 {} · 품질 {} — 견적과 제출에 같은 값을 싣는다".format(
                "`{}`".format(data["model"]) if data.get("model") else "DemoCut 기본", data.get("quality", "medium")), "",
            "만드는 순서: **아래 번호 순서대로** 만든다. 대표 컷을 먼저 만들고 확인한 뒤 그 그림을 나머지 컷의 레퍼런스 1번으로 "
-           "넣는다. 레퍼런스에 다른 컷의 그림이 있으면 그 컷이 언제나 앞 번호다.", ""]
+           "넣는다. 레퍼런스에 다른 컷의 그림이 있으면 그 컷이 언제나 앞 번호다.",
+           "이 사진은 빈 방이다. 나중에 사람이 앉는 컷의 레퍼런스로 쓸 때, 그 사진에 이미 있는 의자·침대처럼 사람이 앉거나 "
+           "쓰는 가구를 소품으로 따로 적지 않는다. `the single chair from the reference, and she is sitting in that same "
+           "chair` 처럼 같은 물건이라고 적는다(가구 이름만 바꾼다). 그 컷의 프롬프트에 있는 Layout·Exactly 문장을 그대로 "
+           "옮기고, 같은 사진을 쓰는 다른 컷에도 같은 문장을 넣는다.", ""]
     for i, s in enumerate(data["shots"], 1):
         cam = s["camera"]
         out.append("## {}. `{}` — {}{}".format(i, s["id"], s["title"], " ★ 대표 컷(먼저 만든다)" if s["master"] else ""))
