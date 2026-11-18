@@ -138,14 +138,14 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 
 ```text
 MOUTH MAP:
-0.92s "다" = 아, small relaxed open jaw
-1.38s "미" = 이, lips slightly spread
-1.85s "밤" = 아, small relaxed open jaw, brief lip close at the end of the beat
-2.31s lips rest lightly together
+<컷 시각> "다" = 아, small relaxed open jaw
+<컷 시각> "미" = 이, lips slightly spread
+<컷 시각> "밤" = 아, small relaxed open jaw, brief lip close at the end of the beat
+<컷 시각> lips rest lightly together
 Avoid only a wide jaw.
 ```
 
-시각은 그 줄의 단어 시각이다. 위 음절은 형식을 보이는 중립 예이고, 실제 프롬프트에는 그 줄의 가사를 음절마다 넣는다.
+위 블록은 적는 꼴만 보인다. 시각은 아래처럼 실제 소리에서 잰 컷 시각이고, 박 칸을 눈대중으로 채운 값이 아니다.
 
 카메라 문장은 그 줄에서 확정한 구도를 그대로 적는다. 하이 앵글이면 정면 고정의 예로 바꾸지 않는다.
 입 문장은 위의 MOUTH MAP 한 블록이고, 카메라 문장 안에 다시 적지 않는다.
@@ -162,8 +162,48 @@ She keeps a light body sway on the beat while singing.
 
 정면 고정이 확정된 줄만 `locked-off frontal medium shot from the waist up, eye level` 을 쓴다.
 
-- 미확인: 단독샷으로 바꾼 줄의 입이 가사와 맞는지, 「아무도 노래하지 않는다」고 적은 단체샷이 입을 다무는지.
-  만든 뒤 음절별 입 열림 시각을 박 격자(`sheet --bpm`)와 확인용 파일로 대조한다.
+#### 음절 시각은 실제 소리에서 잰다
+
+MOUTH MAP 의 시각은 그 컷 아래에 깔리는 실제 BGM 구간에서 온다. 박 칸을 눈대중으로 채우지 않는다.
+구간을 고를 때 BGM 자산, `song_start_ms`, `cut_start_ms`, trim 을 모두 반영한다. 보컬 음절의 시작은
+onset·에너지와 듣기로 잰다.
+
+확인할 것:
+
+- 그 구간의 가사 전체. 앞줄과 뒷줄을 포함한다.
+- 음절 수.
+- 각 음절의 시작.
+- 마지막 음절의 끝.
+- 다음 가사가 시작하는 시각.
+
+곡 파일에서 잰 시각은 컷 시각으로 바꾼다. 컷 안 초는 `(곡 ms - song_start_ms) / 1000` 이다
+([`conti-and-timing.md`](conti-and-timing.md) 「가사 시각을 단어로 재기」). `trim_in_ms` 로 컷 앞을 잘랐으면
+그 초를 더 뺀다. `cut_start_ms` 는 타임라인에서 그 컷이 시작하는 시각이라, 컷 안 초에 더하지 않고
+구간이 그 컷이 맞는지 대조할 때 쓴다. 다음 가사부터는 `lips stay together` 로 적는다.
+
+실패(실측): 「다시 일어서」의 박 칸을 눈대중으로 채워(4.62·4.85·5.31) 「일」이 불리는 박을 쉼으로 적었다.
+「일」과 「어」가 반 박 늦어, 화면에서는 「일」인 동안 이미 다른 모음이었고 「서」 뒤에 음절이 하나 더 있는 것처럼 보였다.
+실측한 컷 시각은 아래다.
+
+```text
+4.68s "다" = 아, small relaxed open jaw
+4.91s "시" = 이, lips slightly spread
+5.14s "일" = 어, small rounded opening
+5.37s "어" = 어, small rounded opening
+5.83s "서" = 어, small rounded opening, through 6.06s
+6.21s lips stay together
+```
+
+#### 모델이 만든 소리
+
+Seedance 같은 모델은 자기 소리를 만든다(`host` 가 모델). 입은 그 소리에 맞는다. 그 소리는 실제 곡과 다르고,
+늦거나 음절이 더 붙을 수 있다. 검수 기준은 보는 사람이 듣는 실제 BGM 이다. BGM 음절 시작, 모델 소리,
+24fps 입 프레임(`mv_timing.py sheet --fps 24`)을 나란히 놓고, 음절마다 들은 음절과 본 입을 짝짓는다.
+입이 벌어진 프레임만 옛 맵과 대조해 판정하지 않는다.
+
+`host: "music"` 이 립싱크에 도움이 될 수 있다. 미확인.
+
+- 입 검수는 「음절 시각은 실제 소리에서 잰다」와 「모델이 만든 소리」를 따른다.
 
 ### 곡이 없는 연출 컷(인트로 등)
 
@@ -248,7 +288,7 @@ democut_wait_jobs(…)
    뮤직비디오 컷에서 되는 편집은 앞뒤 자르기뿐이다(구간·배속·멈춤 늘이기·무음 자르기는 422).
 4. 웹 타임라인 미리보기에서 곡과 함께 듣는다.
 5. 입모양이 맞는지는 사람이 보고 정한다. 에이전트는 소리를 듣지 못하고 컷 파일에는 소리가 없다. 그 줄의 곡 구간을 입힌 확인용
-   파일을 만들어 사람에게 보인다.
+   파일을 만들어 사람에게 보인다. 음절 시각과 모델 소리 대조는 「음절 시각은 실제 소리에서 잰다」.
 
 ```bash
 ffmpeg -i cut.mp4 -ss <song_start_ms ÷ 1000> -t <줄 길이 초> -i song.mp3 \

@@ -173,6 +173,7 @@ python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-be
 6. 만든 영상을 `mv_timing.py sheet --bpm <곡 BPM>` 으로 격자 한 장으로 보고 콘티와 대조한다.
    박 번호가 필요하면 `--fps 0`(한 박에 칸 하나)을 쓴다. 줄 길이에 맞게 `trim_out_ms` 로 자른다.
    입모양은 그 줄의 곡 구간을 입힌 확인용 파일로 사람이 본다(에이전트는 소리를 듣지 못한다).
+   음절 시각은 실제 BGM 에서 재고, 검수는 [`references/democut-mv.md`](references/democut-mv.md) 「음절 시각은 실제 소리에서 잰다」.
    확정한 카메라 항목은 시각(초)과 함께 됐다·안 됐다로 판정한다.
 7. 순서의 모든 컷이 만들어지면 완성본 견적, 동의, 완성본.
 
