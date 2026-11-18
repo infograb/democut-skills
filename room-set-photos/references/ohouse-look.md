@@ -14,9 +14,9 @@
 | 물리 | 가구가 바닥(또는 받침) 위에 서 있고 서로 뚫지 않는다. 등받이 높은 의자는 책상 앞에 빠져 있다. 놓인 것은 받침 가장자리 안에 있다 | 책상 밑에 밀어 넣은 사무용 의자, 떠 있거나 겹친 가구, 프레임 밖으로 나온 매트리스 |
 | 카메라 | 가슴 높이(약 1.2m), 수직선이 서 있는 사진, 세로 사진 | 어안 왜곡, 높은 부감, 극단적 광각 |
 | 한국 집 디테일 | 흰 PVC 이중창 샷시, 흰 걸레받이, 실크 벽지, 원형 평판 LED 천장등, 강마루·장판 | 서양식 몰딩·벽난로·카펫 바닥 |
-| 창 | 샷시 미닫이. 짝 둘이 가로 레일 위에 있고, 열린 창은 한쪽만 다른 짝 뒤로 밀린다. 틀과 레일이 보인다 | 여닫이·들창·틸트창. 도면 `style` 이 달리 적지 않으면 쓰지 않는다 |
+| 창 | 샷시 미닫이. 짝 둘이 가로 레일 위에 있고, 열린 창은 한쪽만 다른 짝 뒤로 밀린다. 틀과 레일이 보인다. 원룸·작은 방은 간유리이고 바깥 쇠창살 실루엣이 비친다 | 여닫이·들창·틸트창. 도면 `style` 이 달리 적지 않으면 쓰지 않는다. 원룸 창의 맑은 유리, 나무·하늘·건물이 선명한 밖 |
 | 주방 | 싱크 줄 위 벽걸이 상부장, 쿡탑 바로 위 레인지후드 | 상판 위가 빈 벽, 후드 없는 쿡탑 |
-| 창밖 | 집 유형에 맞는 바깥. 원룸은 몇 미터 앞 건너편 빌라의 벽과 창, 아니면 커튼을 친 창 | 원룸 창밖의 고층 아파트 단지 |
+| 창밖 | 맑은 유리일 때만 집 유형에 맞는 바깥. 원룸의 맑은 유리는 몇 미터 앞 건너편 빌라의 벽과 창. 원룸·작은 방의 기본은 간유리라 밖이 선명하지 않고 바깥 쇠창살 실루엣만 비친다 | 원룸 창의 맑은 유리로 보이는 나무·하늘·건물, 고층 아파트 단지 |
 | 사람 | 없다 | 사람·반려동물·글자·로고 |
 
 「좋은 카메라로 찍은 밝은 자연광 사진」 이라고 쓰면 생성 모델은 바닥에 햇빛 무늬를 깔고 색과 표면을 매끈하게 다듬는다.
@@ -25,9 +25,13 @@
 
 창은 기본이 한국 샷시 미닫이다. PVC 또는 알루미늄 틀에 짝이 나란히 둘이고, 가로 레일 위를 한쪽만 밀어 연다. 다른 짝은 닫혀 있다. 도면이 `openings[].style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않는다. 창이 화면에 있으면 In view 줄은 「a WxH cm sliding sash on the far wall (center), above the desk, sill N cm」 이다. 폭·높이는 도면의 mm 를 cm 로 줄인 것이고, 바로 아래 가구가 있을 때만 above 를 붙인다. `open: true` 이면 「one pane slid open behind the other」 를 붙인다. `Avoid:` 에는 `casement, hinged, or push-out windows` 가 들어간다. 원룸 기본은 120×120cm, 턱 90cm다. 180cm 폭은 원룸에 크다. 위 끝은 턱+높이이고 천장까지 올리지 않는다. 문장은 이 길이로 두고 더 늘리지 않는다. 프롬프트 한도는 4,000자다.
 
+원룸·작은 방 창의 유리는 간유리(반투명)다. 쇠창살은 창 바깥에 있고 그 실루엣이 유리에 비친다(2026-11-18). 도면이 `glass`·`bars` 를 빼면 이 기본이다. 화면에 그 창이 있으면 `frosted translucent glass with the outside security-bar silhouette on it` 을 붙이고, `Avoid:` 에 `clear transparent glass, a sharp outdoor view of trees, sky, or buildings` 를 넣는다. 확인 목록은 「창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다」 다. 간유리 창에는 건너편 빌라처럼 밖이 선명한 문장을 붙이지 않는다. `glass: "clear"` 로 적힌 창만 아래 창밖 문장을 쓴다.
+
 창밖을 적지 않으면 모델은 한국 집 창밖에 아파트 단지를 그린다. 원룸은 보통 3~4층 빌라에 있어서 그 창밖은 맞지 않는다
-(2026-11-13 사용자 지적). 그래서 `shots.py` 는 `type: "oneroom"` 이면 방을 「빌라 원룸」 으로 적고 창밖에 건너편 빌라를 넣고
-`Avoid:` 에 아파트 단지를 넣는다. 커튼을 쳐서 바깥을 가리려면 `photo.view` 를 `false` 로 두고 `photo.curtains` 에 친 커튼을 적는다.
+(2026-11-13 사용자 지적). 그래서 `shots.py` 는 `type: "oneroom"` 이고 유리가 맑을 때만 창밖에 건너편 빌라를 넣고
+`Avoid:` 에 아파트 단지를 넣는다. 기본인 간유리 창은 그 문장 대신 쇠창살 실루엣을 적는다. 커튼을 쳐서 바깥을 가리려면 `photo.view` 를 `false` 로 두고 `photo.curtains` 에 친 커튼을 적는다.
+
+가구는 방 전체의 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 화면 밖에 있는 것도 그 방에 있으면 센다. 좌우는 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 빈 방 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때는 그 가구를 따로 적지 않고 `the single chair from the reference, and she is sitting in that same chair` 라고 적는다. 개수·좌우 문장은 그 컷의 것을 그대로 옮기고, 같은 사진을 쓰는 다른 컷에도 넣는다(2026-11-18, 빈 의자가 더 생기고 좌우가 뒤집힘).
 
 **식물은 요청할 때만 넣는다.** 「화분 한두 개」 라고만 써도 모델은 서랍장·협탁·창가마다 화분을 늘어놓는다(2026-11-11 사용자 지적).
 프리셋 소품에는 식물이 없고 `Avoid:` 줄이 식물·꽃을 막는다. 사용자가 식물을 원하면 `photo.plants` 를 켠다(`true` 면 작은 화분
@@ -191,7 +195,9 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
   벽(화면 밖이면 그렇다고)에 있는지, 빛이 화면의 어느 쪽으로 퍼지는지, 그래서 가구의 어느 면이 밝고 그림자가 어디로 지는지를
   적는다. 천장등은 끈다. 예: `Daylight comes only from the window on the far-left wall and travels to the right and toward
   the camera: furniture sides facing the window are brighter, soft shadows fall to the right and toward the camera. The
-  ceiling light is off.`
+  ceiling light is off.` 그 창이 간유리면 같은 방향에 `Diffuse daylight comes only through the frosted glass of the window…`
+  를 쓴다. 퍼진 낮·저녁 빛은 들어오고, 직사와 선명한 밖은 아니다. 컨셉 빛이 이미 diffuse 이면 그대로 두고, 아니면
+  `diffuse through the frosted glass, no direct sun` 을 보탠다.
 
 방향을 적지 않으면 생성 모델은 컷마다 빛을 다른 데서 끌어오고(대표 컷과 제품 컷의 그림자가 반대로 진다), 창 없는 벽 쪽에서
 햇빛을 비추기도 한다. 창이 없는 방(욕실 등)은 천장등의 고른 빛과 문간으로 새는 낮빛으로 적는다. `shots.md` 의 확인 목록에
