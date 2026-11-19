@@ -43,8 +43,9 @@
 draft_spec={…})`.
 
 - 한 생성 안에서 장면을 나누는 줄은 컷 하나이고, 장면 목록은 프롬프트에 적는다(아래 「프롬프트의 짜임」).
-- 짧은 컷 여럿으로 나눈 줄(`7a`·`7b`·`7c`)은 컷마다 `song_start_ms` 를 그 컷이 맡은 곡 시작으로 주고, 만든 뒤
-  `trim_out_ms` 로 맡은 길이만 남긴다(130 BPM 한 줄 7,385ms 를 셋으로 나누면 2,462ms).
+- 짧은 컷 여럿으로 나눈 줄(`7a`·`7b`·`7c`)은 컷마다 `buffer` 로 생성 길이와 트림을 잡는다.
+  130 BPM 한 줄 7,385ms 를 셋으로 나누면 곡 구간은 2,462ms 지만, 그 ms 를 그대로 `trim_out_ms` 에 넣지 않는다.
+  아래 「박에 맞춘 자르기」.
 - 이미 만든 줄에 컷을 더하거나 나눌 때는 콘티 표를 먼저 고치고 초안을 고친다.
 
 ### 초안을 고칠 때
@@ -77,7 +78,8 @@ draft_spec={…})`.
 - 해상도(`video_resolution`)를 고르지 않으면 720p 를 넘지 않는다. 고르면 그 값으로 만들고 값이 오른다.
 - 새로 만드는 컷에는 곡을 함께 붙일 수 없다. `add_cut` 으로 컷을 만들고, 곡을 붙이고, 그 `cut_id` 로 견적을 받는다
   (곡 없이 제출하면 `MUSIC_REQUIRED`).
-- 길이는 정수 초다(4~15). 줄 길이를 올림한 값으로 만들고 나중에 `trim_out_ms` 로 자른다.
+- 길이는 정수 초다(Seedance 2.5 는 4~15). `duration_s` 와 트림은 `mv_timing.py buffer` 가 낸다.
+  줄 길이를 올려 곡 ms 그대로 자르지 않는다. 아래 「박에 맞춘 자르기」.
 
 컷마다 곡을 붙인다.
 
@@ -85,10 +87,72 @@ draft_spec={…})`.
 democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": <그 줄의 곡 시작 ms>})
 ```
 
-- `song_start_ms` 는 `mv_timing.py grid` 의 값이다. 비우면 「앞 컷에서 이어받기」인데 뮤직비디오 컷은 만들 때 그 자리를 알
-  수 없어 `MUSIC_START_REQUIRED` 로 막힌다. 반드시 숫자로 준다.
+- 버퍼를 둔 컷의 `song_start_ms` 는 `mv_timing.py buffer` 의 값이다. 버퍼가 없으면 `grid` 의 줄 시작이다.
+  비우면 「앞 컷에서 이어받기」인데 뮤직비디오 컷은 만들 때 그 자리를 알 수 없어 `MUSIC_START_REQUIRED` 로 막힌다.
+  0 이상의 숫자를 준다. 음수면 아래 「박에 맞춘 자르기」대로 `tail` 로 다시 잡는다.
 - 저장할 때 숫자로 굳는다. 순서를 바꾸거나 앞 컷 길이를 바꿔도 따라 움직이지 않으므로, 바꿨으면 다시 지정한다.
 - 곡 길이를 서버가 모르면(자산에 `duration_ms` 가 없으면) 확정하지 못하고 만들 때 막힌다.
+
+### 박에 맞춘 자르기
+
+정수 초와 버퍼의 계산은 [`conti-and-timing.md`](conti-and-timing.md) 「정수 초와 버퍼」다.
+여기서는 그 결과를 DemoCut 에 넣는 법만 적는다. 아래는 만든 뮤직비디오에서 잰 것이다.
+
+만들 때와 만든 뒤는 다르다. 만들 때는 `host: "music"` 에 곡이 붙어야 모델이 박을 듣는다(`MUSIC_REQUIRED`).
+그때의 `song_start_ms` 는 생성 클립 0초에서 들을 곡 위치이고, 스크립트 값과 같다.
+0 이상이면 그 숫자를 BGM 에 넣는다. 첫 박은 머리 버퍼(`prompt_shift_ms`)에 온다.
+음수면 곡의 0초보다 앞에서 박을 들려 달라는 뜻이라 BGM 에 넣지 못한다. 그 컷은 `tail` 로 다시 잡아
+첫 박을 생성 0초에 둔다. 130 BPM 2마디를 곡의 0초에서 `both` 로 잡으면 `song_start_ms` 가 -667 이라 이 경우다.
+바로 다음 2마디는 `song_start_ms` 3025 라 그 값을 넣어 만든다.
+
+만든 파일에 자기 소리 트랙이 있으면, 완성본의 BGM 은 자동으로 작아진다. 아래 편집은 그 다음이다.
+
+- **`edit.tracks` 의 `at_ms` 와 BGM 의 `song_start_ms` 는 원본 클립의 처음부터 센다.** 트림 시작부터가 아니다.
+  트림 시작보다 앞에 둔 트랙은 소리 없이 빠진다. 자르기를 되돌려도 저장은 그대로라, 앞에 둔 트랙은 그 자리에 남은 채
+  완성본에서만 빠진다.
+- **트림은 BGM 도 자른다.** 트림이 시작하는 순간에 들려야 하는 곡 시각을 S, 트림 시작을 T 라 하면
+  `song_start_ms` = S - T 다. 스크립트의 `song_start_ms` 가 그 값이고, `track_in_ms` 가 S, `track_at_ms` 가 T 다.
+  130 BPM 2마디를 양쪽 버퍼로 5초에 구우면 T 는 667, 곡의 0초를 거기에 맞추면 `song_start_ms` 는 -667 이다.
+- **파일에 자기 소리 트랙이 있는 컷은 BGM 이 자동으로 덕킹된다.** 영상 모델이 소리를 같이 구우면 그렇게 된다.
+  고치는 법은 `bgm` 을 null 로 두고, 곡을 편집 트랙으로 `volume_db` 0 에 깔고, 클립 `volume_db` 를 -40 으로 끄는 것이다.
+  -40 은 줄이기가 아니라 끄기다. 트랙에 `kind` 가 필요하면 그 연결의 가이드가 허용하는 값을 쓴다.
+- **BGM 이 시작하거나 끝나는 자리마다 이웃 컷에 약 0.5초 페이드가 붙는다.** 500ms 크로스페이드로 그 자리를 덮는다.
+  스크립트는 곡 트랙의 `fade_in_ms`·`fade_out_ms` 를 500 으로 낸다. 트림보다 짧으면 절반으로 줄인다.
+  `at_ms` 는 트림 시작이다. 페이드를 트림 밖으로 당겨 두면 그 트랙이 빠지므로, 트림 안에 둔다.
+  같은 곡을 트랙 여러 개로 겹쳐 넣지 않는다. `edit.tracks` 의 한 줄이 그 크로스페이드다.
+- **끝 프레임을 붙잡는 `freeze_to_ms` 는 곡에 맞춘 컷에서 거부된다.** 마지막 장면을 멈추고 싶으면 그 프레임을
+  정지 클립 컷으로 따로 만들어 뒤에 붙인다. 곡에 맞춘 컷 안에 넣지 않는다.
+
+130 BPM, 2마디, `both`, 24fps 의 편집은 이렇다. 수는 `buffer` 를 다시 돌린 것과 같다.
+
+```text
+democut_set_cut_bgm(..., bgm=null)
+democut_set_cut_edit(..., edit={
+  "trim_in_ms": 667,
+  "trim_out_ms": 4375,
+  "volume_db": -40,
+  "tracks": [{
+    "at_ms": 667,
+    "in_ms": 0,
+    "length_ms": 3708,
+    "volume_db": 0,
+    "fade_in_ms": 500,
+    "fade_out_ms": 500
+  }]
+})
+```
+
+`trim_start_ms`·`trim_end_ms` 는 `trim_in_ms`·`trim_out_ms` 와 같은 수다. 칸 이름은 뒤의 것이다.
+자산 id 는 읽은 초안에 있는 곡 id 를 트랙에 넣는다. `edit` 는 통째로 바뀌므로, 저장 직전에 `democut_get_cut` 으로
+읽은 값에서 이 칸만 고친다. 음수 `song_start_ms` 는 BGM 에 실어 보내지 않는다.
+다음 컷처럼 곡이 0초가 아니면 `in_ms` 가 그 곡 시각이고, `song_start_ms` 가 0 이상일 때만 BGM 칸의 대안으로 쓴다.
+
+만든 뒤의 확인용 파일도 이 트림과 곡 위치를 쓴다.
+
+```bash
+ffmpeg -ss <trim_in_ms ÷ 1000> -i cut.mp4 -ss <track_in_ms ÷ 1000> -t <picture_ms ÷ 1000> -i song.mp3 \
+  -map 0:v -map 1:a -t <picture_ms ÷ 1000> -c:v libx264 -crf 18 -c:a aac check.mp4
+```
 
 ### 콘티에서 부르는 줄을 나눈다
 
@@ -102,7 +166,8 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 ([`camera-moves.md`](camera-moves.md) 「노래 직전 카메라 컷 전환」).
 
 부르는 컷은 2–3초다. 카메라는 고정이거나 느리다. 움직임은 시선, 고개, 박에 맞춘 가벼운 흔들림만 둔다.
-입은 단어·구의 MOUTH MAP 으로 적는다. 영상은 4초부터라 4초로 만들고 `trim_out_ms` 로 그 구절만 남긴다.
+입은 단어·구의 MOUTH MAP 으로 적는다. 영상은 정수 초부터라 `buffer` 로 길이와 트림을 잡고, 입 시각은
+`prompt_shift_ms` 를 더한 생성 클립의 초로 적는다.
 
 움직임이 적은 부르는 컷은 싼 모델(Seedance Flash 등)로 견적을 먼저 받는다. 제출은 그 견적에 동의한 뒤다.
 앞 컷은 새로 만들기 전에, 이미 있는 버전을 trim 으로 쓸 수 있는지 본다. 그 trim 은 0원이다.
@@ -208,9 +273,11 @@ onset·에너지와 듣기로 잰다.
 - 마지막 음절의 끝.
 - 다음 가사가 시작하는 시각.
 
-곡 파일에서 잰 시각은 컷 시각으로 바꾼다. 컷 안 초는 `(곡 ms - song_start_ms) / 1000` 이다
-([`conti-and-timing.md`](conti-and-timing.md) 「가사 시각을 단어로 재기」). `trim_in_ms` 로 컷 앞을 잘랐으면
-그 초를 더 뺀다. `cut_start_ms` 는 타임라인에서 그 컷이 시작하는 시각이라, 컷 안 초에 더하지 않고
+곡 파일에서 잰 시각은 생성 클립의 초로 바꾼다. 버퍼를 둔 컷은
+`(곡 ms - 그 컷의 song_in_ms) / 1000 + prompt_shift_ms / 1000` 이다
+([`conti-and-timing.md`](conti-and-timing.md) 「정수 초와 버퍼」). 트림으로 버리는 머리 안에 입이 구워지지 않게,
+트림한 뒤의 초로 적지 않는다. 버퍼가 없는 옛 컷만 `(곡 ms - song_start_ms) / 1000` 이고, `trim_in_ms` 로 앞을
+잘랐으면 그 초를 더 뺀다. `cut_start_ms` 는 타임라인에서 그 컷이 시작하는 시각이라, 컷 안 초에 더하지 않고
 구간이 그 컷이 맞는지 대조할 때 쓴다. 다음 가사부터는 `lips stay together` 로 적는다.
 
 실패(실측): 「다시 일어서」의 박 칸을 눈대중으로 채워(4.62·4.85·5.31) 「일」이 불리는 박을 쉼으로 적었다.
@@ -273,6 +340,8 @@ democut_set_cut_edit(slug, cut_id, rev, edit={"segments": [
    dense sharp beat hits, isolations and finger tutting, not a children's nursery dance`
 2. 초 단위 사건(곡 없는 연출 컷), 또는 카운트별·멤버별 안무(춤 컷). 안무는 [`choreography.md`](choreography.md) 의 순서.
    장면을 나눈 줄은 머리에 장면 수와 간격을 말하고 장면마다 시각·구도·동작을 한 문장씩 쓴다.
+   버퍼를 둔 컷의 시각은 생성 클립 기준이다. 콘티의 줄 안 초에 `prompt_shift_ms` 를 더하고, 머리·꼬리 문장은
+   [`conti-and-timing.md`](conti-and-timing.md) 「프롬프트에는 버퍼가 들어 있는 시간을 적는다」를 따른다.
 
 ```text
 16:9 music-video chorus, 8 seconds, a fast multi-shot edit of 8 shots separated by HARD CUTS (instant cuts, no
@@ -327,16 +396,20 @@ democut_wait_jobs(…)
 2. `mv_timing.py sheet --bpm <곡 BPM>` 로 격자를 보고 콘티와 대조한다(인물 자리, 의상, 안무 순서, 사건 시각,
    박 착지, 확정 카메라, 금지 손 모양, 공간이 생겨나는 전환의 첫 프레임과 재료에 맞는 생김새, 전환 중 멈춘 포즈).
    한 박에 칸 하나가 필요하면 `--fps 0`.
-3. 춤 컷은 줄 길이로 자른다: `democut_set_cut_edit(edit={"trim_in_ms": 0, "trim_out_ms": <줄 길이 ms>})`.
+3. 춤 컷의 트림·곡 트랙·클립 음량은 「박에 맞춘 자르기」의 `buffer` 결과다.
+   `trim_in_ms` 를 0, `trim_out_ms` 를 곡 ms 로 두지 않는다.
    뮤직비디오 컷에서 되는 편집은 앞뒤 자르기뿐이다(구간·배속·멈춤 늘이기·무음 자르기는 422).
+   `freeze_to_ms` 도 거부된다. 멈춤은 정지 클립 컷으로 나눈다.
 4. 웹 타임라인 미리보기에서 곡과 함께 듣는다.
 5. 입모양이 맞는지는 사람이 보고 정한다. 에이전트는 소리를 듣지 못하고 컷 파일에는 소리가 없다. 그 줄의 곡 구간을 입힌 확인용
    파일을 만들어 사람에게 보인다. 음절 시각과 모델 소리 대조는 「음절 시각은 실제 소리에서 잰다」.
 
 ```bash
-ffmpeg -i cut.mp4 -ss <song_start_ms ÷ 1000> -t <줄 길이 초> -i song.mp3 \
-  -map 0:v -map 1:a -t <줄 길이 초> -c:v libx264 -crf 18 -c:a aac check.mp4
+ffmpeg -ss <trim_in_ms ÷ 1000> -i cut.mp4 -ss <track_in_ms ÷ 1000> -t <picture_ms ÷ 1000> -i song.mp3 \
+  -map 0:v -map 1:a -t <picture_ms ÷ 1000> -c:v libx264 -crf 18 -c:a aac check.mp4
 ```
+
+버퍼가 없는 옛 컷은 `-ss` 를 곡의 `song_start_ms` 에 두고 줄 길이로 자른다.
 
 ## 6. 완성본
 
