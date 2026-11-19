@@ -75,15 +75,17 @@ on the downbeat, feet visible: they spread out into a V formation.
 
 ## 구도 레시피
 
+인물을 가리키는 영어 문장은 성별 대명사 대신 그 멤버의 이름을 쓴다. 아래 예는 Yeonjae 다.
+
 - **하이 앵글 노래 컷:** 인물보다 위에서 내려다보고, 인물은 고개를 들어 카메라를 보며 부른다. 얼굴 전체와 상반신이
-  보이고 눈 위가 잘리지 않는다. `high-angle shot looking down, she lifts her head up to the lens while singing`.
+  보이고 눈 위가 잘리지 않는다. `high-angle shot looking down, Yeonjae lifts Yeonjae's head up to the lens while singing`.
 - **노래 직전 카메라 컷 전환:** 노래 직전에 카메라 컷이 바뀌면, 인물은 반 박 늦게 그 카메라를 쳐다보며
   부르기 시작한다(130 BPM 이면 약 0.23초). 이 전환은 생성에 샷 바뀜을 시키지 않는다. DemoCut 타임라인에
   컷 둘을 이어 붙여 편집으로 하고, 바뀌는 시각은 앞 컷의 trim 길이가 정한다. 부르는 컷은 바뀐 샷에서 시작한다
   ([`democut-mv.md`](democut-mv.md) 「콘티에서 부르는 줄을 나눈다」). 입모양은 카메라 문장에 모음을 한 덩어리로
   적지 않는다. 프롬프트에는 단어·구의 시작과 끝만 적은 MOUTH MAP 한 블록을 둔다
   ([`democut-mv.md`](democut-mv.md) 「한국어 가사의 입모양」).
-  `opens on the shot after the camera cut; half a beat later she looks into the camera`.
+  `opens on the shot after the camera cut; half a beat later Yeonjae looks into the camera`.
 - **전환 중에도 안무는 이어진다:** 장면이 바뀌거나 구조물이 생기는 동안 군무를 멈추지 않는다. 첫 포즈를 잡은 채
   전환이 끝나길 기다리지 않는다. 전환 구간의 박마다 발·손 동작을 따로 적는다. 검수 때 한 포즈로 얼어 있으면 실패다.
 - **패닝으로 함께 담기:** 주인공에서 정한 방향으로 약 45도처럼 각도를 숫자로 적어 박에 맞춰 패닝하고, 관련 인물(소품을
@@ -132,16 +134,16 @@ existing walls` 를 넣는다.
 | 박에 밀기(펀치 인) | `0.00-0.92s camera glides in to mid-thigh medium, landing on the downbeat, no motion blur` | 포인트 동작, 강세. 머리와 손이 프레임 안에 남는다 |
 | 박에 빼기 | `0.92-1.85s pulls back out to full-body wide, feet visible, landing on the next downbeat` | 대형이 드러나는 박, 이동이 시작하는 박 |
 | 핸드헬드 앞뒤 무빙 | `handheld camera rhythmically pushes in and pulls back, no motion blur, sharp landing frames` | 핸드헬드가 확정된 군무 컷 |
-| 하이 앵글 노래 | `high-angle shot looking down, she lifts her head up to the lens while singing` | 부르는 단독·중심 샷이 하이 앵글로 확정된 줄 |
-| 노래 직전 카메라 컷 전환 | `opens on the shot after the camera cut; half a beat later she looks into the camera` | 타임라인에 이어 붙인 부르는 컷. 바뀌는 시각은 앞 컷의 trim. 입은 MOUTH MAP 한 블록 |
+| 하이 앵글 노래 | `high-angle shot looking down, Yeonjae lifts Yeonjae's head up to the lens while singing` | 부르는 단독·중심 샷이 하이 앵글로 확정된 줄 |
+| 노래 직전 카메라 컷 전환 | `opens on the shot after the camera cut; half a beat later Yeonjae looks into the camera` | 타임라인에 이어 붙인 부르는 컷. 바뀌는 시각은 앞 컷의 trim. 입은 MOUTH MAP 한 블록 |
 | 각도를 적은 패닝 | `on the beat the camera pans about 45 degrees to the right, bringing the other members into the same frame` | 관련 인물을 같은 화면에 넣어야 하는 줄. 방향·각도·박을 숫자로 적는다 |
 | 디테일에서 빠른 풀아웃 | `opens on a close-up of the shoes (or hands), the dance already in progress, then pulls out within about two beats to a head-to-toe full shot, landing on the downbeat` | 클로즈업으로 시작하는 군무. 카메라가 빠질 때까지 기다리지 않는다 |
 | 정면 고정 | `locked-off frontal shot, static, eye level` | 멈춰 있어야 한다고 *정한* 정지 포즈. 입을 맞추는 샷의 기본값은 아니다 |
 | 천천히 밀기 | `slow push-in` | 춤 없는 장면에서 감정이 오르는 줄의 끝, 전환 직전 |
 | 뒤로 빠지기 | `camera pulls back to a frontal wide shot` | 공간이나 다른 멤버를 드러낼 때 |
-| 뒤로 물러나는 트래킹 | `backward tracking shot as she walks toward the camera` | 걸어 나오는 벌스 |
+| 뒤로 물러나는 트래킹 | `backward tracking shot as Yeonjae walks toward the camera` | 걸어 나오는 벌스 |
 | 핸드헬드 | `handheld camera, subtle shake, no motion blur` | 랩, 거친 벌스. 군무의 앞뒤 무빙이면 위의 「핸드헬드 앞뒤 무빙」을 쓴다 |
-| 휩 팬 | `whip pan between her face and her hands` | 가사 줄이 바뀔 때, 멤버 사이 이동 |
+| 휩 팬 | `whip pan between Yeonjae's face and Yeonjae's hands` | 가사 줄이 바뀔 때, 멤버 사이 이동 |
 | 스테디캠 군무 통과 | `steadicam gliding between the dancing members` | 대형 이동이 있는 후렴 |
 | 원형 돌리 | `circular dolly shot orbiting the members clockwise` | 2절 후렴처럼 크게 가는 줄 |
 | 피사체를 지키는 아크 | `a fast arc around the subject, no motion blur, the subject (and the mirror, if any) stays fully inside the frame for every frame; the camera never travels behind the subject or the mirror so that they leave the shot` | 거울 장면, 멤버를 한 바퀴 도는 줄. 궤도만 적으면 대상이 화면 밖으로 나간다(실측) |

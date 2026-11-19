@@ -1860,9 +1860,11 @@ def frame_layout(vis):
     return ", ".join(bits)
 
 
-def person_same_furniture(name):
-    """레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구. 소품으로 따로 적지 않고 같은 물건이라고 적는다."""
-    return "the single {} from the reference, and she is sitting in that same {}".format(name, name)
+def person_same_furniture(name, person="<person name>"):
+    """레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구. 소품으로 따로 적지 않고 같은 물건이라고 적는다.
+    person 은 앉는 사람의 이름이다. 비어 있으면 `<person name>` 을 넣는다. 성별 대명사는 쓰지 않는다."""
+    who = (person or "").strip() or "<person name>"
+    return "the single {} from the reference, and {} is sitting in that same {}".format(name, who, name)
 
 
 def _legend_label(it):
@@ -3444,9 +3446,10 @@ def shots_md(data):
            "만드는 순서: **아래 번호 순서대로** 만든다. 대표 컷을 먼저 만들고 확인한 뒤 그 그림을 나머지 컷의 레퍼런스 1번으로 "
            "넣는다. 레퍼런스에 다른 컷의 그림이 있으면 그 컷이 언제나 앞 번호다.",
            "이 사진은 빈 방이다. 나중에 사람이 앉는 컷의 레퍼런스로 쓸 때, 그 사진에 이미 있는 의자·침대처럼 사람이 앉거나 "
-           "쓰는 가구를 소품으로 따로 적지 않는다. `the single chair from the reference, and she is sitting in that same "
-           "chair` 처럼 같은 물건이라고 적는다(가구 이름만 바꾼다). 그 컷의 프롬프트에 있는 Layout·Exactly 문장을 그대로 "
-           "옮기고, 같은 사진을 쓰는 다른 컷에도 같은 문장을 넣는다.", ""]
+           "쓰는 가구를 소품으로 따로 적지 않는다. `{}` 처럼 같은 물건이라고 적는다"
+           "(예의 이름은 그 사람의 이름이고, 가구 이름은 그 가구로 바꾼다). 그 컷의 프롬프트에 있는 Layout·Exactly 문장을 그대로 "
+           "옮기고, 같은 사진을 쓰는 다른 컷에도 같은 문장을 넣는다.".format(
+               person_same_furniture("chair", "Yeonjae")), ""]
     for i, s in enumerate(data["shots"], 1):
         cam = s["camera"]
         out.append("## {}. `{}` — {}{}".format(i, s["id"], s["title"], " ★ 대표 컷(먼저 만든다)" if s["master"] else ""))

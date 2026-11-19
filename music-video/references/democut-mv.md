@@ -181,15 +181,16 @@ Avoid only syllable-by-syllable chopping.
 
 카메라 문장은 그 줄에서 확정한 구도를 그대로 적는다. 하이 앵글이면 정면 고정의 예로 바꾸지 않는다.
 입 문장은 위의 MOUTH MAP 한 블록이고, 카메라 문장 안에 다시 적지 않는다.
+인물 이름은 그 멤버의 이름이다. 예는 Yeonjae 다.
 
 ```text
 Solo shot, only one performer in frame: the CENTER member alone.
-Camera: high-angle shot looking down, she lifts her head up to the lens while singing, her full face and upper
+Camera: high-angle shot looking down, Yeonjae lifts Yeonjae's head up to the lens while singing, Yeonjae's full face and upper
 body visible, nothing cropped above the eyes.
-On the beat the camera pans about 45 degrees to the right, bringing the members who handed her the prop into
+On the beat the camera pans about 45 degrees to the right, bringing the members who handed Yeonjae the prop into
 the same frame.
 MOUTH MAP: the single block for this shot, one phrase at a time, in the form above.
-She keeps a light body sway on the beat while singing.
+Yeonjae keeps a light body sway on the beat while singing.
 ```
 
 정면 고정이 확정된 줄만 `locked-off frontal medium shot from the waist up, eye level` 을 쓴다.
