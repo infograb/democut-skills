@@ -64,7 +64,7 @@ def test_trim_keeps_clause():
     fin = S.room_finish(house, concept, room)
     view = dict(room=room, space="a hall", finish=dict(fin, props="a folded towel " * 80),
                 master_finish=fin, colors=())
-    long = "2. Cabinet: " + "white " * 400
+    long = "2. Cabinet: " + "white " * (S.PROMPT_MAX // 3)
     short = "2. Cabinet: 80x40x90 cm." + note
     thru = [dict(head="Through the open wall is the room.", lines=[long], short=[short], avoids=[])]
     avoid = [S.AVOID_BARE_TOP.format("cabinet")]

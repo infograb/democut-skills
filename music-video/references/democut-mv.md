@@ -166,7 +166,7 @@ democut_set_cut_bgm(slug, cut_id, rev, bgm={"asset_id": <곡>, "song_start_ms": 
 (`sung smoothly as one phrase, legato, like a real singer`). 크기는 긍정 낱말로 준다
 (`small relaxed jaw`, `soft`, `slightly`). 다음 가사부터는 `lips stay together` 로 적는다.
 부정 문장은 블록 맨 끝 한 줄만 둔다(`Avoid only syllable-by-syllable chopping.`).
-금지를 반복하면 피해야 할 모양이 강조되고 `image_prompt` 약 4,000자 한도를 낭비한다.
+금지를 반복하면 피해야 할 모양이 강조되고 `image_prompt` 약 8,000자 한도를 낭비한다.
 '아이 어어어'처럼 모음만 한 덩어리로 나열하는 것은 사람에게 설명할 때 쓴다.
 
 ```text
