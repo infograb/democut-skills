@@ -110,6 +110,7 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 80cm 이상이다. 방 안에 그런 자리가 없으면(폭 1.6m에 깊이 60cm 싱크대처럼) 트인 문간 너머 옆 방에서 그 방을 본다.
 닫힌 문뿐이고 안에도 설 자리가 없으면 그 방의 전체 컷은 내지 않고 이유만 알린다. 자세한 문턱은
 [`references/ohouse-look.md`](references/ohouse-look.md) 「전체 컷 카메라」.
+방에 책상이 있으면 **책상 컷**이 필수다. 책상 한 끝의 뒤 모서리에서 방 건너편을 본다. 침대가 있으면 그 발치 쪽이고, 컷 id 는 `day-desk-to-bed`·`evening-desk-to-bed` 다. 침대가 없으면 `day-desk-to-far` 다. 낮과 저녁은 같은 카메라의 한 쌍이다. 높이는 1,500mm 이상(만드는 값은 1,550mm)이다. 앉은 눈높이에서는 책상 조명·스탠드가 방을 가린다. 의자가 침대를 가리는 자리, 다른 방으로 가는 문이 화면 왼쪽·오른쪽 끝에 걸리는 자리는 쓰지 않는다. 못 놓으면 `책상 컷 없음` 경고만 남기고 나머지 컷은 만든다. 연재 HOME v11 `day-desk-to-bed` 는 v4b 스케치로 만들었다. 카메라는 책상 뒤 왼쪽 모서리 (150, 230), 높이 1,550mm, yaw +34.1°, pitch −16°, 24mm 다(2026-11-19). `photo.shots` 로 그 방의 카메라를 직접 적으면 자동 책상 컷을 넣지 않는다. 그 목록에 책상 컷이 없으면 같은 경고가 난다. 문턱은 [`references/ohouse-look.md`](references/ohouse-look.md) 「책상 컷」.
 창의 기본은 한국 샷시 미닫이다. 흰 PVC(또는 알루미늄) 틀에 짝이 둘이고, 열린 창은 한쪽 짝만 다른 짝 뒤로 밀린다. 도면이 `style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않고, `Avoid:` 에 `casement, hinged, or push-out windows` 를 넣는다. 열린 창(`open: true`)이면 「one pane slid open behind the other」 를 짧게 붙인다. 원룸 창의 기본 크기는 120×120cm, 턱 90cm다. 스케치와 프롬프트는 도면의 오프셋·폭·높이·턱으로 창을 두고, 바로 아래 가구가 있으면 「above the desk」 처럼 그 이름을 붙인다. 위 끝은 턱+높이이고 천장까지 올리지 않는다.
 원룸·작은 방 창(`glass: "frosted"`, 빼면 그 기본)이 화면에 있으면 유리는 간유리·반투명이고, 바깥 쇠창살 실루엣이 그 유리에 비친다. In view 줄에 `frosted translucent glass with the outside security-bar silhouette on it` 을 붙이고, 나무·하늘·건물이 선명한 창밖 문장은 붙이지 않는다. `Avoid:` 에 `clear transparent glass, a sharp outdoor view of trees, sky, or buildings` 를 넣는다. 확인 목록은 「창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다」 다. 빛은 그 유리를 통과한 퍼진 낮·저녁 빛이다. 방향 문장은 `Diffuse daylight comes only through the frosted glass of the window…` 이고, 컨셉 빛이 직사를 말하면 `diffuse through the frosted glass` 를 보탠다. 이미 퍼진 빛이라고 적은 컨셉은 그대로 둔다.
 방 안의 가구는 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 처럼, 화면 밖에 있어도 그 방에 있으면 센다. 항목 하나당 하나고 `qty` 는 세지 않는다. 화면의 좌우는 도면 자리를 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 문장은 4,000자 한도로 빼지 않는다.
@@ -167,6 +168,7 @@ python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visib
 - `카메라 — …` — 직접 적은 전체 컷이 너무 가깝거나 한 물건이 화면을 덮는다. `photo.shots` 의 자리·렌즈를 고친다.
   자동 컷은 이런 자리를 내지 않는다.
 - `전체 컷 없음` — 그 방은 80cm 이상 물러설 자리가 안에도 트인 문간 너머에도 없다. 카메라를 직접 적거나 방을 뺀다.
+- `책상 컷 없음` — 방에 책상이 있는데 책상 뒤 모서리에서 건너편을 보는 자리를 못 찾았거나, `photo.shots` 에 그 컷이 없다. 의자가 침대를 가리거나 다른 방 문이 화면 끝에 걸리는 자리는 쓰지 않는다. 낮·저녁을 같은 카메라로 직접 적는다.
 - `안 그린 트인 문간` — 화면에 문간이 보이는데 그 너머 방을 집 데이터로 그리지 못했다. 그 컷은 내지 않는다. 문간이 가리키는 방이 없거나 밖이면 카메라가 그 문간을 보지 않게 한다.
 - `상자가 치수와 안 맞는다` — 올려 둔 물건이 받침 윗면이 아닌 높이에서 그려졌거나, 그린 크기가 치수를 화면에 비춘 것보다 크다. 직접 적은 컷은 내지 않는다. 자동 제품 컷이면 그 컷만 빼 두고 다음 컷을 만든다.
 - `자동 제품 컷을 빼 두었다` — 그 제품 컷이 치수 검사에 걸렸다. 키 12cm 미만의 상판 위 물건은 키로 배율을 재지 않는다.
@@ -175,6 +177,7 @@ python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visib
 
 - 앞 가구에 가려 주인공이 안 보인다, 벽만 보인다, 한 가구가 화면 절반을 덮는다
 - 넓은 컷의 화면 끝에 가까운 큰 가구의 모서리만 걸린다(위 경고)
+- 책상 컷은 책상 뒤 모서리에서 방 건너편(침대가 있으면 발치)이 보인다. 의자가 침대를 가리지 않는다. 다른 방으로 가는 문이 화면 왼쪽·오른쪽 끝에 잘리지 않는다. 낮·저녁의 자리·높이·방향·렌즈가 같다. 높이는 1,500mm 이상이다
 - 고치는 법: `photo.shots` 에 카메라를 직접 적는다(아래 형식). 컷을 적은 방은 그 방의 자동 컷 대신 적은 컷만 쓰고,
   적지 않은 방은 자동 컷을 그대로 쓴다(2026-11-13 전에는 방 하나만 적어도 주방·욕실·현관이 통째로 빠졌다).
   찍지 않을 방은 `photo.skip_rooms` 에 방 id 를 적는다.
@@ -301,7 +304,8 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 - 레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구(의자·침대 등)를 방 소품으로 따로 적지 않는다. `the single chair from the reference, and she is sitting in that same chair` 처럼 그 사람과 같은 물건이라고 적는다. 가구 이름만 바꾼다.
 - 그 빈 방 컷 프롬프트의 개수 문장(`Exactly one … No second …, no extra empty …`)과 `Layout:` 문장을 그대로 옮긴다. 좌우를 다시 짐작하지 않는다.
 - 같은 레퍼런스를 쓰는 다른 컷에도 같은 문장을 넣는다.
-- 확인할 것: 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」.
+- 의자에 사람이 앉는 컷의 방 레퍼런스는 책상 쪽에서 찍은 사진(책상 컷, `day-desk-to-bed`)이다. 책상 정면 제품 컷(`hero-desk`)이나 문간에서 본 전체 컷을 쓰지 않는다. 그 둘을 레퍼런스로 쓰면 연재 앞에 책상이 하나 더 생기거나 빈 의자가 하나 더 생긴다. 호빵 훅 v5 는 v11 `day-desk-to-bed` 를 레퍼런스로 썼고, 책상과 의자가 정확히 하나씩 나왔다(2026-11-19).
+- 확인할 것: 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」. 앉는 컷은 거기에 더해 「방 레퍼런스 — 책상 쪽 사진이다(정면 제품 컷·문간 컷이 아니다)」.
 
 ## 하지 않는 것
 
