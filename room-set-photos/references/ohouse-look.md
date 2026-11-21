@@ -31,7 +31,7 @@
 (2026-11-13 사용자 지적). 그래서 `shots.py` 는 `type: "oneroom"` 이고 유리가 맑을 때만 창밖에 건너편 빌라를 넣고
 `Avoid:` 에 아파트 단지를 넣는다. 기본인 간유리 창은 그 문장 대신 쇠창살 실루엣을 적는다. 커튼을 쳐서 바깥을 가리려면 `photo.view` 를 `false` 로 두고 `photo.curtains` 에 친 커튼을 적는다.
 
-가구는 방 전체의 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 화면 밖에 있는 것도 그 방에 있으면 센다. 좌우는 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 빈 방 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때는 그 가구를 따로 적지 않고 `the single chair from the reference, and she is sitting in that same chair` 라고 적는다. 개수·좌우 문장은 그 컷의 것을 그대로 옮기고, 같은 사진을 쓰는 다른 컷에도 넣는다(2026-11-18, 빈 의자가 더 생기고 좌우가 뒤집힘).
+가구는 방 전체의 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 화면 밖에 있는 것도 그 방에 있으면 센다. 좌우는 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 빈 방 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때는 그 가구를 따로 적지 않고 `the single chair from the reference, and Yeonjae is sitting in that same chair` 라고 적는다. 예의 Yeonjae 는 그 사람의 이름이다. 개수·좌우 문장은 그 컷의 것을 그대로 옮기고, 같은 사진을 쓰는 다른 컷에도 넣는다(2026-11-18, 빈 의자가 더 생기고 좌우가 뒤집힘).
 
 **식물은 요청할 때만 넣는다.** 「화분 한두 개」 라고만 써도 모델은 서랍장·협탁·창가마다 화분을 늘어놓는다(2026-11-11 사용자 지적).
 프리셋 소품에는 식물이 없고 `Avoid:` 줄이 식물·꽃을 막는다. 사용자가 식물을 원하면 `photo.plants` 를 켠다(`true` 면 작은 화분

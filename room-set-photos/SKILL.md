@@ -299,7 +299,7 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 
 이 스킬이 내는 사진은 빈 방이다. 나중에 그 그림에 사람을 앉힐 때 빈 의자가 하나 더 생기고, 좌우가 도면과 뒤집힌 일이 있었다(2026-11-18). 같은 방 사진을 레퍼런스로 쓰는 컷은 모두 아래를 지킨다.
 
-- 레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구(의자·침대 등)를 방 소품으로 따로 적지 않는다. `the single chair from the reference, and she is sitting in that same chair` 처럼 그 사람과 같은 물건이라고 적는다. 가구 이름만 바꾼다.
+- 레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구(의자·침대 등)를 방 소품으로 따로 적지 않는다. `the single chair from the reference, and Yeonjae is sitting in that same chair` 처럼 그 사람과 같은 물건이라고 적는다. 예의 Yeonjae 는 그 사람의 이름으로 바꾸고, 가구 이름은 그 가구로 바꾼다. 성별 대명사(she·her·he·his)는 쓰지 않는다.
 - 그 빈 방 컷 프롬프트의 개수 문장(`Exactly one … No second …, no extra empty …`)과 `Layout:` 문장을 그대로 옮긴다. 좌우를 다시 짐작하지 않는다.
 - 같은 레퍼런스를 쓰는 다른 컷에도 같은 문장을 넣는다.
 - 확인할 것: 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」.
