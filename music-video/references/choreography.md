@@ -13,6 +13,10 @@
 - 실측: 밀집 안무를 적은 영상에서 지정한 동작이 일부만 나온 적이 있다. 그래도 성기게 줄이면
   「아이돌 안무가 아니라 율동 같다」는 피드백이 났다. 밀도를 유지하고, 만든 뒤 격자로 빠진
   동작을 확인한 다음, 정말 안 그려진 동작만 문장을 더 구체화하거나 반 박을 한 박으로 늘린다.
+- 실측(Seedance 2.5, 8초, 셋이 나오는 군무): 16카운트를 박마다 다른 손 모양으로 적었더니 지정한 모양은 거의 나오지 않았다.
+  같은 가로 팔 모양이 2.31~2.77초, 3.69~4.62초에 그대로 이어졌고, 멤버마다 한 박씩 엇갈리게 적은 동작은 유니즌으로 나왔다.
+  카운트를 다 적더라도 **꼭 나와야 하는 동작**(포인트 동작, 대형 바꾸기, 끝 자세)을 먼저 골라 프롬프트 앞에 시각과 함께 둔다.
+  리플·캐논처럼 멤버 사이의 엇갈림이 꼭 보여야 하면 멤버마다 짧은 컷으로 나눠 이어 붙이는 쪽을 먼저 검토한다(미확인).
 - **전환 중에는 멈추지 않는다.** 장면이 바뀌거나 구조물이 생기는 동안은 한 박 홀드가 아니다. 그 구간의 박마다
   발·손을 적고, 한 포즈로 얼어 있으면 검수에서 실패다([`camera-moves.md`](camera-moves.md) 「공간이 생겨나는 전환」).
 
@@ -34,7 +38,7 @@
 | 대형 바꾸기 | 일자, V, 삼각형, 대각선, 두 줄. 부르는 멤버가 꼭짓점이나 앞 가운데로 나온다 | `they shift from a line into a V formation with CENTER at the front point` |
 | 센터 교대 | 파트마다 부르는 멤버가 센터로 나오고 나머지가 맞춰 움직인다 | `RIGHT steps forward into the center while the others step back` |
 | 높이 세 단계 | 서기, 무릎 굽히기, 웅크리기를 한 줄 안에서 오간다. 점프는 높이를 바꾸는 수단으로 쓰지 않는다(아래) | `drop into a low crouch on the beat, rise` |
-| 핑거댄스(핑거 터팅) | 반 박~한 박마다 손가락 모양이 바뀐다. 각진 손가락 프레임(사각·계단·십자·등호·격자), 깍지와 엇걸기, 손끝으로 얼굴·가슴 둘레를 따라 긋는 선, 손이 맞물리며 다음 모양으로 넘기기, 손목 롤. 직각과 칼각, 손끝까지 힘을 준다. 훅 단어의 시그니처는 짧은 오리지널 핑거 프레이즈로 만들고, 멤버 사이에 한 박씩 어긋나게 리플한다. 쥐었다 펴기 같은 한 동작짜리 단순 손동작을 포인트로 쓰지 않는다 | `both index fingers and thumbs form a sharp rectangle frame in front of the left eye, then rotate it 90 degrees on the beat; finger tutting, precise geometric finger shapes snapping on every beat, no slow raising` |
+| 핑거댄스(핑거 터팅) | 반 박~한 박마다 손가락 모양이 바뀐다. 각진 손가락 프레임(검지와 엄지로 만든 사각, 손가락 마디를 직각으로 꺾어 잇는 계단), 깍지와 엇걸기, 손끝으로 얼굴·가슴 둘레를 따라 긋는 선, 손이 맞물리며 다음 모양으로 넘기기, 손목 롤. 직각과 칼각, 손끝까지 힘을 준다. 훅 단어의 시그니처는 짧은 오리지널 핑거 프레이즈로 만들고, 멤버 사이에 한 박씩 어긋나게 리플한다. 쥐었다 펴기 같은 한 동작짜리 단순 손동작을 포인트로 쓰지 않는다 | `both index fingers and thumbs form a sharp rectangle frame in front of the left eye, then rotate it 90 degrees on the beat; finger tutting, precise geometric finger shapes snapping on every beat, no slow raising` |
 | 무대 가로지르기·깊이 | 옆으로 이동하고 앞뒤로 나왔다 들어간다. 무대 전체를 써야 커 보인다 | `they travel sideways with big chasse steps, then run two steps toward the camera` |
 | 대비·누적 | 느린 동작 옆에 터지는 동작을 둔다. 동작이나 사람을 하나씩 더해 간다 | `slow body roll, then an explosive jump` |
 | 카운터포인트 | 한 명이 솔로를 하는 동안 나머지는 다른 동작을 한다 | `CENTER dances a solo while LEFT and RIGHT hold a low pose` |
@@ -55,11 +59,33 @@
 끝에 다 같이 점프, 아래로 향하거나 위로 향한 꺾쇠(셰브론), 손가락 V, 하트 모양 꺾쇠, 손가락 총, 전화 거는 손(콜미),
 같은 손 모양을 유지한 채 손을 천천히 올리거나 내리기. 손바닥에 플러스(+) 같은 그래픽이 생기게 적지 않는다.
 
+이 목록은 콘티를 짤 때 쓴다. 프롬프트에는 맨 끝 한 줄로만 넣는다. 아래 「손은 자세로 적는다」처럼 금지 문장을 넣어도
+그 모양이 나왔다.
+
 쓸 것: 한 박(또는 반 박)마다 다른 동작, 쉬지 않는 하체(탭, 크로스 백, 스톰프, 킥, 슬라이드, 무릎 인앤아웃, 무게 이동),
 고개·가슴·골반을 따로 쓰는 아이솔레이션(가슴과 골반은 반대 방향), 히트와 플로우를 섞고 한 박 멈춤 뒤에 터뜨리기,
 멤버 간 한 박 리플, 대형 전환 두 번 이상, 높낮이와 턴, 같은 포즈로 딱 멈추는 엔딩. 시선과 태도도 안무의 일부다.
 훅에서 표정이 바뀐다(무표정에서 살짝 웃는 얼굴 등).
 - 후렴은 유니즌, 벌스는 센터 교대·카운터포인트, 프리코러스는 리플·누적으로 쌓고, 후렴 직전 박에 홀드를 둔다.
+
+### 손은 자세로 적는다
+
+같은 군무 컷을 여러 번 고쳐 만들며 잰 것이다(Seedance 2.5 Flash 와 Seedance 2.5, 8초, 세 명).
+
+- **기호 이름을 쓰지 않는다.** 손 모양을 기호 낱말(`plus`, `equal sign`, `#`)로 적은 초안에서 손바닥과 얼굴 앞에 흰 플러스(+)
+  그래픽이 떠 있었다. 기호 낱말을 줄인 다음 버전부터 그래픽은 나오지 않았다. 손 모양은 손가락 자세(어느 손가락이 어디를
+  향하고 무엇과 맞닿는지)로 적는다. 아래 맨손 문장을 넣은 버전은 손바닥·손가락에 부착물이 없다는 검수를 통과했다.
+  `Bare empty hands throughout. Nothing is attached to or held in the palms or fingers: no stickers, symbols, badges, glowing shapes, props, or slime blobs.`
+- **금지 문장은 막지 못한다.** `NEVER a heart, fist squeeze-and-open, chevron, finger V, finger-gun, "call me", …, covering the face`
+  를 넣은 컷에서 손가락 V 세 번, 얼굴 가리기 한 번, 끝 박에 세 명 모두 하트가 나왔다. 금지 목록은 맨 끝 한 줄로 두고,
+  손이 비는 박이 없게 박마다 손의 자리(명치 앞, 어깨 높이, 허리)와 모양을 적는다. 빈 박을 모델이 흔한 아이돌 포즈로
+  채우는 것으로 보인다(미확인).
+- **얼굴 옆 작은 손가락 모양은 군무 와이드에서 나오지 않는다.** 광대뼈 옆에서 검지를 갈고리로 거는 엔딩 훅을 다섯 번
+  만들었는데 한 번도 그대로 나오지 않았고 콜미, 손가락 총, OK 고리, 하트로 바뀌었다. 셋이 전신으로 나오는 컷의 포인트 동작과
+  끝 자세는 팔과 몸으로 읽히는 큰 모양으로 정한다. 손가락 모양이 시그니처면 손이 화면을 채우는 단독 클로즈업 컷을 따로
+  만든다(클로즈업에서 나오는지는 미확인).
+- **손은 처음부터 화면 안에서 춤추고 있다.** 풀아웃으로 시작한 컷에서 0.92~1.85초 동안 손이 내려가 있어 첫 손동작이
+  빠졌다. `hands already dancing at the sternum from the first frame, never hanging` 처럼 첫 프레임의 손 위치를 적는다.
 
 ## 가사에서 동작으로
 
@@ -109,12 +135,16 @@
 안무 칸을 영어로 옮길 때는 이 순서로 적는다.
 
 1. 첫머리에 밀도 문장: `K-pop idol choreography, dense sharp beat hits, isolations and finger tutting, not a children's nursery dance`
-2. 대형과 자리, 그리고 대형이 어떻게 바뀌는지: `the three members stand in a V formation, CENTER slightly in front, then shift into a line`
-3. 박에 맞춘다는 말: `dancing in unison, every move lands on the beat of the attached music`
-4. 카운트마다, 군무면 멤버(LEFT·CENTER·RIGHT)마다 발·몸·손가락·고개를 적는다. 「energetic dancing」처럼 덩어리로 적지 않는다.
+2. 꼭 나와야 하는 동작 두세 개와 그 시각(포인트 동작, 대형 바꾸기, 끝 자세). 이 컷의 검수 기준이 된다.
+3. 대형과 자리, 그리고 대형이 어떻게 바뀌는지: `the three members stand in a V formation, CENTER slightly in front, then shift into a line`.
+   자리는 의상으로 한 번 더 묶는다(`CENTER in the fur shrug and holographic shorts`). 의상은 다 맞는데 가운데와 왼쪽이
+   바뀐 컷이 있었다. 만든 뒤 격자에서 자리부터 본다.
+4. 박에 맞춘다는 말: `dancing in unison, every move lands on the beat of the attached music`
+5. 카운트마다, 군무면 멤버(LEFT·CENTER·RIGHT)마다 발·몸·손가락·고개를 적는다. 「energetic dancing」처럼 덩어리로 적지 않는다.
    가사가 있는 줄은 그 순서도 함께 적는다: `on beat 1 CENTER: right toe tap, both index fingers and thumbs snap into a sharp rectangle frame in front of the chest; LEFT slightly deeper in the knee`
-5. 동작 크기: `small, precise upper-body and hand moves because the intro beat is light`
-6. 끝 자세: `on the final beat they hit the ending pose on the ground, no jump, and freeze`
+6. 동작 크기: `small, precise upper-body and hand moves because the intro beat is light`
+7. 끝 자세와 그때의 손 위치: `on the final beat they hit the ending pose on the ground, both arms crossed high above the head, no jump, and freeze`
+8. 맨 끝 한 줄: 맨손 문장과 금지 손 모양 목록(「손은 자세로 적는다」)
 
 동작은 형용사가 아니라 **이름 있는 동작을 순서대로** 적는다. 「energetic dancing」, 「dynamic moves」만 적으면 타이밍이 제멋대로이고
 동작이 작게 나온다(`hit two chest pops on the beat, step right-left-right, half-turn, finish with a sharp arm lock` 꼴이 낫다,

@@ -14,10 +14,18 @@
 오래 버티지도 않는다.
 
 - **주기:** 한 번 들어가는 데 약 2박, 빠지는 데 약 2박(4박에 한 번 왕복, 130 BPM 이면 약 1.85초). 8초 컷이면
-  2~3회 왕복한다. 가장 강한 히트 한두 곳에서만 짧게 빨리 들어가는 강조를 쓴다.
+  2~3회 왕복을 계획한다. 가장 강한 히트 한두 곳에서만 짧게 빨리 들어가는 강조를 쓴다.
+  실측(Seedance 2.5 Flash, 8초 군무 세 번): 왕복 둘이나 셋을 시각과 함께 적었는데 완전한 왕복은 컷마다 한 번 정도였고, 나머지는
+  비슷한 전신 와이드로 머물렀다. 왕복 횟수가 중요한 줄은 아래 「하드 컷으로 나눈 짧은 장면」이나 타임라인에 이어 붙인
+  짧은 컷으로 밀기와 빼기를 번갈아 만든다.
 - **박 맞추기:** 움직임의 시작과 도착을 박(특히 마디 첫 박)에 맞춘다. 움직이는 동안은 부드럽게 흐르되, 박에 도착해
   잠깐 머문다. 정처 없이 흐르는 느린 줌은 아니다. 속도 낱말(`fast`, `snap`)과 시작·끝 구도·시각을 함께 적는다.
   「dollies in」만 적으면 속도가 모델 마음대로다.
+- **도착은 그 시각의 화면으로 적는다.** 신발 클로즈업에서 0.92초 전신으로 빠지는 오프닝이 Flash 세 번에서는 1.85~2.77초로
+  늦었다. 도착 화면과, 그 시각까지 남아 있으면 안 되는 화면을 함께 적은 Seedance 2.5 컷에서 0.92초에 맞았다.
+  `By 0.92s the frame MUST already be a sharp full-body wide (heads-to-boots); do not still be on a shoe close-up at 0.92`.
+  모델도 함께 바뀌어 문장만의 효과인지는 미확인이다. 다만 이 문장을 `By 0.92s a sharp full-body wide` 로 줄인 다음 버전은
+  같은 모델에서 다시 약 1.85초로 늦었다. 맞은 문장은 줄이지 않는다.
 - **크기:** 들어갈 때는 무릎 위~허벅지 미디엄(핑거댄스가 읽히는 거리), 빠질 때는 발까지 나오는 전신 와이드.
   매번 같은 거리로 왕복하지 말고 깊이를 조금씩 바꾼다. 한 줄에 머리부터 발끝까지 보이는 풀숏을 하나 이상 둔다.
   손끝과 발이 잘리면 안무가 읽히지 않는다.
@@ -92,7 +100,10 @@ on the downbeat, feet visible: they spread out into a V formation.
   안무는 0초부터 이미 진행 중이고, 카메라가 빠질 때까지 서서 기다리지 않는다.
 - **핸드헬드 앞뒤 무빙:** 박자 앞뒤 무빙에 `handheld` 를 명시한다. 핸드헬드 느낌이어도 모션 블러는 쓰지 않고 도착 프레임은
   선명하다.
-- **아크샷:** 블러 없이 돌고, 기준이 되는 인물이나 소품이 화면에 남는다.
+- **아크샷:** 기준이 되는 인물이나 소품이 화면에 남는다. 실측(Seedance 2.5, 8초 두 번): 프롬프트에 블러 금지를 적었는데도
+  아크 구간(2.20~2.40초)에서 두 번 모두, 마이크를 건네받는 빠른 스냅(4.16초)에서 한 번 강한 모션 블러가 났다.
+  블러가 나면 안 되는 자리(노래 직전, 포인트 동작, 이음 프레임)에는 아크를 두지 않고 각도를 적은 패닝이나 타임라인 컷 전환으로
+  바꾼다. 아크가 확정이면 블러 구간을 격자로 재서 트림으로 덜어낼 수 있는지 본다.
 - **시간 단축:** 동작을 빨리 감지 않는다. 걷기나 주고받기 같은 동작은 자연 속도로 두고, 카메라가 박에 맞춰 끊어 넘기며
   장면을 진행시켜 시간을 줄인다.
 
@@ -144,7 +155,7 @@ existing walls` 를 넣는다.
 | 휩 팬 | `whip pan between her face and her hands` | 가사 줄이 바뀔 때, 멤버 사이 이동 |
 | 스테디캠 군무 통과 | `steadicam gliding between the dancing members` | 대형 이동이 있는 후렴 |
 | 원형 돌리 | `circular dolly shot orbiting the members clockwise` | 2절 후렴처럼 크게 가는 줄 |
-| 피사체를 지키는 아크 | `a fast arc around the subject, no motion blur, the subject (and the mirror, if any) stays fully inside the frame for every frame; the camera never travels behind the subject or the mirror so that they leave the shot` | 거울 장면, 멤버를 한 바퀴 도는 줄. 궤도만 적으면 대상이 화면 밖으로 나간다(실측) |
+| 피사체를 지키는 아크 | `a fast arc around the subject, no motion blur, the subject (and the mirror, if any) stays fully inside the frame for every frame; the camera never travels behind the subject or the mirror so that they leave the shot` | 거울 장면, 멤버를 한 바퀴 도는 줄. 궤도만 적으면 대상이 화면 밖으로 나간다(실측). 블러 금지 문장을 적어도 블러가 났다(실측, 「아크샷」) |
 | 느려지는 옆모습 트래킹 | `a profile tracking shot that slows to a near halt, and as it decelerates the repeating motif (a double, a prop) appears just behind the member, still in frame` | 분신·소품이 멤버 뒤에서 드러나는 줄 |
 | FPV 드론 진입 | `FPV drone flies in from the skyline, passes between the members and stops in front` | 클라이맥스 첫 줄 |
 | 달리 줌 | `dolly zoom, the face stays the same size while the background stretches` | 숨은 모습이 드러나는 순간 |
@@ -173,4 +184,10 @@ existing walls` 를 넣는다.
 - 아크·원형 돌리는 시작·끝 구도만이 아니라 **매 프레임에 담을 대상**(사람, 거울, 반복 장치)을 적는다.
   「뒤로 돌아간다」만 적으면 카메라가 대상 뒤로 넘어가 빈 벽을 찍는다. 거울 장면은 거울과 사람이 함께 보이게
   앞쪽 반원 안에만 둔다. 아크는 블러 없이 돈다.
-- 핸드헬드나 아크, 빠른 줌아웃을 적어도 `no motion blur, sharp landing frames` 를 함께 적는다.
+- 핸드헬드나 아크, 빠른 줌아웃을 적어도 `no motion blur, sharp landing frames` 를 함께 적는다. 이 문장으로 아크와 빠른 스냅의
+  블러는 막히지 않았다(위 「아크샷」).
+- 같은 세트(창고, 무대)가 여러 컷에 나오면 먼저 만든 컷의 스틸을 참고 이미지로 넣고, 세트 묘사는 짧게 둔다.
+  조명 기구를 길게 적은 컷(`huge wide rectangular LED wall`, `large bright-white rectangular panels`)에는 앞 컷에 없던
+  밝은 세로 LED 탑과 두꺼운 화면 베젤이 생겼다. LED 서술을 「배경에만」 한 줄로 줄이고 첫 창고 컷의 스틸을 참고로 넣은
+  다음 버전에서 둘 다 사라졌다(천장 크레인·배관 같은 세부는 남았다). 두 가지를 함께 바꿔 어느 쪽 효과인지는 미확인이다.
+  참고 슬롯은 [`democut-mv.md`](democut-mv.md) 「2. 출연자」의 4개 한도 안에서 나눈다.
