@@ -98,6 +98,7 @@ AVOID_TILE = "tile boundary shifted into the kitchen/room or set back into the e
 AVOID_TILE_UNDER = "tile spilling under the {}"
 AVOID_TILE_PARTWAY = "tile ending partway under the {}"
 AVOID_TILE_IN_FRAME = "any tile floor in frame"
+AVOID_TOWEL = "a towel bar or towel hook on another wall or at a different height"
 
 BG = (250, 250, 250)
 FLOOR = (150, 150, 152)
@@ -155,7 +156,7 @@ KIND_FINISH = {
         floor="light gray non-slip ceramic floor tiles sloping to a floor drain",
         details="Korean bathroom details: tiled walls and floor, a floor drain, a raised threshold at the door, "
                 "a flat square LED ceiling light.",
-        props="a white towel on a wall hook, a soap dispenser and a toothbrush cup by the basin"),
+        props="a soap dispenser and a toothbrush cup by the basin"),
     "entrance": dict(
         floor="gray porcelain floor tiles, one step below the next room's floor",
         props="one pair of white sneakers on the floor tiles"),
@@ -639,8 +640,9 @@ def legend_glyphs(text, px=22, source=None):
     return out
 
 
-def _legend_entries(sc, cv, st):
-    """스케치에 실제로 칠해진 상자와 창·문. 빈 문간(VOID)은 범례에 넣지 않는다."""
+def _legend_entries(sc, cv, st, cam=None):
+    """스케치에 실제로 칠해진 상자와 창·문. 빈 문간(VOID)은 범례에 넣지 않는다.
+    수건걸이는 픽셀이 적어도 범례에 자리를 적는다. cam 이 있으면 그 문장이다."""
     out, seen = [], set()
 
     def add(color, text):
@@ -650,14 +652,17 @@ def _legend_entries(sc, cv, st):
         seen.add(key)
         out.append((tuple(color), text))
 
+    def show(it, pixels):
+        return (pixels and pixels[0] >= 20) or P.is_towel(it)
+
     for it in sc.items:
         iid = sc.iid[it["id"]]
-        if st.get(iid) and st[iid][0] >= 20:
-            add(sc.color[it["id"]][0], _legend_label(it))
+        if show(it, st.get(iid)):
+            add(sc.color[it["id"]][0], _legend_label(it, sc.ctx, cam))
     for cid, (nb, it, _oid) in getattr(cv, "through", {}).items():
         s = st.get(cid)
-        if s and s[0] >= 20:
-            add(nb.color[it["id"]][0], _legend_label(it))
+        if show(it, s):
+            add(nb.color[it["id"]][0], _legend_label(it, nb.ctx, cam))
     for col, txt in OPENING_LEGEND:
         if col == VOID:
             continue
@@ -1685,6 +1690,55 @@ REL_EN = {"far": "the far wall", "far-left": "the far-left wall", "far-right": "
           "left": "the left wall", "right": "the right wall", "near": "the wall behind the camera",
           "near-left": "the wall just left of the camera, out of frame",
           "near-right": "the wall just right of the camera, out of frame"}
+_FRAME_KO = {"left": "왼쪽", "right": "오른쪽"}
+
+
+def _towel_frame_side(cam, x, y, z):
+    """이 카메라로 본 수건걸이의 화면 쪽. 왼쪽 아니면 오른쪽."""
+    q = cam.to_cam((x, y, z))
+    if q[2] > NEAR:
+        u, _v = cam.proj(q)
+        return "left" if u < cam.w / 2.0 else "right"
+    rx, ry = cam.right2()
+    return "left" if (x - cam.x) * rx + (y - cam.y) * ry < 0 else "right"
+
+
+def _one_towel_line(ctx, cam, it):
+    """수건걸이 한 개의 영어 자리 문장과 확인 목록. 빛(낮·저녁)은 넣지 않는다."""
+    g = ctx.geo.get(it["id"])
+    if not g:
+        return None, None
+    wall = (it.get("place") or {}).get("wall")
+    rel = _wall_rel(wall, cam) if wall in NORMAL else None
+    wall_en = REL_EN[rel] if rel else "the wall"
+    cx = (g["rect"][0] + g["rect"][2]) / 2.0
+    cy = (g["rect"][1] + g["rect"][3]) / 2.0
+    z = it["z"] if isinstance(it.get("z"), (int, float)) and not isinstance(it.get("z"), bool) else (g.get("z") or 0)
+    side = _towel_frame_side(cam, cx, cy, z + (g.get("h") or 0) / 2.0)
+    where = "on the {} side of the frame".format(side)
+    line = ("Towel bar: on {}, {}, mounted {} cm above the floor. "
+            "One white towel hangs on this bar.".format(wall_en, where, _cm(z)))
+    check = ("수건걸이 — 화장실에 있고, 모든 컷(낮·저녁)에서 house.json 과 같은 자리다 "
+             "({}, 화면 {}, 설치 높이 {}cm)".format(WALL_KO.get(rel, "벽"), _FRAME_KO[side], _cm(z)))
+    return line, check
+
+
+def towel_view(ctx, cam, rooms):
+    """욕실이 화면에 있을 때 프롬프트에 붙일 수건걸이 문장. → (글, 확인 목록, Avoid)."""
+    lines, checks = [], []
+    seen = set()
+    for room in rooms or []:
+        if not room or room.get("kind") != "bathroom" or room.get("id") in seen:
+            continue
+        seen.add(room["id"])
+        for it in ctx.items:
+            if it.get("room") != room["id"] or not P.is_towel(it):
+                continue
+            line, check = _one_towel_line(ctx, cam, it)
+            if line:
+                lines.append(line)
+                checks.append(check)
+    return "\n".join(lines), checks, ([AVOID_TOWEL] if lines else [])
 
 
 def _opening(sc, m, cam):
@@ -1865,8 +1919,13 @@ def person_same_furniture(name):
     return "the single {} from the reference, and she is sitting in that same {}".format(name, name)
 
 
-def _legend_label(it):
-    """범례는 사람용이라 영문 이름이 있으면 그것을, 없으면 분류를 적는다."""
+def _legend_label(it, ctx=None, cam=None):
+    """범례는 사람용이라 영문 이름이 있으면 그것을, 없으면 분류를 적는다.
+    수건걸이는 카메라로 본 자리 문장을 적는다(프롬프트와 같은 문장)."""
+    if ctx is not None and cam is not None and P.is_towel(it):
+        line, _check = _one_towel_line(ctx, cam, it)
+        if line:
+            return line
     for key in ("label_en", "label"):
         lab = it.get(key) or ""
         if lab and all(32 <= ord(c) < 127 for c in lab):
@@ -2915,6 +2974,9 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
         out.append(view["kitchen"])
     if view.get("entry_floor"):
         out.append(view["entry_floor"])
+    if view.get("towel"):
+        # 낮·저녁이 같은 문장이다. 한도로 줄이지 않는다.
+        out.append(view["towel"])
     out.append("Furniture in frame, left to right (position, depth; W x D x H). Draw exactly these, at true scale:")
     out.extend(body)
     # 소품은 적은 것만 놓인다. 「Small soft props only」 는 작은 소품을 더 지어 놓아도 된다는 말로 읽혀, 목록에 없는
@@ -3147,6 +3209,8 @@ def _fit_prompt(shot_id, build, view, thru):
                "깊이·폭·벽이 이어진다는 문장은 구조라 빼지 않는다. ")
         if "top shows" in prompt:
             why += "받침 위 품목 문장(if the … top shows)도 구조라 빼지 않는다. "
+        if "Towel bar:" in prompt:
+            why += "수건걸이 자리 문장은 구조라 빼지 않는다. "
         raise SystemExit("컷 {} 의 프롬프트가 {:,}자로 한도({:,}자)를 넘는다. {}"
                          "look 을 줄이고 plan 을 다시 돌린다. 이 컷은 내지 않는다.".format(
                              shot_id, len(prompt), PROMPT_MAX, why))
@@ -3262,7 +3326,7 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         sketch = os.path.join("sketch", s["id"] + ".png")
         cv.png(os.path.join(out_dir, sketch))
         # 범례는 사람용이다. 모델에 넣는 레퍼런스는 위의 깨끗한 스케치다.
-        write_legend(cv, os.path.join(out_dir, "sketch", s["id"] + "-legend.png"), _legend_entries(sc, cv, st))
+        write_legend(cv, os.path.join(out_dir, "sketch", s["id"] + "-legend.png"), _legend_entries(sc, cv, st, cam))
         s["through_ops"] = sorted((getattr(cv, "doorways", {}) or {}))
         seen_by[s["id"]] = (sc, cam, hfov, st, sketch, colors, describe(sc, cam, cv, st, house, rules))
         del cv
@@ -3382,6 +3446,20 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                 if a not in avoid:
                     avoid.append(a)
             checks.extend(entry_floor_checks(ctx, eids, vids, tin))
+        brooms = []
+        if room.get("kind") == "bathroom":
+            brooms.append(room)
+        for t in thru:
+            tr = ctx.rooms.get(t["room"])
+            if tr and tr.get("kind") == "bathroom" and all(tr["id"] != r["id"] for r in brooms):
+                brooms.append(tr)
+        ttext, tchecks, tavoids = towel_view(ctx, cam, brooms)
+        if ttext:
+            view["towel"] = ttext
+            checks.extend(tchecks)
+            for a in tavoids:
+                if a not in avoid:
+                    avoid.append(a)
         def _build():
             return build_prompt(house, concept, ratio, cam, en, view, lines, ops, board, refs, light_en, avoid, thru)
         prompt, fit_notes = _fit_prompt(s["id"], _build, view, thru)
