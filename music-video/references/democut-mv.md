@@ -32,6 +32,9 @@
 - `democut_list_characters` 로 멤버 캐릭터가 있는지 본다. 없으면 `democut_create_character(name, look_text, persona_text)`.
   `look_text` 에 얼굴·머리를 적고, 사진을 만들어(`democut_make_character_photo`, 유료) 하나를 선택한다.
 - 선택된 사진이 없는 캐릭터를 컷에 넣으면 제출이 `PIP_PHOTO_REQUIRED` 로 막힌다(청구 전).
+- 캐릭터의 사진(버전)마다 5면 시트가 붙어 있고, 컷에 캐릭터를 넣으면 고른 버전의 시트가 참고 이미지로 간다. 무대 의상이
+  필요하면 `reference_character_photo_ids` 에 그 캐릭터의 무대 의상 버전을 넣는다. 의상 그림을 따로 올리지 않는다.
+  시트 id 는 `democut_get_character` 응답의 구조화 데이터 `photos[].sheet_asset_id` 에 있다.
 - 컷 하나에 참고 인물과 참고 이미지를 **합쳐 4개까지** 넣는다.
 - 한 컷 안에서 의상이나 장면 세계가 바뀌면, 바뀌기 전 의상의 인물 사진과 바뀐 뒤 의상 시트를 참고로 나눈다.
   인물+이미지 합쳐 4개를 넘기지 못한다. 예: 멤버 세 명의 시작 의상 인물 사진 셋 + 도착 의상 시트 하나.
