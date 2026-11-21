@@ -2,12 +2,14 @@
 """music-video: 곡과 영상의 시각을 잰다. 콘티의 컷 경계를 마디에 맞추고, 비트가 들어오는 자리와
 만든 영상의 장면 시각을 숫자로 확인한다.
 
-표준 라이브러리만 쓴다(Python 3.8+). energy·tempo·sheet 는 ffmpeg 가 PATH 에 있어야 한다.
+표준 라이브러리만 쓴다(Python 3.8+). energy·accents·tempo·sheet·follow 는 ffmpeg 가 PATH 에 있어야 한다.
 
   python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--shot-beats 4] [--offset 0] [--json]
   python3 mv_timing.py energy song.mp3 [--from 0] [--to 20] [--window-ms 50] [--jump-db 6]
+  python3 mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.508 [--offset 44.508] [--align] [--fps 24] [--json]
   python3 mv_timing.py tempo  song.mp3 [--from 0] [--to 60] [--min 70] [--max 180]
   python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--bpm 130] [--offset 0] [--from 0] [--to 0] [--cols 6] [--width 320]
+  python3 mv_timing.py follow previs.mp4 result.mp4 [--from 22] [--to 0] [--max-lag 8] [--json]
   python3 mv_timing.py buffer --bpm 130 --cut "0ms..2bar both" [--fps 24] [--json]
   python3 mv_timing.py cutplan --bpm 130 --durations 5/10 --cut "0ms..2bar head" --cut "2bar..4bar tail"
 
@@ -33,7 +35,7 @@ from fractions import Fraction
 
 def _need_ffmpeg():
     if not shutil.which("ffmpeg"):
-        sys.exit("ffmpeg 가 없다. energy·tempo·sheet 는 ffmpeg 가 있어야 한다.")
+        sys.exit("ffmpeg 가 없다. energy·accents·tempo·sheet·follow 는 ffmpeg 가 있어야 한다.")
 
 
 def _clock(sec):
@@ -97,8 +99,11 @@ def cmd_grid(a):
                   % (len(r["shot_starts_s"]), " ".join("%.2f" % x for x in r["shot_starts_s"])))
 
 
-def _rms_series(path, start, end, window_ms):
-    """ffmpeg astats 로 window_ms 마다 RMS(dBFS)를 잰다. 소리가 없으면 -120 으로 둔다."""
+def _rms_series(path, start, end, window_ms, pre=""):
+    """ffmpeg astats 로 window_ms 마다 RMS(dBFS)를 잰다. 소리가 없으면 -120 으로 둔다.
+
+    pre 는 RMS 를 재기 전에 거는 ffmpeg 필터(대역을 나눌 때)다.
+    """
     _need_ffmpeg()
     rate = 48000
     n = max(1, int(rate * window_ms / 1000))
@@ -110,6 +115,7 @@ def _rms_series(path, start, end, window_ms):
         if end:
             cmd += ["-t", "%.3f" % max(0.0, end - start)]
         cmd += ["-i", path, "-vn", "-ac", "1", "-af",
+                (pre + "," if pre else "") +
                 "aresample=%d,asetnsamples=%d,astats=metadata=1:reset=1,"
                 "ametadata=print:key=lavfi.astats.Overall.RMS_level:file=%s" % (rate, n, meta),
                 "-f", "null", "-"]
@@ -159,6 +165,117 @@ def cmd_energy(a):
             print("  %s (%.3f초)  %.1f → %.1f dB" % (_clock(t), t, b, f))
     else:
         print("\n1초 평균이 %.0fdB 넘게 오르는 자리는 없다." % a.jump_db)
+
+
+ACCENT_BANDS = (
+    ("kick", "lowpass=f=120,lowpass=f=120,lowpass=f=120"),
+    ("snare", "highpass=f=1500,highpass=f=1500,lowpass=f=4000,lowpass=f=4000"),
+    ("hat", "highpass=f=8000,highpass=f=8000,highpass=f=8000"),
+)
+
+
+def _onsets(vals, step, rise_db, min_gap_s):
+    """소리가 들어온 창의 (시각, 오른 dB). 직전 30ms 의 최댓값보다 rise_db 넘게 오른 국소 최대다."""
+    look = max(1, int(round(0.03 / step)))
+    floor = min(vals) if vals else -120.0
+    rises = []
+    for i, v in enumerate(vals):
+        rises.append(v - (max(vals[max(0, i - look):i]) if i else floor))
+    found = []
+    for i, r in enumerate(rises):
+        if r < rise_db or r < max(rises[max(0, i - look):i + look + 1]):
+            continue
+        t = i * step
+        if found and t - found[-1][0] < min_gap_s:
+            continue
+        found.append((t, r))
+    return found
+
+
+def _half_beat_slot(t, bpm, offset):
+    """곡 시각 t 에 가장 가까운 반 박 자리(박 1 = offset)와 거기서 벗어난 ms."""
+    pos = (t - offset) * bpm / 60.0
+    half = round(pos * 2) / 2.0
+    return half + 1, (pos - half) * 60000.0 / bpm
+
+
+def _slot_label(slot):
+    return "%d" % slot if slot == int(slot) else "%d&" % int(slot)
+
+
+def accent_map(path, bpm, start, end, offset=None, fps=24.0, window_ms=10, rise_db=6.0,
+               min_gap_ms=80, tolerance_ms=60, align=False):
+    """대역마다 소리가 들어온 시각을 반 박 격자에 놓는다. 격자에서 tolerance_ms 넘게 벗어난 것은 따로 모은다.
+
+    phase_ms 는 소리가 반 박 자리보다 늦은 ms 의 중앙값이다. align 이면 박 1 을 그만큼 옮겨 다시 놓는다.
+    """
+    offset = start if offset is None else offset
+    pre_roll = min(0.1, start)
+    step = window_ms / 1000.0
+    heard = []
+    for name, flt in ACCENT_BANDS:
+        vals = _rms_series(path, start - pre_roll, end, window_ms, pre=flt)
+        for t, rise in _onsets(vals, step, rise_db, min_gap_ms / 1000.0):
+            song_t = start - pre_roll + t
+            if song_t >= start - step / 2:
+                heard.append((name, song_t, rise))
+    devs = sorted(_half_beat_slot(t, bpm, offset)[1] for _, t, _ in heard)
+    phase_ms = devs[len(devs) // 2] if devs else 0.0
+    if align:
+        offset += phase_ms / 1000.0
+    slots, off_grid = {}, []
+    for name, song_t, rise in heard:
+        slot, dev = _half_beat_slot(song_t, bpm, offset)
+        if abs(dev) > tolerance_ms:
+            off_grid.append({"band": name, "song_s": round(song_t, 3), "cut_s": round(song_t - start, 3)})
+            continue
+        row = slots.setdefault(slot, {})
+        if rise > row.get(name, (0, 0))[0]:
+            row[name] = (round(rise, 1), round(dev))
+    rows = []
+    for slot in sorted(slots):
+        song_t = offset + (slot - 1) * 60.0 / bpm
+        rows.append({
+            "beat": _slot_label(slot),
+            "song_s": round(song_t, 3),
+            "cut_s": round(song_t - start, 3),
+            "frame": int(round((song_t - start) * fps)),
+            "bands": {k: {"rise_db": v[0], "dev_ms": v[1]} for k, v in slots[slot].items()},
+        })
+    return {"bpm": bpm, "start_s": start, "end_s": end, "offset_s": round(offset, 4), "fps": fps,
+            "phase_ms": round(phase_ms), "aligned": bool(align), "slots": rows, "off_grid": off_grid}
+
+
+def cmd_accents(a):
+    end = a.end
+    if not end:
+        sys.exit("--to 가 필요하다(컷이 끝나는 곡 시각).")
+    res = accent_map(a.path, a.bpm, a.start, end, offset=a.offset, fps=a.fps, window_ms=a.window_ms,
+                     rise_db=a.rise_db, tolerance_ms=a.tolerance_ms, align=a.align)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return
+    print("곡 %.3f~%.3f초, %g BPM, 박 1 = %.3f초%s. 숫자는 그 대역이 직전보다 오른 dB(클수록 센 강세)."
+          % (a.start, end, a.bpm, res["offset_s"], " (--align 으로 옮김)" if res["aligned"] else ""))
+    if abs(res["phase_ms"]) >= 20 and not res["aligned"]:
+        print("소리가 반 박 자리보다 가운데값 %+dms 어긋난다. 박 1 이 %.3f초일 수 있다. --align 으로 옮겨 다시 본다."
+              % (res["phase_ms"], res["offset_s"] + res["phase_ms"] / 1000.0))
+    print("%-5s %8s %7s %5s  %6s %6s %6s" % ("박", "곡 시각", "컷 시각", "프레임", "kick", "snare", "hat"))
+    for r in res["slots"]:
+        cells = ["%6s" % (("%.0f" % r["bands"][b]["rise_db"]) if b in r["bands"] else "-") for b, _ in ACCENT_BANDS]
+        print("%-5s %8.3f %7.3f %5d  %s" % (r["beat"], r["song_s"], r["cut_s"], r["frame"], " ".join(cells)))
+    both = [r["beat"] for r in res["slots"] if "kick" in r["bands"] and "snare" in r["bands"]]
+    halves = [r["beat"] for r in res["slots"] if r["beat"].endswith("&")]
+    n_beats = int(math.floor((end - res["offset_s"]) * a.bpm / 60.0 + 1e-9))
+    heard = {r["beat"] for r in res["slots"]}
+    silent = ["%d" % b for b in range(1, n_beats + 1) if "%d" % b not in heard]
+    print("\n킥과 스네어가 같이 오는 박(크게 찍는 히트 후보): %s" % (", ".join(both) or "없음"))
+    print("반 박에 소리가 있는 자리(잘게 쪼갠 팝·탭 후보): %s" % (", ".join(halves) or "없음"))
+    print("어느 대역도 들어오지 않는 박(멈춤·흐름 후보): %s" % (", ".join(silent) or "없음"))
+    if res["off_grid"]:
+        print("반 박 격자에서 %dms 넘게 벗어난 소리 %d개(16분음표 이하의 잔리듬일 수 있다): %s"
+              % (a.tolerance_ms, len(res["off_grid"]),
+                 ", ".join("%s %.3f" % (o["band"], o["cut_s"]) for o in res["off_grid"][:12])))
 
 
 def cmd_tempo(a):
@@ -299,6 +416,58 @@ def cmd_sheet(a):
 # --- buffer / cutplan -------------------------------------------------------
 # 영상 모델은 정수 초만 굽는다. 마디로 자른 구간은 그 초에 떨어지지 않으므로
 # 컷마다 버퍼를 두고 더 길게 만든 뒤, 쓰는 구간만 프레임 경계로 남긴다.
+MOTION_W, MOTION_H = 64, 36
+
+
+def _motion_energy(path):
+    """프레임마다 바로 앞 프레임과의 평균 밝기 차(0~255). 첫 프레임은 0."""
+    _need_ffmpeg()
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-vf",
+                          "scale=%d:%d,format=gray" % (MOTION_W, MOTION_H), "-f", "rawvideo", "-"],
+                         capture_output=True, check=True).stdout
+    size = MOTION_W * MOTION_H
+    frames = [raw[i:i + size] for i in range(0, len(raw) - size + 1, size)]
+    return [0.0] + [sum(abs(x - y) for x, y in zip(frames[i], frames[i - 1])) / size
+                    for i in range(1, len(frames))]
+
+
+def _pearson(xs, ys):
+    if not xs:
+        return 0.0
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+    if not sx or not sy:
+        return 0.0
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sx * sy)
+
+
+def follow_lag(ref_energy, out_energy, start=0, end=0, max_lag=8):
+    """결과가 참고 영상보다 몇 프레임 늦게 움직이는지(lag)와 그때의 상관 r."""
+    end = min(end or len(ref_energy), len(ref_energy), len(out_energy))
+    start = min(max(start, 0), end)
+    scores = {}
+    for lag in range(-max_lag, max_lag + 1):
+        idx = [i for i in range(start, end) if 0 <= i + lag < len(out_energy)]
+        scores[lag] = _pearson([ref_energy[i] for i in idx], [out_energy[i + lag] for i in idx])
+    best = max(scores, key=lambda k: (scores[k], -abs(k)))
+    return {"from_frame": start, "to_frame": end, "lag_frames": best,
+            "r": round(scores[best], 2), "r_at_0": round(scores[0], 2)}
+
+
+def cmd_follow(a):
+    res = follow_lag(_motion_energy(a.reference), _motion_energy(a.result), a.start, a.end, a.max_lag)
+    if res["to_frame"] - res["from_frame"] < 2:
+        sys.exit("비교할 프레임이 없다(%d~%d). --from·--to 를 영상 길이 안으로 준다." % (res["from_frame"], res["to_frame"]))
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False))
+        return
+    print("프레임 %d~%d: 결과가 참고 영상보다 %+d 프레임 늦게 움직인다(r=%.2f, 시차 0 의 r=%.2f)."
+          % (res["from_frame"], res["to_frame"], res["lag_frames"], res["r"], res["r_at_0"]))
+    if res["r"] < 0.5:
+        print("r 이 0.5 아래다. 결과가 참고 영상의 움직임을 따르지 않았을 수 있다. 격자로 같은 프레임을 맞대어 본다.")
+
+
 # DemoCut 은 그림 길이를 프레임으로 올리고 소리는 ms 그대로 둔다. 컷마다 올리면
 # 오차가 쌓이므로, 여기서는 누적 그림이 곡의 합에 가장 가까운 프레임 수를 고른다.
 
@@ -1142,6 +1311,20 @@ def main():
     e.add_argument("--jump-db", type=float, default=6.0)
     e.set_defaults(fn=cmd_energy)
 
+    ac = sub.add_parser("accents", help="킥·스네어·하이햇이 들어오는 자리를 반 박 격자에 놓는다(안무의 히트·멈춤을 정할 때)")
+    ac.add_argument("path")
+    ac.add_argument("--bpm", type=float, required=True)
+    ac.add_argument("--from", dest="start", type=float, default=0.0, help="컷이 시작하는 곡 시각(초)")
+    ac.add_argument("--to", dest="end", type=float, default=0.0, help="컷이 끝나는 곡 시각(초)")
+    ac.add_argument("--offset", type=float, default=None, help="박 1 이 되는 곡 시각(초). 기본 --from")
+    ac.add_argument("--fps", type=float, default=24.0)
+    ac.add_argument("--window-ms", type=int, default=10)
+    ac.add_argument("--rise-db", type=float, default=6.0, help="직전 30ms 보다 이만큼 오르면 소리가 들어온 것으로 본다")
+    ac.add_argument("--tolerance-ms", type=float, default=60.0, help="반 박 자리에서 이만큼까지 벗어난 소리를 그 자리로 센다")
+    ac.add_argument("--align", action="store_true", help="박 1 을 잰 위상만큼 옮겨 격자를 소리에 맞춘다")
+    ac.add_argument("--json", action="store_true")
+    ac.set_defaults(fn=cmd_accents)
+
     t = sub.add_parser("tempo", help="BPM 을 어림한다(악보·생성 설정의 BPM 이 없을 때)")
     t.add_argument("path")
     t.add_argument("--from", dest="start", type=float, default=0.0)
@@ -1163,6 +1346,15 @@ def main():
     s.add_argument("--cols", type=int, default=6)
     s.add_argument("--width", type=int, default=320)
     s.set_defaults(fn=cmd_sheet)
+
+    fo = sub.add_parser("follow", help="결과 영상이 참고 영상(프리비즈)의 움직임을 몇 프레임 늦게 따랐는지 잰다")
+    fo.add_argument("reference")
+    fo.add_argument("result")
+    fo.add_argument("--from", dest="start", type=int, default=0, help="비교를 시작할 프레임")
+    fo.add_argument("--to", dest="end", type=int, default=0, help="비교를 끝낼 프레임. 0 이면 끝까지")
+    fo.add_argument("--max-lag", type=int, default=8)
+    fo.add_argument("--json", action="store_true")
+    fo.set_defaults(fn=cmd_follow)
 
     _add_buffer_parser(sub, "buffer")
     _add_buffer_parser(sub, "cutplan")
