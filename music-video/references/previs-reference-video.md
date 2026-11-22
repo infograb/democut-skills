@@ -57,6 +57,7 @@
 
 1. **컷을 데이터로 적는다.** 박 n 의 프레임은 `round(n × 60 / BPM × fps)` 다(130 BPM·24fps 면 0, 11, 22, 33, 44 …).
    멤버의 자리, 대형이 바뀌는 박, 낮아지는 박, 카메라 숏(거리·높이·바라보는 높이)과 그 숏에 도착하는 박을 적는다.
+   대형의 간격은 [`choreography.md`](choreography.md) 「간격은 그 대형에서 하는 가장 큰 동작으로 정한다」대로 잡는다.
    가사 동작은 블록아웃이 아니라 프롬프트에 적는다. 단어는 `mv_timing.py lyrics` 로 박에 놓고
    [`choreography.md`](choreography.md) 「가사에서 동작으로」대로 뜻을 몸으로 옮긴다.
 2. **알약을 세운다.** 아래 「알약」.
@@ -77,7 +78,8 @@
    텅 비어 보이지 않는다(같은 제작자의 광고 영상 7:51).
 6. **올리기 전에 확인한다.** 박마다 한 칸 격자(`mv_timing.py sheet <영상> <격자.jpg> --fps 0 --bpm <BPM>`), 곡을 입힌
    확인용 파일, 그리고 수치(첫 전신 프레임, 전신이 된 뒤 모든 프레임에서 알약 위아래가 화면 안인지, 알약끼리 겹치는지)를
-   본다. 박 1 이 컷 0초가 아니면 `--offset` 에 박 1 의 컷 시각을 준다.
+   본다. 매 프레임 멤버끼리(알약, 팔, 손) 3D 거리가 0.3m 이상인지, 화면에서 서로 겹치지 않는지도 잰다. 걸리면 동작을
+   줄이지 않고 대형을 넓힌다. 박 1 이 컷 0초가 아니면 `--offset` 에 박 1 의 컷 시각을 준다.
 7. **480p 로 먼저 본다.** 제작자들은 draft 모드로 오류를 본 뒤 고화질로 다시 만든다. 군무 컷의 초안은 Seedance 2.5
    480p 로 만든다. 곡을 함께 실을 수 있고 값은 720p 의 절반 아래다(위 표). flash 는 더 싸지만 곡을 받지 못해 박을 확인할
    수 없다. 초안에서 자리, 대형, 카메라, 세트가 맞으면 같은 spec 의 해상도만 올려 다시 만든다. 다시 만든 컷은 새
@@ -88,8 +90,15 @@
 - 멤버마다 캡슐 하나. 높이는 멤버 캐릭터(AI 인플루언서)의 `look_text` 에 적은 키, 반지름 약 0.17m 다.
 - 가로 띠로 멤버를 가른다. 위 캡은 머리색, 윗 띠는 상의, 아랫 띠는 바지나 쇼츠, 맨 아래 띠는 부츠 색이다. 앞면에
   주황색 세로줄 하나를 그어 어느 쪽을 보는지 알게 한다. 팔, 머리, 얼굴은 넣지 않는다.
-- 움직임은 이동, 방향, 높이뿐이다. 앉는 박(와이드 플리에, 웅크리기)은 알약의 높이를 발 기준으로 줄여 보인다.
-  흔들기나 손짓은 넣지 않는다. 팔이 없으면 한 박이 전해지지 않을 때만 막대 팔 하나를 그 박에 붙인다.
+- 몸의 움직임은 이동, 방향, 높이뿐이다. 앉는 박(와이드 플리에, 웅크리기)은 알약의 높이를 발 기준으로 줄여 보인다.
+  흔들기는 넣지 않는다.
+- 팔은 막대 두 마디(위팔 0.186, 아래팔 0.146, 키에 대한 비)와 납작한 손판이다. 평소에는 몸 옆에 늘어뜨리고 가사의 히트
+  박에만 손이 그 자리(배, 가슴, 머리 위, V, 허벅지, 포갠 손바닥)로 가서 그 박에 닿는다. 손판의 손바닥 면은 주황색이라
+  손바닥 방향이 보인다. 팔 없는 알약으로는 손 모양과 히트 박이 전해지지 않는다는 판단에서 사용자가 이 안을 골랐다
+  (2026-11-22. 글만 적은 v13 에서 손 모양 16개가 거의 나오지 않았다).
+- 그림으로 어떻게 읽히는지 카메라 화면으로 본다. 머리 위에서 팔꿈치를 굽혀 손을 모으면 머리 위에 고리가 생겨 하트나
+  후광으로 읽힌다. 팔꿈치를 155도 넘게 펴서 좁은 Λ 로 만든다. 어깨가 가까운 대형에서 팔꿈치를 옆으로 벌리면 이웃 팔과
+  화면에서 엉킨다(A7 v9). 손끝을 위로 세우고 손바닥을 마주 보게 하면 기도하는 손이다(A7 v6).
 - 프롬프트는 자리를 이 색으로 부른다(예: LEFT = 검은 캡과 흰 아랫 띠).
 
 마네킹을 쓰지 않는 이유는 위 「블록아웃이 정하지 않는 것」이다. 그 전의 강체 인형(v5)은 관절마다 공이 박히고 그린 실눈에
@@ -128,9 +137,11 @@ $B -b --online-mode --command blender_mcp --port 9877   # 작업용 Blender. 창
 ```text
 BLOCKOUT REFERENCE: video 1 is a rough grey blockout of THIS shot, timed to the same music. Use it ONLY for where each
 dancer stands and travels (LEFT = the pill with the black cap and white bottom band, CENTER = the pill with the blonde
-cap and lavender bands, RIGHT = the pill with the red cap and black bottom band), when they go low, when the set forms,
-and the camera path. Copy nothing else from it: no pills, no grey world, no stiff motion. The dancers' bodies, the
-dance itself, faces, hair and outfits come from this text, the music and the character references.
+cap and lavender bands, RIGHT = the pill with the red cap and black bottom band), when they go low, where the hands are
+on each hit beat (the stick arms; orange shows the palm side), when the set forms, and the camera path. Copy nothing
+else from it: no pills, no stick arms, no grey world, no stiff motion. Real arms move fluidly with the whole body
+between the hits. The dancers' bodies, the dance itself, faces, hair and outfits come from this text, the music and
+the character references.
 ```
 
 그 뒤에 춤을 적는다. 블록아웃이 춤을 정하지 않으므로 이 부분이 연기의 전부다. 가사마다 동작과 그 박의 시각, 그리고
