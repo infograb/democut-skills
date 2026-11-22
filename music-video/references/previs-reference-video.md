@@ -11,7 +11,7 @@
 - 박마다 다른 손 모양 16개를 적었는데 거의 나오지 않고 같은 팔 모양이 2~3박 이어졌다. 한 박씩 엇갈리게 적은 동작은
   셋이 같이 했다.
 
-입은 옮기지 못한다. 프리비즈 인형에는 입이 없다. 부르는 줄은 [`democut-mv.md`](democut-mv.md) 「입을 맞춰 부르는 줄(단독샷)」대로
+입은 옮기지 못한다. 프리비즈 마네킹은 입을 움직이지 않는다. 부르는 줄은 [`democut-mv.md`](democut-mv.md) 「입을 맞춰 부르는 줄(단독샷)」대로
 만든다.
 
 ## DemoCut 에서 받는 것
@@ -28,17 +28,80 @@
 
 1. **컷을 데이터로 적는다.** 박 n 의 프레임은 `round(n × 60 / BPM × fps)` 다(130 BPM·24fps 면 0, 11, 22, 33, 44 …).
    멤버의 자리와 의상 색, 대형이 바뀌는 박, 카메라 숏(거리·높이·바라보는 높이)과 그 숏에 도착하는 박, 박마다 동작을 적는다.
-   동작의 박은 [`choreography.md`](choreography.md) 「곡의 강세에서 동작을 짠다」의 강세 지도에서 고른다.
-2. **Blender 로 렌더한다.** `Blender -b --factory-startup --python <스크립트> -- --spec <컷.json>` 처럼 창 없이 돌린다
-   (Blender 5.0.1, Workbench, 1280×720, 24fps, H.264 yuv420p, 소리 없음, 화면 글자 없음).
-   - 인형은 의상 색으로 가른다. A7 에서는 흰 바지와 검은 포니테일(LEFT), 라벤더 상의와 금발(CENTER), 검은 무릎 부츠와
+   동작의 박은 [`choreography.md`](choreography.md) 「곡의 강세에서 동작을 짠다」의 강세 지도에서 고른다. 가사가 있는
+   컷은 단어를 `mv_timing.py lyrics` 로 박에 놓고, 같은 문서 「가사에서 동작으로」대로 뜻을 몸으로 옮긴다.
+2. **마네킹을 만든다.** 아래 「마네킹」.
+3. **Blender 로 렌더한다.** `Blender -b --factory-startup --python <스크립트> -- --spec <컷.json>` 처럼 창 없이 돌린다
+   (Blender 5.1 이상, Workbench, 1280×720, 24fps, H.264 yuv420p, 소리 없음, 화면 글자 없음).
+   Codex 에게 맡길 때는 아래 「Codex 가 Blender 를 쓰는 법」.
+   - 마네킹은 의상 색으로 가른다. A7 에서는 흰 바지와 검은 포니테일(LEFT), 라벤더 상의와 금발(CENTER), 검은 무릎 부츠와
      빨간 머리(RIGHT)였다. 프롬프트도 자리를 이 색으로 부른다.
-   - 동작은 박에 3프레임 안에 도착한다. 큰 동작은 예비 동작과 여운을 두고, 머리카락은 고개보다 늦게 따라오게 한다.
-   - 손은 손바닥 가운데를 목표로 팔을 풀고, 손이 얼굴을 덮는 프레임이 없는지 잰다.
-   - 카메라는 숏을 박에 키로 넣고 모션 블러를 쓰지 않는다.
-   - 샌드박스 안에서는 Blender 가 그래픽(Metal) 초기화에서 죽은 적이 있다(Codex 샌드박스 실측). 그때는 샌드박스 밖에서 렌더한다.
-3. **올리기 전에 확인한다.** 박마다 한 칸 격자(`mv_timing.py sheet <영상> <격자.jpg> --fps 0 --bpm <BPM>`), 곡을 입힌 확인용
-   파일, 그리고 수치(첫 전신 프레임, 모든 프레임에서 머리가 화면 안인지, 손이 얼굴을 덮는 프레임 수, 디딘 발이 미끄러지는지)를 본다.
+   - 동작은 박에 3프레임 안에 도착한다. 박마다 뼈에 키 자세를 넣고 사이는 완만한 베지어 곡선으로 잇는다(직선 보간은
+     로봇처럼 보인다). 큰 동작은 예비 동작과 여운을 두고, 머리카락은 고개보다 2~4프레임 늦게 따라오게 한다. 체중이
+     실린 발은 다리 IK 로 바닥에 고정한다.
+   - 손은 손바닥 가운데를 목표로 팔을 풀고, 손이 얼굴을 덮는 프레임이 없는지 잰다. 손끝을 위로 세우고 두 손바닥을
+     가슴 앞에서 마주 보게 하면 눈 감은 마네킹 얼굴과 겹쳐 기도하는 손이나 박수 직전으로 읽힌다(A7 v6). 누르는 동작은
+     위 손바닥이 아래를, 아래 손바닥이 위를 보게 포개고 팔꿈치를 옆으로 연다.
+   - 카메라는 숏을 박에 키로 넣고 모션 블러를 쓰지 않는다. 카메라는 하나이고 화면을 나누지 않는다. 클로즈업을 작은 창으로
+     겹치면 영상 모델이 분할 화면으로 따라 한다.
+4. **올리기 전에 확인한다.** 박마다 한 칸 격자(`mv_timing.py sheet <영상> <격자.jpg> --fps 0 --bpm <BPM>`), 곡을 입힌 확인용
+   파일, 그리고 수치(첫 전신 프레임, 전신이 된 뒤 모든 프레임에서 머리가 화면 안인지, 손이 얼굴을 덮는 프레임 수, 디딘 발이
+   미끄러지는지, 손과 팔뚝이 몸통을 뚫는지, 옷 껍데기와 몸 사이가 1mm 아래로 붙는 프레임)를 본다. 박 1 이 컷 0초가 아니면
+   `--offset` 에 박 1 의 컷 시각을 준다(빼면 칸마다 한두 프레임 앞을 보여 준다). 카운트의 착지 프레임은 따로 뽑아 본다.
+
+## 마네킹
+
+v5 까지의 인형은 부품을 관절에 붙인 강체였다. 관절마다 공이 박히고 팔다리가 소시지처럼 끊겼으며, 그린 실눈에 팔이
+길고 손이 커서 사용자가 기괴하다고 했다. 영상 모델은 참고 영상의 움직임을 거의 그대로 따른다. Seedance 2.5 가
+Blender 인형의 부자연스러운 움직임까지 옮겼다는 실험이 있다
+([Curious Refuge](https://curiousrefuge.com/blog/how-to-control-ai-videos-with-blender-and-claude)). 그래서 몸이
+사람처럼 굽어야 한다.
+
+- 몸은 [MPFB 2](https://github.com/makehumancommunity/mpfb2)(MakeHuman 의 Blender 확장. 코드는 GPLv3, 만든 사람 모델은
+  CC0)로 만든다. 멤버 캐릭터(AI 인플루언서)의 `look_text` 에 적은 키(맨발, 바닥에서 정수리)를 0.5cm 안으로 맞춘다. 고정된 몸을
+  늘리지 않고 키 매크로를 맞춰 다리와 몸통 비율이 키에 따라 바뀌게 한다.
+- 비율은 키에 대한 비로 잰다(Winter 인체 계측). 턱 0.870, 어깨 0.818, 고관절 0.530, 위팔 0.186, 아래팔 0.146,
+  손 0.108, 넓적다리 0.245, 정강이 0.246.
+- MPFB 내장 뼈대(척추, 목, 머리, 쇄골, 팔, 다리, 발, 손가락)와 그 가중치를 쓴다. 몸은 이어진 메시 하나이고(옷은 아래의 껍데기) Armature
+  모디파이어에 Preserve Volume 을 켠다. 부품을 관절에 붙인 것은 리깅이 아니다.
+- 몸은 무광 단색 클레이이고 옷은 멤버마다 다른 단색이다. 코, 입술, 눈두덩 같은 얼굴 형태는 두고 눈, 눈썹, 속눈썹, 치아 메시와 그린
+  이목구비는 없앤다. 손과 소품을 정교하게 만든 프리비즈는 결과에 CG 느낌이 묻어났다는 사례가 있어
+  ([Evolink 사례 41](https://github.com/Evolink-AI/Awesome-Blender-Seedance-Workflow-Usecases)), 피부 질감이나 옷 주름은
+  만들지 않는다.
+- 의상은 몸에서 따로 떼어 낸 매끈한 껍데기다. 처음 판(A7 v6)은 몸 위에 색 구역만 칠해서 상의 위로 가슴 모양과 유두가,
+  바지 위로 사타구니 굴곡이 그대로 보였다. 영상 모델이 그 몸을 따라 하고 BytePlus 심사에서 걸릴 수 있다. 옷 구역의 면을
+  복제해 4~8mm(가슴은 더) 밖으로 밀고 세게 다듬어 굴곡을 없앤 뒤, 몸의 가중치를 옮겨 같은 뼈대로 굽힌다. 껍데기 밑의
+  몸 면은 숨겨 춤 도중 살이 뚫고 나오지 않게 한다. 밑단은 두께가 있는 곧은 고리로, 쇼츠는 허벅지 위에서 잘라 기저귀처럼
+  보이지 않게 한다. 부츠도 얇은 껍데기다.
+- 머리는 매끈한 덩어리에 뼈 2~3개를 넣는다. 묶은 머리도 이마에 머리선을 내야 수영모처럼 보이지 않는다.
+- 춤을 붙이기 전에 정면·옆 라인업(10cm 격자)과 무릎 위 근접 그림을 렌더해 사람이 본다. 키 차이, 옷이 몸 굴곡을
+  덮는지, 부츠 길이, 머리선을 여기서 고친다.
+
+## Codex 가 Blender 를 쓰는 법
+
+Codex 의 셸 샌드박스는 GPU 장치(`iokit-open AGXDeviceUserClient`)를 막아 Blender 가 Metal 초기화에서 죽는다. 이를
+허용하는 Codex 설정은 없다(Codex 0.171 실측). 그래서 Codex 에게는
+[Blender Lab MCP](https://www.blender.org/lab/mcp-server/) 로 샌드박스 밖의 Blender 를 준다. Blender 5.1 이상이 필요하다.
+
+```bash
+B=/Applications/Blender.app/Contents/MacOS/Blender
+$B --command extension install-file -r user_default -e mcp-1.0.3.zip            # lab.blender.org 의 MCP 애드온
+$B --command extension install-file -r user_default -e add-on-mpfb-v2.0.18.zip  # extensions.blender.org 의 MPFB
+uv tool install "git+https://projects.blender.org/lab/blender_mcp.git@v1.0.3#subdirectory=mcp"
+codex mcp add blender-previs --env BLENDER_MCP_PORT=9877 -- ~/.local/bin/blender-mcp
+$B -b --online-mode --command blender_mcp --port 9877   # 작업용 Blender. 창 없이 띄워 둔다
+```
+
+- `~/.codex/config.toml` 의 `[mcp_servers.blender-previs]` 에 `default_tools_approval_mode = "approve"` 와
+  `tool_timeout_sec = 300` 을 넣는다. 없으면 `codex exec` 가 「MCP tool call requires approval, but approval policy is
+  never」로 멈춘다. 사람이 쓰는 GUI Blender(기본 포트 9876)에는 넣지 않는다.
+- MCP 애드온은 소켓을 열어서 Blender 의 온라인 접근 허용이 있어야 켜진다. 환경 설정을 바꾸지 않고 그 프로세스에만
+  `--online-mode` 를 붙인다.
+- 한 번의 호출은 300초 안에 끝나야 한다. 렌더처럼 긴 일은 MCP Blender 안에서 `subprocess.Popen` 으로 자식 Blender 를
+  띄우고 로그를 셸에서 읽는다. 자식은 샌드박스 밖이라 GPU 를 쓴다. `--factory-startup` 으로 띄운 자식은 MPFB 를
+  올리지 않으므로, 마네킹은 MCP Blender 에서 한 번 만들어 `.blend` 로 저장하고 렌더는 그 파일만 읽는다.
+- MCP 는 LLM 이 쓴 코드를 Blender 안에서 막지 않고 돌린다(공식 페이지의 보안 경고). 작업용 Blender 는 빈 장면으로 띄우고
+  사람이 쓰는 Blender 와 포트를 나눈다. 예전 커뮤니티판 `Blender MCP` 애드온(ahujasid)도 기본 포트가 9876 이라 같이 켜지 않는다.
 
 ## 프롬프트
 
@@ -69,7 +132,7 @@ r 이 0.5 아래면 결과가 참고 영상을 따르지 않은 것으로 보고
 
 ## 결과
 
-실측(2026-11-22, A7 후렴 8초, Seedance 2.5 720p, 곡을 들려줌, 멤버 셋 + 세트 참고 + 8초 프리비즈, 3,118원, 한 번 생성).
+v5 강체 인형으로 잰 실측(2026-11-22, A7 후렴 8초, Seedance 2.5 720p, 곡을 들려줌, 멤버 셋 + 세트 참고 + 8초 프리비즈, 3,118원, 한 번 생성).
 
 - **자리.** 왼쪽부터 이담, 하이나, 신더가 8초 내내 맞았다. 사선(이담이 앞), 하이나가 한 걸음 나온 대형, 일자가 모두 나왔다.
   글만 적은 같은 컷(v13)은 이담과 하이나가 바뀌어 있었다.

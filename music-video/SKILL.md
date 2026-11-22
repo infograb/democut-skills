@@ -78,6 +78,7 @@ metadata:
 python3 -I <스킬>/scripts/mv_timing.py tempo song.mp3 --from 20 --to 60      # BPM 어림(대조용)
 python3 -I <스킬>/scripts/mv_timing.py energy song.mp3 --to 40                 # 구간이 바뀌는 자리
 python3 -I <스킬>/scripts/mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.508 --align   # 컷의 강세 지도
+python3 -I <스킬>/scripts/mv_timing.py lyrics words.json --bpm 130 --from 44.508 --to 52.508 --offset 44.558   # 단어를 박에
 python3 -I <스킬>/scripts/mv_timing.py follow previs.mp4 result.mp4 --from 22   # 결과가 참고 영상을 따랐는지
 python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7           # 박·마디·컷 경계
 python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-beats 2   # 줄 안 컷 전환(두 박마다)
@@ -151,7 +152,10 @@ python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-be
 컷의 3분의 1 을 넘기지 않는다. 8카운트 단위로 가사 줄마다 동작을 적고, 후렴의 포인트 동작은
 후렴마다 같은 모티프로 되풀이한다. 안무 밀도는 한 박(또는 반 박)마다 서로 다른 동작이 기본이다. 손 포인트는
 쥐었다 펴기가 아니라 핑거댄스(각진 손가락 프레임, 깍지·엇걸기, 손끝으로 얼굴 둘레를 긋는 선)로 짠다.
-카운트마다 발·몸·손·고개를 멤버별로 적는다. 줄마다 높이를 한 번은 바꾸고(서기·무릎 굽히기·웅크리기) 자리를
+가사는 whisper 단어 시각을 `mv_timing.py lyrics` 로 박에 놓고 뜻을 몸으로 옮긴다(「녹아내려」는 손목부터 무릎까지
+위에서 아래로 흐르는 웨이브, 「쌓아 올려」는 주먹을 번갈아 포개 올리기). 같은 구절이 되풀이되면 두 번째는 멤버가 반 박씩
+늦게 받는 카논이나 높이가 다른 계단으로 키운다. 카운트마다 발·몸·손·고개를 멤버별로 적는다.
+줄마다 높이를 한 번은 바꾸고(서기·무릎 굽히기·웅크리기) 자리를
 한 번은 옮긴다(대형 바꾸기, 리플, 가로지르기). 점프는 영상 하나에 많아야 한 번이다. 자리와 높이가 그대로면
 손이 바빠도 화면이 밋밋하다. 챌린지 구간은 상체와 손이 세로 구도에서 먼저 읽히게 하되 하체를 멈추지 않고,
 뮤직비디오용 전신 샷과 챌린지용 상반신 샷은 따로 잡는다. 장면이 바뀌거나 구조물이 생기는 동안에는 안무를 멈추지 않고,
@@ -178,7 +182,8 @@ python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-be
 인물은 반 박 늦게 그 카메라를 본다. 한국어 입모양은
 [`references/democut-mv.md`](references/democut-mv.md) 「한국어 가사의 입모양」의 단어·구 MOUTH MAP 으로 적는다.
 멤버 자리, 박에 맞는 동작, 카메라 도착이 글로 지켜지지 않으면 같은 컷을 3D 인형으로 먼저 만들어 참고 영상으로 넣는다.
-실측에서 자리, 박, 카메라, 볼 옆 손 모양이 프리비즈대로 나왔고 인형의 모양은 묻어나지 않았다. 세트 전환은 글로만 정해진다
+v5 강체 인형으로 잰 실측에서 자리, 박, 카메라, 볼 옆 손 모양이 프리비즈대로 나왔고 인형의 모양은 묻어나지 않았다. 움직임은
+거의 그대로 따르므로 인형은 멤버 키대로 만든 실제 비율의 리깅된 마네킹을 쓴다. 세트 전환은 글로만 정해진다
 ([`references/previs-reference-video.md`](references/previs-reference-video.md)).
 사람이 정한 카메라 연출은 그 컷의 고정 조건이다. 초안을 줄이더라도 앵글을 '정면 또는 하이 앵글'처럼 약하게 바꾸지
 않는다. 고정 카메라는 정지 포즈처럼 멈춰 있어야 한다고 정한 장면에만 쓴다. 입을 맞추는 단독샷도 하이 앵글이나

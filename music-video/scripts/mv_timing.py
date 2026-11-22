@@ -7,6 +7,7 @@
   python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--shot-beats 4] [--offset 0] [--json]
   python3 mv_timing.py energy song.mp3 [--from 0] [--to 20] [--window-ms 50] [--jump-db 6]
   python3 mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.508 [--offset 44.508] [--align] [--fps 24] [--json]
+  python3 mv_timing.py lyrics words.json --bpm 130 --from 44.508 --to 52.508 [--offset 44.558] [--audio-start 40] [--json]
   python3 mv_timing.py tempo  song.mp3 [--from 0] [--to 60] [--min 70] [--max 180]
   python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--bpm 130] [--offset 0] [--from 0] [--to 0] [--cols 6] [--width 320]
   python3 mv_timing.py follow previs.mp4 result.mp4 [--from 22] [--to 0] [--max-lag 8] [--json]
@@ -14,6 +15,8 @@
   python3 mv_timing.py cutplan --bpm 130 --durations 5/10 --cut "0ms..2bar head" --cut "2bar..4bar tail"
 
 시각은 모두 초(소수) 또는 ms 정수다. 곡 시각은 곡 파일 맨 앞이 0 이다.
+lyrics 는 whisper 의 단어 시각 JSON(`whisper 파일 --word_timestamps True --output_format json`)을 읽어
+단어마다 가까운 반 박과 프레임을 적는다. 곡 일부를 잘라 돌렸으면 --audio-start 에 잘라 낸 곡 시각을 준다.
 sheet 의 --bpm 은 칸마다 박 번호를 적는다(박 1 = --offset, 기본 0). --fps 0 이면
 한 박에 칸 하나(--bpm 필수, fps = bpm / 60). 기본 --fps 2 는 그대로다.
 
@@ -200,7 +203,7 @@ def _half_beat_slot(t, bpm, offset):
 
 
 def _slot_label(slot):
-    return "%d" % slot if slot == int(slot) else "%d&" % int(slot)
+    return "%d" % slot if slot == int(slot) else "%d&" % math.floor(slot)
 
 
 def accent_map(path, bpm, start, end, offset=None, fps=24.0, window_ms=10, rise_db=6.0,
@@ -276,6 +279,65 @@ def cmd_accents(a):
         print("반 박 격자에서 %dms 넘게 벗어난 소리 %d개(16분음표 이하의 잔리듬일 수 있다): %s"
               % (a.tolerance_ms, len(res["off_grid"]),
                  ", ".join("%s %.3f" % (o["band"], o["cut_s"]) for o in res["off_grid"][:12])))
+
+
+def lyric_beats(words, bpm, start, end, offset=None, fps=24.0, audio_start=0.0):
+    """단어(text, 시작, 끝; 오디오 파일 기준 초)를 컷 구간의 반 박 격자에 놓는다.
+
+    whisper 의 단어 시각은 수백 ms 어긋날 수 있어 가장 가까운 반 박과 벗어난 ms 를 함께 적는다.
+    """
+    offset = start if offset is None else offset
+    rows = []
+    for text, w0, w1 in words:
+        s0, s1 = w0 + audio_start, w1 + audio_start
+        if s1 <= start or s0 >= end:
+            continue
+        slot, dev = _half_beat_slot(s0, bpm, offset)
+        slot_t = offset + (slot - 1) * 60.0 / bpm
+        rows.append({"word": text.strip(), "song_s": round(s0, 3), "cut_s": round(s0 - start, 3),
+                     "end_cut_s": round(s1 - start, 3), "beat": _slot_label(slot), "dev_ms": round(dev),
+                     "beat_frame": int(round((slot_t - start) * fps)), "frame": int(round((s0 - start) * fps))})
+    return {"bpm": bpm, "start_s": start, "end_s": end, "offset_s": offset, "fps": fps, "words": rows}
+
+
+def _whisper_words(path):
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    words, untimed = [], []
+    for seg in data.get("segments", []):
+        for w in seg.get("words") or []:
+            if w.get("start") is None or w.get("end") is None:
+                untimed.append(str(w.get("word", "")).strip())
+                continue
+            words.append((w["word"], float(w["start"]), float(w["end"])))
+    if untimed:
+        print("시각이 없는 단어 %d개는 뺐다: %s" % (len(untimed), " ".join(untimed[:10])), file=sys.stderr)
+    if not words:
+        sys.exit("%s 에 단어 시각이 없다. whisper 를 --word_timestamps True 로 다시 돌린다." % path)
+    return words
+
+
+def cmd_lyrics(a):
+    if not a.end or a.end <= a.start:
+        sys.exit("--to 에 컷이 끝나는 곡 시각을 준다(--from 보다 커야 한다).")
+    res = lyric_beats(_whisper_words(a.path), a.bpm, a.start, a.end, offset=a.offset, fps=a.fps,
+                      audio_start=a.audio_start)
+    if not res["words"]:
+        print("컷 구간에 단어가 없다. 곡 일부를 잘라 whisper 에 넣었으면 --audio-start 에 잘라 낸 곡 시각을 준다.",
+              file=sys.stderr)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return
+    print("곡 %.3f~%.3f초, %g BPM, 박 1 = %.3f초. 반 박은 가장 가까운 자리이고 괄호는 벗어난 ms 다."
+          % (a.start, a.end, a.bpm, res["offset_s"]))
+    print("%-5s %5s %8s %7s %5s  %s" % ("박", "박 프레임", "곡 시각", "컷 시각", "단어 프레임", "단어"))
+    for r in res["words"]:
+        print("%-5s %5d %8.3f %7.3f %5d  %s (%+dms, %.2f초까지)"
+              % (r["beat"], r["beat_frame"], r["song_s"], r["cut_s"], r["frame"], r["word"], r["dev_ms"],
+                 r["end_cut_s"]))
+    print("\n동작의 도착은 박 프레임에 둔다. 컷 앞에서 시작한 못갖춘마디 단어는 프레임이 음수다(박 0& 은 박 1 의 반 박 앞)."
+          "\n단어 끝은 다음 단어 시작까지 늘어나기 쉽고, 길게 끄는 단어는 앞의 쉼부터 시작한 것으로 잡히기도 한다."
+          " 히트를 줄 단어는 accents 의 강세와 맞대어 본다.")
 
 
 def cmd_tempo(a):
@@ -1324,6 +1386,17 @@ def main():
     ac.add_argument("--align", action="store_true", help="박 1 을 잰 위상만큼 옮겨 격자를 소리에 맞춘다")
     ac.add_argument("--json", action="store_true")
     ac.set_defaults(fn=cmd_accents)
+
+    ly = sub.add_parser("lyrics", help="whisper 단어 시각을 컷의 반 박 격자와 프레임에 놓는다(가사를 동작으로 옮길 때)")
+    ly.add_argument("path", help="whisper --word_timestamps True --output_format json 결과")
+    ly.add_argument("--bpm", type=float, required=True)
+    ly.add_argument("--from", dest="start", type=float, default=0.0, help="컷이 시작하는 곡 시각(초)")
+    ly.add_argument("--to", dest="end", type=float, default=0.0, help="컷이 끝나는 곡 시각(초)")
+    ly.add_argument("--offset", type=float, default=None, help="박 1 이 되는 곡 시각(초). accents --align 의 값을 쓴다")
+    ly.add_argument("--audio-start", type=float, default=0.0, help="whisper 에 넣은 오디오의 0초가 곡의 몇 초인가")
+    ly.add_argument("--fps", type=float, default=24.0)
+    ly.add_argument("--json", action="store_true")
+    ly.set_defaults(fn=cmd_lyrics)
 
     t = sub.add_parser("tempo", help="BPM 을 어림한다(악보·생성 설정의 BPM 이 없을 때)")
     t.add_argument("path")

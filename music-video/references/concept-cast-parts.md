@@ -30,6 +30,12 @@
 - DemoCut 에서는 멤버마다 캐릭터를 만들고 외모(`look_text`)와 선택된 사진을 둔다. 컷에는
   `reference_character_ids` 로 넣는다. 참고 이미지와 합쳐 4개까지라 멤버가 넷을 넘으면 한 컷에 다 넣지 못한다.
   그런 군무 컷은 앞줄 멤버만 참고로 넣고 나머지는 고정 문단으로 그리거나, 컷을 나눈다.
+- 멤버마다 키를 정해 `look_text` 의 체형 자리에 「키 168cm」처럼 적는다. `look_text` 는 캐릭터 사진과 컷 그림
+  프롬프트 끝에 붙지만 영상 프롬프트에는 붙지 않는다(영상에는 성격 `persona_text` 만 붙는다, DemoCut 2026-11 코드
+  기준). 그래서 군무 영상 컷에서는 키 차이를 3D 프리비즈 마네킹이 같은 키로 보여 주고
+  ([`previs-reference-video.md`](previs-reference-video.md)), 프롬프트에도 「LEFT is the tallest」처럼 한 줄 적는다.
+  SQUISH 에서는 포지션에 맞춰 3~4cm 씩 벌렸다(메인댄서 이담 168cm, 리더 하이나 165cm, 막내 신더 161cm). `democut_put_character` 는 전체 교체라
+  이름·목소리·성격 설명을 그대로 함께 보낸다.
 - 실존 인물을 닮게 하지 않는다. 프롬프트 끝에 `no real celebrity likeness` 를 붙인다.
 
 ## 의상

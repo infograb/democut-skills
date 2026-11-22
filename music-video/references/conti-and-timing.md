@@ -188,12 +188,21 @@ First downbeat hit at 0.67s.
 2. Whisper(또는 같은 단어 타임스탬프를 주는 도구)로 단어 시각을 뽑는다.
    예: `whisper --model medium --word_timestamps True --language ko song.mp3`
    이 도구는 스킬 스크립트가 아니다. 없으면 「가사 시각을 재지 못했다」고 적고 사람과 정한다.
-3. 줄에 쓰는 구절의 시작·끝(ms)을 콘티 화면 칸에 적는다. 버퍼를 둔 컷의 프롬프트 초는
+3. 안무를 붙일 컷이면 단어를 컷의 반 박과 프레임에 놓는다. 박 1 은 `accents --align` 이 찾은 값을 쓴다.
+   `python3 -I scripts/mv_timing.py lyrics words.json --bpm 130 --from 44.508 --to 52.508 --offset 44.558 --audio-start 40`
+   (`--audio-start` 는 곡 일부를 잘라 whisper 에 넣었을 때 잘라 낸 곡 시각이다.)
+   - 가사 파일보다 불린 가사를 믿는다. SQUISH 의 A7 은 가사 파일(v7)에 「Squish squish 더 가까이」로 적혀 있었는데,
+     곡에서 잰 단어는 「Melt it down build it up 다시 태어나 Melt it down build it up Squish」였다.
+   - whisper(small)는 단어 끝을 다음 단어 시작까지 늘려 잡고, 길게 끄는 단어는 앞의 쉼부터 시작한 것으로 잡는다.
+     「Squish」를 49.90초로 적었는데 스펙트럼으로 잰 S 마찰음은 50.54초였다(음악이 50.0초에 빠진다). 히트를 줄 단어는
+     `accents` 의 강세와 맞대어 본다.
+4. 줄에 쓰는 구절의 시작·끝(ms)을 콘티 화면 칸에 적는다. 버퍼를 둔 컷의 프롬프트 초는
    `(곡 ms - song_in_ms) / 1000 + prompt_shift_ms / 1000` 이다(위 「정수 초와 버퍼」).
    버퍼가 없는 컷만 `컷 안 초 = (곡 ms - song_start_ms) / 1000` 이다.
-4. 표 아래에 「이 줄의 가사 시각은 단어 단위로 잰 값」이라고 남긴다.
+5. 표 아래에 「이 줄의 가사 시각은 단어 단위로 잰 값」이라고 남긴다.
 
-스크립트(`mv_timing.py`)에 Whisper 를 넣지 않는다. 표준 라이브러리와 ffmpeg 만 쓰는 규칙을 지킨다.
+스크립트(`mv_timing.py`)에 Whisper 를 넣지 않는다. `lyrics` 는 whisper 가 쓴 JSON 만 읽는다. 표준 라이브러리와
+ffmpeg 만 쓰는 규칙을 지킨다.
 
 ## 칸마다 쓰는 법
 
