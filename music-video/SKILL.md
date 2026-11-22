@@ -79,7 +79,7 @@ python3 -I <스킬>/scripts/mv_timing.py tempo song.mp3 --from 20 --to 60      #
 python3 -I <스킬>/scripts/mv_timing.py energy song.mp3 --to 40                 # 구간이 바뀌는 자리
 python3 -I <스킬>/scripts/mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.508 --align   # 컷의 강세 지도
 python3 -I <스킬>/scripts/mv_timing.py lyrics words.json --bpm 130 --from 44.508 --to 52.508 --offset 44.558   # 단어를 박에
-python3 -I <스킬>/scripts/mv_timing.py follow previs.mp4 result.mp4 --from 22   # 결과가 참고 영상을 따랐는지
+python3 -I <스킬>/scripts/mv_timing.py follow blockout.mp4 result.mp4 --from 22   # 결과가 참고 영상을 따랐는지
 python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7           # 박·마디·컷 경계
 python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-beats 2   # 줄 안 컷 전환(두 박마다)
 ```
@@ -181,9 +181,10 @@ python3 -I <스킬>/scripts/mv_timing.py grid --bpm 130 --length 110.7 --shot-be
 샷 바뀜을 시키지 않고, 타임라인에 컷 둘을 이어 붙인다. 바뀌는 시각은 앞 컷의 trim 길이가 정한다.
 인물은 반 박 늦게 그 카메라를 본다. 한국어 입모양은
 [`references/democut-mv.md`](references/democut-mv.md) 「한국어 가사의 입모양」의 단어·구 MOUTH MAP 으로 적는다.
-멤버 자리, 박에 맞는 동작, 카메라 도착이 글로 지켜지지 않으면 같은 컷을 3D 인형으로 먼저 만들어 참고 영상으로 넣는다.
-v5 강체 인형으로 잰 실측에서 자리, 박, 카메라, 볼 옆 손 모양이 프리비즈대로 나왔고 인형의 모양은 묻어나지 않았다. 움직임은
-거의 그대로 따르므로 인형은 멤버 키대로 만든 실제 비율의 리깅된 마네킹을 쓴다. 세트 전환은 글로만 정해진다
+멤버 자리, 대형, 카메라 도착이 글로 지켜지지 않으면 같은 컷을 3D 블록아웃으로 먼저 만들어 참고 영상으로 넣는다.
+영상 모델은 참고 영상의 움직임을 거의 그대로 따른다. 마네킹이 춤까지 춘 v6 는 자세와 끊기는 흐름까지 옮겨 사용자가
+받아들이지 않았다. 그래서 블록아웃은 멤버 색 줄무늬 알약으로 자리, 이동, 낮아지는 박, 세트, 카메라만 보이고, 춤과 표정은
+프롬프트와 곡에 맡긴다. 생성 전에 사람이 `.blend` 를 재생해 프레임 번호로 메모를 주고, 싼 생성으로 먼저 본다
 ([`references/previs-reference-video.md`](references/previs-reference-video.md)).
 사람이 정한 카메라 연출은 그 컷의 고정 조건이다. 초안을 줄이더라도 앵글을 '정면 또는 하이 앵글'처럼 약하게 바꾸지
 않는다. 고정 카메라는 정지 포즈처럼 멈춰 있어야 한다고 정한 장면에만 쓴다. 입을 맞추는 단독샷도 하이 앵글이나
