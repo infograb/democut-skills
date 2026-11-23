@@ -112,6 +112,7 @@ python3 -I <스킬>/scripts/mv_timing.py cutplan --bpm 130 --durations 5/10 --cu
 
 컷을 여럿 줄 때는 타임라인 순서다. 파일은 JSON(`cuts` 배열)이거나 한 줄에 컷 하나다.
 `mark=0ms:downbeat` 처럼 동작 시각을 붙이면 머리 버퍼만큼 옮긴 프롬프트 시각이 같이 나온다.
+`stop=51.08s` 는 구절의 마지막 히트다(아래 「구절이 끝나는 컷은 마지막 히트에서 멈춘다」).
 
 ### 프레임에 맞추고 오차를 넘긴다
 
@@ -171,13 +172,62 @@ First downbeat hit at 0.67s.
 4.38-5.00s: keep the choreography moving on the beat past the used end; do not drop the arms or settle.
 ```
 
-꼬리에서는 쓰는 끝이 지나도 박에 맞춰 동작을 이어 간다. 안무를 끝내고 팔을 내리거나 제자리로 돌아오는 문장은
-넣지 않는다. 모델은 클립 끝에서 멈추고 힘을 빼는 경향이 있다. 그 정지는 꼬리 버퍼가 받고, 트림이 버린다.
+구절이 다음 컷으로 이어지는 컷은 쓰는 끝이 지나도 꼬리에서 박에 맞춰 동작을 이어 간다. 안무를 끝내고 팔을 내리거나
+제자리로 돌아오는 문장은 넣지 않는다. 모델은 클립 끝에서 멈추고 힘을 빼는 경향이 있다. 그 정지는 꼬리 버퍼가 받고
+트림이 버린다. 구절이 그 컷에서 끝나면 반대로 마지막 히트에서 멈춘다(바로 아래).
 `tail` 모드는 머리가 0이라 첫 박이 0.00초다. 그때도 걸어 들어오지 않고 그 박의 동작으로 시작한다.
 
 입모양·소품 시각도 같다. 단어로 잰 곡 시각을 생성 클립의 초로 바꿀 때는
 `(곡 ms - 그 컷의 song_in_ms) / 1000 + prompt_shift_ms / 1000` 이다.
 트림한 뒤의 초로 적지 않는다. 트림은 만든 뒤에 한다.
+
+### 구절이 끝나는 컷은 마지막 히트에서 멈춘다
+
+생성 길이는 정수 초라 늘 마디보다 길다. 130 BPM 의 4마디는 7.385초인데 생성은 8초다. 남는 시간에는 다음 구간의
+곡이 흐른다. 안무는 그 컷이 맡은 마디만큼만 짠다. 구절이 그 컷에서 끝나면 마지막 히트에서 끝 자세로 멈춘다. 쓰는 끝과
+꼬리 버퍼에서도 그 자세를 잡는다. 남는 초를 채우려고 동작을 되풀이하거나 다음 구간 곡에 맞춰 춤추게 쓰지 않는다.
+
+A7 v13 뒤 컷이 그렇게 틀렸다. 콘티의 A7 은 곡 44.508–51.892초(4마디)이고 51.892초부터 2절이다. v13 은 마디가 아니라
+정수 초로 나눠 앞 컷을 44.508초부터 4초, 뒤 컷을 48.508초부터 4초로 만들었다. 뒤 컷은 곡 52.508초까지 가서 2절 첫
+0.6초를 덮었다. 프롬프트는 Squish 뒤 2~4초에 「repeat the squish press on every beat」를 적었다. 셋은 「시」(곡 51.08초)
+뒤에도 손바닥 누르기를 이어 가며 2절이 나오는 동안 춤췄다. 사용자는 「Squish에서 안무가 멈췄어야되」라고 했다(2026-11-23).
+
+컷 줄에 `stop=` 으로 마지막 히트의 곡 시각을 준다. A7 을 3마디 첫 박(48.200초)에서 나누면 이렇다.
+
+```bash
+python3 -I <스킬>/scripts/mv_timing.py cutplan --bpm 130 --offset-ms 44508 --durations 4-15 \
+  --cut "bar:1..bar:3 tail id=A7a" \
+  --cut "bar:3..bar:5 head id=A7b stop=51.08s mark=50.54s:Squish"
+```
+
+A7b 는 곡 48.200–51.893초(2마디)를 5초로 만든다(곡 시작 47.700초, 머리 0.50초). 멈춤은 프롬프트 3.38초(생성 프레임
+81)이고 쓰는 끝까지 19프레임(0.79초)을 잡는다. 스크립트는 이 문장을 낸다.
+
+```text
+Final hit at 3.38s: the end pose locks on it. From 3.38s to the end of the clip (5.00s) everyone holds that pose
+completely still: no new moves, no bounce, only hair and breath settle. The song plays on into the next section;
+do not dance to it.
+```
+
+이 문장은 꼬리의 「keep the choreography moving」 문장을 대신한다. 그루브 문단의 「From the first frame to the last」도
+「until the final hit at 3.38 s」로 바꾼다([`choreography.md`](choreography.md) 「끊겨 보이는 춤」). A7a 처럼 구절이
+다음 컷으로 이어지는 컷에는 `stop` 을 주지 않는다. 그 컷의 꼬리는 트림이 버린다. 나누지 않고 A7 을 한 컷(8초,
+`44.508s..51.892s head`)으로 만들면 멈춤은 프롬프트 7.07초이고 잡는 길이는 같은 0.79초다.
+
+만든 뒤에는 멈춤 초 앞뒤를 따로 잰다.
+
+```bash
+python3 <스킬>/scripts/motion_check.py result.mp4 --hold-from 3.38
+```
+
+`dance` 는 멈춤 앞, `hold` 는 뒤다. Squish 에서 끝까지 자세를 잡은 A7 v12 는 6.08초 뒤 멈춘 프레임이 74%, 몸 움직임
+가운데값이 2.5픽셀이었다(854픽셀 너비). 계속 춤춘 v13 뒤 컷은 같은 자리에서 13%, 11.0픽셀로 춤 구간과 다르지 않았다.
+멈춤 뒤 가운데값이 춤 구간과 비슷하면 멈추지 않은 것이다.
+
+멈추지 않았으면 편집에서 고친다. 곡을 들려준 컷은 `freeze_to_ms` 를 받지 않는다([`democut-mv.md`](democut-mv.md)).
+표의 「멈춘 뒤에도 움직이면」 줄대로 컷을 멈춤 프레임에서 자르고(`stop.trim_out_ms`) 그 프레임의 정지 클립을
+`stop.hold_ms` 만큼 뒤에 잇는다. 정지 클립의 곡 트랙은 `stop.freeze_track_in_ms` 에서 시작한다. 그림 프레임 수는 나누기
+전과 같아 드리프트가 그대로다. 콘티가 처음부터 화면이 딱 멈추는 정지를 원하면(A7-8) 이 방법을 바로 쓴다.
 
 ## 가사 시각을 단어로 재기
 

@@ -79,7 +79,16 @@ def _blended(before, cur, after):
     return tiles >= BLEND_MIN_TILES
 
 
-def measure(path):
+def _still_run(body, still_px, first_frame, fps):
+    run, best, best_start = 0, 0, None
+    for i, v in enumerate(body):
+        run = run + 1 if v < still_px else 0
+        if run > best:
+            best, best_start = run, first_frame + i + 1 - run
+    return {"frames": best, "start_s": None if best_start is None else round(best_start / fps, 2)}
+
+
+def measure(path, hold_from=None):
     frames, fps, src_w = _frames(path)
     work_w = frames[0].shape[1]
     scale = src_w / work_w
@@ -90,29 +99,44 @@ def measure(path):
     blend = [t for t in range(1, len(frames) - 1) if _blended(frames[t - 1], frames[t], frames[t + 1])]
     still_px = STILL_SHARE * src_w
     still = [i + 1 for i, v in enumerate(body) if v < still_px]
-    run, best, best_start = 0, 0, None
-    for i, v in enumerate(body):
-        run = run + 1 if v < still_px else 0
-        if run > best:
-            best, best_start = run, i + 2 - run
     peak = int(np.argmax(body))
-    return {
+    r = {
         "frames": len(frames), "fps": round(fps, 3), "width": src_w,
         "duplicate_frames": dup, "blended_frames": blend,
         "still_frames": len(still), "still_share": round(len(still) / len(body), 3),
-        "longest_still": {"frames": best, "start_s": None if best_start is None else round(best_start / fps, 2)},
+        "longest_still": _still_run(body, still_px, 1, fps),
         "body_px_p50": round(float(np.median(body)), 1), "body_px_p95": round(float(np.percentile(body, 95)), 1),
         "body_px_max": round(body[peak], 1), "body_max_at_s": round((peak + 1) / fps, 2),
         "body_max_share_of_width": round(body[peak] / src_w, 4),
     }
+    if hold_from is not None:
+        # body[i] 는 프레임 i+1 의 움직임이다. 멈춤 시각 앞은 춤, 뒤는 끝 자세를 잡는 구간이다.
+        cut = min(max(int(round(hold_from * fps)), 1), len(body))
+        dance, hold = body[:cut - 1], body[cut - 1:]
+        r["dance"] = {
+            "frames": len(dance),
+            "still_frames": sum(v < still_px for v in dance),
+            "still_share": round(sum(v < still_px for v in dance) / max(len(dance), 1), 3),
+            "longest_still": _still_run(dance, still_px, 1, fps),
+        }
+        r["hold"] = {
+            "from_s": round(cut / fps, 2),
+            "frames": len(hold),
+            "still_share": round(sum(v < still_px for v in hold) / max(len(hold), 1), 3),
+            "body_px_p50": round(float(np.median(hold)), 1) if hold else 0.0,
+            "body_px_max": round(max(hold), 1) if hold else 0.0,
+        }
+    return r
 
 
 def main():
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("video")
+    ap.add_argument("--hold-from", type=float, metavar="초",
+                    help="끝 자세를 잡기 시작하는 생성 클립의 초(cutplan 의 멈춤 프롬프트 초). 앞은 춤, 뒤는 멈춤으로 따로 잰다")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    r = measure(args.video)
+    r = measure(args.video, args.hold_from)
     if args.json:
         print(json.dumps(r, ensure_ascii=False))
         return
@@ -123,6 +147,12 @@ def main():
           f"{r['longest_still']['frames']}프레임({r['longest_still']['start_s']}초부터)")
     print(f"  몸 움직임 가운데값 {r['body_px_p50']}px, 95% {r['body_px_p95']}px, "
           f"최대 {r['body_px_max']}px(너비의 {r['body_max_share_of_width']:.1%}, {r['body_max_at_s']}초)")
+    if "hold" in r:
+        d, h = r["dance"], r["hold"]
+        print(f"  춤(~{h['from_s']}초) 멈춘 프레임 {d['still_frames']}/{d['frames']}개({d['still_share']:.0%}), "
+              f"가장 길게 멈춘 구간 {d['longest_still']['frames']}프레임({d['longest_still']['start_s']}초부터)")
+        print(f"  멈춤({h['from_s']}초~) 멈춘 프레임 {h['still_share']:.0%}, 몸 움직임 가운데값 {h['body_px_p50']}px, "
+              f"최대 {h['body_px_max']}px")
 
 
 if __name__ == "__main__":

@@ -144,6 +144,8 @@ kit 의 뼈대 순서를 따른다. 블록아웃 줄, 색 안내(Colour key), �
 (kit 「Seedance run」, `lib/blockout/prompt.py`). 블록아웃이 춤을 정하지 않으므로 춤 문단이 연기의 전부다. 춤 문단은 그루브
 한 단락과 정수 초 구간의 동작 서너 개다([`choreography.md`](choreography.md) 「영상 프롬프트로 옮기기」). 아래는 A7 v13
 의 앞 컷(4초, 히트에서 나눈 앞쪽)에 쓴 프롬프트다(3,798자, 결과는 아래 「결과」). 뒤 컷은 머리줄, 세트, 춤 구간만 다르다.
+4초는 정수 초로 나눈 길이라 마디에 맞지 않았다. 컷의 생성 길이와 곡 시작은 `cutplan` 으로 정한다(아래 「히트에서 컷을
+나눈다」).
 
 ```text
 4 s 16:9 K-pop dance performance, one continuous shot, to Audio 1. The first half of the chorus; the shot ends on the
@@ -204,6 +206,10 @@ stretched straight out to the sides, heart shapes, prayer hands, clapping, finge
 face, pointing down, jumping, hips thrust at the camera, lying on the floor, any ball or object in the hands.
 ```
 
+- **구절이 끝나는 컷은 마지막 히트에서 멈춘다.** 위 프롬프트는 구절이 뒤 컷으로 이어지는 앞 컷이라 「From the first frame
+  to the last」로 쓴다. 구절이 끝나는 컷은 그 문장을 「Until the final hit at N s」로 바꾸고 마지막 구간에 `cutplan` 의
+  `stop=` 문장을 잇는다([`conti-and-timing.md`](conti-and-timing.md) 「구절이 끝나는 컷은 마지막 히트에서 멈춘다」). 블록아웃도
+  그 초부터 끝까지 카메라만 움직이고 알약은 서 있게 굽는다.
 - **알약을 색과 그림 번호로 부른다.** 「LEFT = 검은 캡 알약」만 적고 참고 인물의 번호를 적지 않은 v9b 이전 문단은 쓰지
   않는다. 규칙 네 줄은 kit 의 문장을 그대로 쓴다.
 - **셔터 줄을 적는다.** v9b 까지는 `No motion blur` 를 적었다. 그 문장은 아크의 블러도 막지 못했고
@@ -231,17 +237,22 @@ face, pointing down, jumping, hips thrust at the camera, lying on the floor, any
 points」로 다룬다([Runway](https://runway.com/resources/seedance-2-5-prompt-guide)). 시각 다섯 개를 적은 v12 도 마지막
 히트만 맞았다. 가운데 히트까지 박에 맞아야 하면 그 박에서 컷을 둘로 나눈다. A7 v13 에서 쓴 순서다.
 
-1. 블록아웃을 히트 프레임에서 자른다. 앞 조각은 `ffmpeg -i blockout.mp4 -vf "select='lt(n\,96)',setpts=N/24/TB" -an -r 24
-   -c:v libx264 -crf 16 a.mp4`, 뒤 조각은 `gte(n\,96)` 이다. Seedance 는 4~15초만 받으므로(DemoCut `SEEDANCE_DURATION_S`)
-   두 조각 모두 4초 이상이어야 한다.
-2. 두 조각을 올려 컷 둘의 `reference_video_asset_ids` 에 하나씩 넣고 컷마다 `democut_set_cut_bgm` 으로 곡 구간을 준다
-   (A7 은 `song_start_ms` 44508 과 48508).
+1. 나누는 자리는 초가 아니라 박이다. `cutplan` 에 마디로 컷 둘을 주고 구절이 끝나는 뒤 컷에는 `stop=` 을 준다
+   (`--cut "bar:1..bar:3 tail id=A7a" --cut "bar:3..bar:5 head id=A7b stop=51.08s"`). 컷마다 생성 길이와
+   `song_start_ms` 가 나온다. A7 은 A7a 5초(곡 44.508초부터), A7b 5초(곡 47.700초부터)다. v13 은 정수 초로 4.00초(곡
+   48.508초)에서 나눴고 뒤 컷이 2절 첫 0.6초까지 덮었다([`conti-and-timing.md`](conti-and-timing.md) 「구절이 끝나는 컷은
+   마지막 히트에서 멈춘다」).
+2. 블록아웃을 컷마다 `song_start_ms` 부터 생성 길이만큼 자른다. 블록아웃 0초가 곡 44.508초이면 A7b 는 3.192~8.192초다.
+   블록아웃이 그만큼 길지 않으면 Blender 에서 끝을 늘려 다시 굽는다. 자르는 명령은 `ffmpeg -i blockout.mp4 -vf
+   "select='between(n\,77\,196)',setpts=N/24/TB" -an -r 24 -c:v libx264 -crf 16 b.mp4` 꼴이다. Seedance 는 4~15초만
+   받는다(DemoCut `SEEDANCE_DURATION_S`). 조각을 올려 컷마다 `reference_video_asset_ids` 에 넣고 `democut_set_cut_bgm` 의
+   `song_start_ms` 에 `cutplan` 값을 준다.
 3. 앞 컷은 히트로 끝난다. 머리줄에 「the shot ends on the low hit」, 마지막 구간에 「the last frame is this low squat」을
    적는다. 뒤 컷은 같은 자세로 연다(「The shot opens with all three already in a low groove squat」).
 4. 첫 장면 지정(`image_asset_id`)은 쓰지 않는다. 곡을 들려주는 컷(`host: "music"`)이면 DemoCut 이 첫 장면과 곡을 함께
    보내지 않고(`SPEC_CONFLICT`) 사용자도 쓰지 말라고 했다(2026-11-23).
-5. 두 컷은 따로 만들어 이어 붙인다. 이어 붙일 때는 `ffmpeg -f concat -safe 0 -i list.txt -c copy` 로 시각을 건드리지
-   않는다. `concat` 필터에 `-r 24` 를 주면 이음매에 프레임이 하나 겹쳐 들어가 192프레임이 194프레임이 됐다. 4초 컷은
+5. 두 컷은 따로 만들고 `cutplan` 의 트림대로 잘라 이어 붙인다. 이어 붙일 때는 `ffmpeg -f concat -safe 0 -i list.txt -c copy`
+   로 시각을 건드리지 않는다. `concat` 필터에 `-r 24` 를 주면 이음매에 프레임이 하나 겹쳐 들어가 192프레임이 194프레임이 됐다. 4초 컷은
    738원씩이라 8초 한 컷(1,458원)과 거의 같다.
 
 v13 에서 박은 맞았고 이음매는 튀었다(「결과」). 뒤 컷은 블록아웃의 자리와 세트를 따르지 않았다. 다음에는 아래를
@@ -337,3 +348,9 @@ v13 v11 블록아웃을 4.00초(96프레임)에서 나눈 4초 컷 둘. 아이�
   번들거리는 슬라임 동굴이었다. 뒤 컷 프롬프트에 「walls of hardened slime」을 적은 탓으로 보인다(미확인). 자세는
   이어졌지만 4.00초 컷에서 세트, 대형, 숏 크기가 한꺼번에 바뀌었다. 앞 컷도 3.96초에 블록아웃보다 넓게 잡혔고 하이나와
   신더가 가깝게 붙었다.
+- **끝.** 뒤 컷은 Squish 히트(약 6.0초) 뒤에도 손바닥 누르기를 이어 갔고 「시」(6.57초)를 지나 2절이 시작하는
+  7.38초 뒤에도 춤췄다. 프롬프트가
+  「2-4 s: they repeat the squish press on every beat」로 남는 초를 채우게 했기 때문이다. 사용자는 「Squish에서 안무가
+  멈췄어야되」라고 했다(2026-11-23). `motion_check.py --hold-from 6.08` 로 재면 그 뒤 멈춘 프레임 13%, 몸 움직임 가운데값
+  11.0픽셀로 춤 구간과 같았다. 끝까지 Squish 를 잡은 v12 는 74%, 2.5픽셀이었다. 컷도 마디가 아닌 정수 초(4.00초)로
+  나눴다.

@@ -62,6 +62,11 @@ def test_stall_hold_and_jump():
         assert r["longest_still"] == {"frames": 16, "start_s": round(16 / 24, 2)}, r
         assert r["body_max_at_s"] == round(41 / 24, 2), r
         assert 6.0 <= r["body_px_max"] <= 10.0, r
+        h = M.measure(path, hold_from=16 / 24)
+        assert h["dance"] == {"frames": 15, "still_frames": 0, "still_share": 0.0,
+                              "longest_still": {"frames": 0, "start_s": None}}, h["dance"]
+        assert h["hold"]["from_s"] == 0.67 and h["hold"]["frames"] == 32, h["hold"]
+        assert h["hold"]["still_share"] == round(17 / 32, 3), h["hold"]
     finally:
         shutil.rmtree(tmp)
 

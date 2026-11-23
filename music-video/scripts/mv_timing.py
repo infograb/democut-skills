@@ -814,6 +814,8 @@ def _parse_cut_token(text):
         elif k in ("mark", "at"):
             pos, label = _split_mark(v)
             cut["marks"].append({"at": pos, "label": label})
+        elif k == "stop":
+            cut["stop"] = v
         elif k == "buffer":
             if v not in ("head", "tail", "both"):
                 raise PlanError("버퍼는 head, tail, both 중 하나다: %s" % v)
@@ -884,6 +886,7 @@ def _normalize_cut(raw, index, default_buffer, default_min):
         "buffer": buf,
         "min_buffer_ms": min_b,
         "marks": _normalize_marks(raw.get("marks")),
+        "stop": raw.get("stop"),
     }
 
 
@@ -1012,7 +1015,7 @@ def _beats_in_clip(song_in, song_out, head_ms, duration_ms, ctx):
     return beats
 
 
-def _prompt_hint(head_ms, tail_ms, used_end_ms, duration_ms, marks):
+def _prompt_hint(head_ms, tail_ms, used_end_ms, duration_ms, marks, stop_ms=None):
     head_s = float(head_ms) / 1000.0
     tail_s = float(tail_ms) / 1000.0
     used_end_s = float(used_end_ms) / 1000.0
@@ -1032,7 +1035,14 @@ def _prompt_hint(head_ms, tail_ms, used_end_ms, duration_ms, marks):
             label = m["label"] or "action"
             bits.append("%s at %.2fs" % (label, m["prompt_ms"] / 1000.0))
         parts.append("Actions shifted by the head buffer: %s." % ", ".join(bits))
-    if tail_s > 0.0005:
+    if stop_ms is not None:
+        stop_s = float(stop_ms) / 1000.0
+        parts.append(
+            "Final hit at %.2fs: the end pose locks on it. From %.2fs to the end of the clip (%.2fs) everyone holds "
+            "that pose completely still: no new moves, no bounce, only hair and breath settle. The song plays on into "
+            "the next section; do not dance to it." % (stop_s, stop_s, gen_s)
+        )
+    elif tail_s > 0.0005:
         parts.append(
             "%.2f-%.2fs: keep the choreography moving on the beat past the used end; do not drop the arms or settle."
             % (used_end_s, gen_s)
@@ -1130,7 +1140,29 @@ def _plan_one(raw, ctx, allowed, fps, cum_song, cum_frames):
         warnings.append("누적 그림 드리프트가 반 프레임을 넘는다.")
     if fade < CROSSFADE_MS:
         warnings.append("컷이 짧아 크로스페이드를 %dms 로 줄였다." % fade)
-    hint = _prompt_hint(head_ms, tail_ms, head_ms + picture_ms, Fraction(duration_ms), marks)
+    stop = None
+    stop_prompt = None
+    if raw.get("stop") not in (None, ""):
+        stop_at = parse_position(raw["stop"], ctx)
+        if not song_in < stop_at <= song_out:
+            raise PlanError("컷 %s: stop 은 컷의 시작 뒤, 끝 이하여야 한다." % raw["id"])
+        stop_prompt = head_ms + (stop_at - song_in)
+        stop_frame = start + nearest_int((stop_at - song_in) * as_fraction(fps) / 1000)
+        stop_frame = min(max(stop_frame, start + 1), end_frame)
+        hold_frames = end_frame - stop_frame
+        stop_trim_out = snap_trim_ms(start, stop_frame - start, fps)[1]
+        stop = {
+            "song_ms": num(stop_at),
+            "prompt_ms": num(stop_prompt),
+            "prompt_s": round(float(stop_prompt) / 1000.0, 3),
+            "frame": stop_frame,
+            "hold_frames": hold_frames,
+            "hold_ms": num(Fraction(hold_frames) * 1000 / as_fraction(fps)),
+            # 멈춘 뒤에도 움직이면 여기서 자르고, 이 프레임의 정지 클립을 hold_ms 만큼 잇는다.
+            "trim_out_ms": stop_trim_out,
+            "freeze_track_in_ms": song_in_i + stop_trim_out - trim_start_ms,
+        }
+    hint = _prompt_hint(head_ms, tail_ms, head_ms + picture_ms, Fraction(duration_ms), marks, stop_prompt)
     cut = {
         "id": raw["id"],
         "buffer": mode,
@@ -1172,6 +1204,7 @@ def _plan_one(raw, ctx, allowed, fps, cum_song, cum_frames):
         "prompt_shift_ms": num(head_ms),
         "beats": _beats_in_clip(song_in, song_out, head_ms, Fraction(duration_ms), ctx),
         "marks": marks,
+        "stop": stop,
         "prompt_hint": hint,
         "warnings": warnings,
         "edit": {
@@ -1268,6 +1301,13 @@ def format_plan(plan):
             c["tail_buffer_ms"], c["song_start_ms"], c["track_at_ms"], c["prompt_shift_ms"]))
         for w in c["warnings"]:
             lines.append("         ! %s" % w)
+        if c.get("stop"):
+            st = c["stop"]
+            lines.append("         멈춤 곡 %.0fms → 프롬프트 %.3f초 · 생성 프레임 %d 에서 자세를 잠근다 · 잡는 길이 %d프레임(%.0fms)" % (
+                st["song_ms"], st["prompt_s"], st["frame"], st["hold_frames"], st["hold_ms"]))
+            if st["hold_frames"] > 0:
+                lines.append("         멈춘 뒤에도 움직이면: trim %d~%d, 생성 프레임 %d 의 정지 클립 %.0fms(곡 트랙 in %d)" % (
+                    c["trim_in_ms"], st["trim_out_ms"], st["frame"], st["hold_ms"], st["freeze_track_in_ms"]))
         lines.append("         %s" % c["prompt_hint"])
         used = [b for b in c["beats"] if b["place"] == "used"]
         tail = [b for b in c["beats"] if b["place"] == "tail"]
@@ -1344,7 +1384,7 @@ def _add_buffer_parser(sub, name):
     b.add_argument("--buffer", default=None, choices=["head", "tail", "both"],
                    help="컷에 버퍼를 안 적었을 때의 기본. 기본 both")
     b.add_argument("--cut", action="append", default=None,
-                   help="시작..끝 [head|tail|both] id=이름 min=500 mark=0ms:hit  를 반복한다")
+                   help="시작..끝 [head|tail|both] id=이름 min=500 mark=0ms:hit stop=51.08s  를 반복한다")
     b.add_argument("--cuts", default=None, help="컷 목록 파일. JSON 이거나 한 줄에 컷 하나")
     b.add_argument("--json", action="store_true")
     b.set_defaults(fn=cmd_buffer)

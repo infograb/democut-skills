@@ -50,27 +50,34 @@ python3 scripts/mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.50
 
 「프레임이 떨어지는 것 같다」는 피드백이 나온 A7 v12(480p, 24fps, 192프레임)를 프레임마다 쟀다. 파일에는 빠지거나 겹친
 프레임이 없었다. 앞 프레임과 거의 같은 프레임은 첫 프레임 하나였고 앞뒤 프레임을 섞은 듯한 프레임도 없었다. 끊김은
-움직임에서 왔다. 카메라 움직임을 빼고 몸만 재니 몸이 3픽셀 넘게 움직이지 않은 프레임이 42개(22%)였고 빠른 박에서는
-팔이 한 프레임에 44픽셀(화면 너비의 5.2%)까지 갔다. 팔이 몇 프레임 만에 다음 자세로 튀어 가 멈추고 다시 튀어 간다.
-24fps 에서는 이 꼴이 프레임이 빠진 것처럼 보인다. v12 프롬프트에는 「Sharp」, 머리 위에서 멈추기, 끝까지 Squish 자세
-유지하기, 「settled by 6.50 s」가 있었고 몸은 6.1초부터 끝까지 거의 멈췄다.
+움직임에서 왔다. 카메라 움직임을 빼고 몸만 재니 빠른 박에서 팔이 한 프레임에 44픽셀(화면 너비의 5.2%)까지 갔다. 팔이 몇
+프레임 만에 다음 자세로 튀어 간다. 24fps 에서는 이 꼴이 프레임이 빠진 것처럼 보인다. v12 프롬프트에는 「Sharp」와 머리
+위에서 멈추기가 있었다. 몸이 3픽셀 넘게 움직이지 않은 프레임은 42개(22%)였지만 대부분은 Squish 뒤(6.08초부터)에 끝
+자세를 잡은 구간에서 나왔다. 그 앞 춤 구간에서는 145개 가운데 8개(6%)였다. 처음에는 42개를 춤 중간에 멈칫한 프레임으로
+읽었는데 틀린 읽기였다(2026-11-23 `--hold-from` 으로 다시 쟀다). 구절 끝에서 자세를 잡은 것은 맞는 동작이다.
 
 ```
 python3 scripts/motion_check.py result.mp4
+python3 scripts/motion_check.py result.mp4 --hold-from 6.08
 ```
 
-겹친 프레임, 앞뒤를 섞은 프레임, 몸이 거의 멈춘 프레임의 수와 몸이 가장 빨리 움직인 프레임을 낸다. 겹친 프레임이나 섞인
-프레임이 나오면 생성이나 인코딩 문제이고 멈춘 프레임이 많고 최대 속도가 크면 안무 문장의 문제다.
+겹친 프레임, 앞뒤를 섞은 프레임, 몸이 거의 멈춘 프레임의 수와 몸이 가장 빨리 움직인 프레임을 낸다. `--hold-from` 에
+멈춤 초를 주면 그 앞(춤)과 뒤(끝 자세)를 따로 센다. 겹친 프레임이나 섞인 프레임이 나오면 생성이나 인코딩 문제이고 춤
+구간에서 멈춘 프레임이 많거나 최대 속도가 크면 안무 문장의 문제다.
 
-- **그루브를 끊지 않는다.** 홀드도 무릎 바운스와 숨을 남긴다.
-  `From the first frame to the last the knees bounce down on every beat and the weight rocks side to side with the hips;
-  nobody ever stops moving, even inside a held shape.`
+- **그루브를 끊지 않는다.** 구절의 마지막 히트까지는 홀드도 무릎 바운스와 숨을 남긴다.
+  `Until the final hit at 3.38 s the knees bounce down on every beat and the weight rocks side to side with the hips;
+  nobody stops moving before that hit, even inside a held shape.` 구절이 다음 컷으로 이어지는 컷은 「Until the final hit
+  at 3.38 s」 대신 「From the first frame to the last」라고 적는다.
 - **히트는 흐름 안의 강세다.** 팔이 강세로 빨라졌다가 풀린다.
   `the arms speed up into the accent and ease out of it, travelling through space, never snapping from one pose to the next.`
-- **끝을 멈춤으로 채우지 않는다.** 마지막 박들은 포인트 동작을 작게 되풀이한다(위 「세는 법」의 4번 반복).
-- 실측: 위 세 줄과 정수 초 구간으로 다시 쓰고 히트에서 컷을 나눈 A7 v13 은 멈춘 프레임이 14개(7%), 가장 빠른 프레임이
-  36.5픽셀(너비의 4.3%)이었다. 몸 움직임 가운데값은 v12 10.1픽셀에서 11.1픽셀로 조금 늘었다. 컷 나누기와 문장 바꾸기를
-  함께 해서 어느 쪽 덕인지는 가르지 못했다. 사람이 보기에도 덜 끊기는지는 아직 확인하지 않았다.
+- **구절 끝에서는 멈춘다.** 그루브는 구절의 마지막 히트까지다. 그 히트에서 끝 자세로 멈추고 클립 끝까지 잡는다. 생성이
+  정수 초라 남는 시간에 동작을 작게 되풀이하게 쓰면 다음 구간 곡이 나오는 동안에도 춤춘다(A7 v13 뒤 컷,
+  [`conti-and-timing.md`](conti-and-timing.md) 「구절이 끝나는 컷은 마지막 히트에서 멈춘다」).
+- 실측: 위 문장과 정수 초 구간으로 다시 쓰고 히트에서 컷을 나눈 A7 v13 은 춤 구간(6.08초 앞)에서 멈춘 프레임이 145개
+  가운데 8개(6%)로 v12 와 같았다. 가장 빠른 프레임은 v12 44.2픽셀에서 36.5픽셀(너비의 4.3%)로 줄었다. 영상 전체의
+  멈춘 프레임이 22%에서 7%로 준 것은 v13 이 Squish 뒤에도 춤췄기 때문이고 나아진 것이 아니다. 사람이 보기에 덜
+  끊기는지는 아직 확인하지 않았다.
 - Seedance 2.0 프롬프트 가이드를 정리한 Ekly 는 「Prefer slow, gentle, continuous motion」, 「avoid high-burst,
   large-dynamic actions」라고 쓴다([Ekly](https://www.ekly.ai/guides/seedance-2-prompting). BytePlus 공식 문서를 옮겼다고
   하지만 출처 표시는 확인하지 못했다).
@@ -255,8 +262,11 @@ python3 scripts/motion_check.py result.mp4
    dancing」처럼 덩어리로 적지 않는다: `1-2 s, "build it up": a body roll back up from the knees, two quick chest pops on
    the way up, wrists flicking beside the shoulders.` 멤버마다 다르게 할 동작이 있으면 그 구간에만 이름으로 적는다.
 6. 동작 크기: `small, precise upper-body and hand moves because the intro beat is light`
-7. 끝 자세와 그때의 손 위치. 끝까지 얼리지 않고 바운스를 남기거나 포인트 동작을 작게 되풀이한다:
-   `2-4 s: they repeat the squish press on every beat, press and release, smaller and bouncier each time. The last frame is a squish press, eyes to the lens.`
+7. 끝 자세와 그때의 손 위치, 그리고 멈추는 시각. 구절이 이 컷에서 끝나면 마지막 히트에서 끝 자세로 멈추고 클립 끝까지
+   잡는다. `cutplan` 의 `stop=` 이 내는 문장을 그대로 잇는다:
+   `2-3 s, "Squish": … Final hit at 3.38s: the end pose locks on it. From 3.38s to the end of the clip (5.00s) everyone holds that pose completely still: no new moves, no bounce, only hair and breath settle. The song plays on into the next section; do not dance to it.`
+   구절이 다음 컷으로 이어지는 컷만 끝 박 뒤에도 동작을 이어 간다. A7 v13 뒤 컷처럼 「2-4 s: they repeat the squish
+   press on every beat」로 남는 초를 채우면 2절 곡이 나오는 동안에도 춤춘다.
 8. 맨 끝 한 줄: 맨손 문장과 금지 손 모양 목록(「손은 자세로 적는다」)
 
 동작은 형용사가 아니라 **이름 있는 동작을 순서대로** 적는다. 「energetic dancing」, 「dynamic moves」만 적으면 타이밍이 제멋대로이고

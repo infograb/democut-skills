@@ -61,6 +61,28 @@ def test_worked_example():
     assert abs(nxt["drift_ms"] + 9.615) < 0.001
 
 
+def test_stop_locks_end_pose():
+    """구간이 히트로 끝나면 그 박에서 자세를 잠그고, 남은 사용 구간은 정지 클립으로 잇는다."""
+    c = plan(["0ms..2bar head id=s stop=1bar"])["cuts"][0]
+    assert c["duration_s"] == 5 and c["head_frames"] == 12 and c["used_frames"] == 89
+    st = c["stop"]
+    assert st["frame"] == 56 and st["hold_frames"] == 45 and st["hold_ms"] == 1875, st
+    assert st["prompt_s"] == 2.346 and st["trim_out_ms"] == 2333, st
+    assert st["freeze_track_in_ms"] == 1833, st
+    assert c["edit"]["trim_in_ms"] == 500 and c["edit"]["trim_out_ms"] == 4208
+    assert "Final hit at 2.35s" in c["prompt_hint"]
+    assert "do not dance to it" in c["prompt_hint"]
+    assert "do not drop the arms or settle" not in c["prompt_hint"]
+    plain = plan(["0ms..2bar head id=p"])["cuts"][0]
+    assert plain["stop"] is None
+    try:
+        plan(["0ms..2bar head stop=3bar"])
+    except M.PlanError:
+        pass
+    else:
+        raise AssertionError("stop 이 컷 밖인데 받았다")
+
+
 def test_buffer_modes_and_duration_list():
     both = plan(["0ms..2bar both"])["cuts"][0]
     head = plan(["0ms..2bar head"])["cuts"][0]
@@ -167,6 +189,7 @@ def test_cli_json():
 
 def main():
     test_worked_example()
+    test_stop_locks_end_pose()
     test_buffer_modes_and_duration_list()
     test_frame_snap_property()
     test_drift_carry()
