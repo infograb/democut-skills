@@ -21,7 +21,7 @@ npx skills add infograb/democut-skills
 
 ```bash
 git clone https://github.com/infograb/democut-skills.git
-cp -r democut-skills/room-set-planner democut-skills/room-set-photos democut-skills/music-video democut-skills/creator-style-formats ~/.claude/skills/
+cp -r democut-skills/room-set-planner democut-skills/room-set-photos democut-skills/music-video democut-skills/creator-style-formats democut-skills/drama-film ~/.claude/skills/
 ```
 
 ### 그 외 에이전트
@@ -37,6 +37,7 @@ cp -r democut-skills/room-set-planner democut-skills/room-set-photos democut-ski
 | `room-set-photos` | `room-set-planner` 가 같은 스킬 디렉토리에 있어야 한다(도면 계산을 가져다 쓴다). Python 3.8 이상, ffmpeg(제품 보드. 없으면 제품 사진 한 장으로 대신한다), DemoCut MCP 연결(이미지 생성은 유료) |
 | `music-video` | Python 3.8 이상(표준 라이브러리만), ffmpeg(곡 음량 측정·격자 한 장). DemoCut MCP 연결(곡·영상 생성은 유료, 멤버를 참고 인물로 넣으려면 Pro 이상). 트렌드 조사에는 웹 검색 도구 |
 | `creator-style-formats` | Python 3.8 이상(표준 라이브러리만). 공개 메타데이터는 PATH 의 yt-dlp(`--skip-download`) 또는 환경 변수 `YOUTUBE_API_KEY`(유튜브 데이터 API). 키프레임은 이미 있는 영상 파일과 ffmpeg. 영상 생성은 하지 않는다 |
+| `drama-film` | Python 3.8 이상(표준 라이브러리만), ffmpeg(격자·그레인). Blender 5.1 이상과 Blender Lab MCP(블록아웃. Codex 에게 맡기면 창 없이 띄운 작업용 Blender). DemoCut MCP 연결(이미지·영상 생성은 유료, 인물을 참고 인물로 넣으려면 Pro 이상) |
 
 ## 확인
 
