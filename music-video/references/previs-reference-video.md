@@ -1,7 +1,8 @@
 # 3D 블록아웃을 참고 영상으로
 
 글로 적은 자리·박·카메라가 지켜지지 않는 컷은 같은 컷을 3D 블록아웃으로 먼저 만들어 영상 모델에 참고 영상으로 준다.
-블록아웃은 자리, 이동, 대형, 낮아지는 박, 세트의 모양과 생기는 시각, 카메라만 정한다. 춤과 표정은 프롬프트와 곡이 정한다.
+블록아웃은 자리, 이동, 대형, 보는 방향, 세트의 모양과 생기는 시각, 카메라만 정한다. 춤, 낮아지는 동작, 손, 표정은
+프롬프트와 곡이 정한다.
 
 ## 언제 쓰나
 
@@ -14,25 +15,28 @@
 
 입은 옮기지 못한다. 부르는 줄은 [`democut-mv.md`](democut-mv.md) 「입을 맞춰 부르는 줄(단독샷)」대로 만든다.
 
-## 블록아웃이 정하지 않는 것
+## 블록아웃은 몸 동작을 보이지 않는다
 
-영상 모델은 참고 영상의 움직임을 거의 그대로 따른다. 그래서 블록아웃에 넣은 연기는 결과의 연기가 된다.
+영상 모델은 참고 영상에 보이는 몸 동작을 그대로 따른다. 그래서 블록아웃에 넣은 연기는 결과의 연기가 된다.
 
 - A7 v6 는 실제 비율의 리깅 마네킹(MPFB)이 안무 전체를 추게 하고 프롬프트에 「every rib, hip, shoulder … follow it
   frame for frame」을 적었다. 결과는 프리비즈를 r=0.90 으로 따랐고 마네킹의 흠도 그대로 옮겼다. 사용자는
   「자세가 엉거주춤하고 클레이 애니메이션처럼 프레임이 안 맞는다」고 했다. 마네킹을 재 보니 골반이 평균 14cm 내려가
   있었다. 키는 3프레임마다 있었고 손 모양이 1초에 5번 바뀌었다(곡은 1초에 2.2박).
+- A7 v9b 는 알약에 막대 팔과 손판을 달아 히트 박마다 손이 그 자리로 가게 하고 앉는 박에는 알약 높이를 줄였다. 막대
+  손은 몇 프레임 동안 프레임마다 20~34cm 움직였다가 오래 멈췄고(66~78, 123~140, 157~192프레임) 144→145프레임에는 한
+  프레임에 약 85cm 뛰었다. 결과의 멤버도 같은 구간에서 멈춰 섰고 머리 위 자세로 서 있다가(132~141프레임) 약 3프레임
+  만에 Squish 로 꺾였다. 다리, 골반, 상체는 거의 움직이지 않고 팔만 움직였다. 사용자는 다시 클레이 애니메이션 같다고 했다.
 - 블록아웃의 모양도 새어 나간다. 눈꺼풀을 감은 마네킹 얼굴을 쓴 v6 에서는 끝 클로즈업에서 셋 중 둘이 눈을 감았다.
   다른 제작자의 광고에서는 블록아웃의 다이아몬드 모양 꽃이 결과에 그대로 나왔다
-  ([Thomas Lundström, 12:10](https://www.youtube.com/watch?v=jc0Qh09Qrlo)).
-- Blender 와 Seedance 로 작업하는 제작자들은 사람 대신 색 줄무늬 알약을 세운다. 연기가 옮겨질 위험이 없고 회색
-  화면에서 눈에 띄기 때문이다. 팔이나 고개는 꼭 필요한 박에만 붙인다
-  ([Thomas Lundström, 4:00](https://www.youtube.com/watch?v=mx1yjt4k73o)). 프롬프트에는 참고 영상을 카메라 참고로만
-  쓰라는 한 문장을 넣는다([Dan Kieft, 3:17](https://www.youtube.com/watch?v=miIDu04N7_4)). 연기가 밋밋하면
-  블록아웃이 아니라 프롬프트를 고친다(Thomas Lundström 8:29, 같은 첫 영상).
-
-알약 블록아웃으로 춤 컷을 생성해 잰 실측은 아직 없다. 자리와 박이 v5·v6 만큼 지켜지는지, 손 모양이 글만으로 나오는지는
-미확인이다. 결과가 나오면 아래 「결과」에 적는다.
+  ([Thomas Lundström, 12:10](https://www.youtube.com/watch?v=jc0Qh09Qrlo)). v12 에서는 쐐기 모양으로 솟는 벽이 뾰족한
+  슬라임 기둥으로 나왔다(1.7~2.0초).
+- 같은 제작자가 공개한 blockout-kit(MIT) 는 이렇게 적는다. 「Seedance copies whatever body motion the reference shows, so
+  the stand-in must show none. A rigid striped capsule gives position, scale, facing and timing only.」 몸짓은 프롬프트가
+  준다(kit `skills/blockout/SKILL.md`). kit 의 팔은 총을 겨누는 방향만 보이는 굳은 막대이고 고개는 보는 방향만 돌린다.
+  둘 다 다른 몸 동작은 없다(kit `docs/shotfile.md`). 춤의 팔을 보일 방법은 kit 에 없다.
+- 프롬프트에는 참고 영상의 쓰임을 한정하는 줄을 넣는다([Dan Kieft, 3:17](https://www.youtube.com/watch?v=miIDu04N7_4)).
+  연기가 밋밋하면 블록아웃이 아니라 프롬프트를 고친다([Thomas Lundström, 8:29](https://www.youtube.com/watch?v=mx1yjt4k73o)).
 
 ## DemoCut 에서 받는 것
 
@@ -42,6 +46,10 @@
 - Seedance 2.5 는 영상 10개, 한 개 2~30초, 합 30초까지 받는다. Seedance 2.5 flash 는 5개를 받고 720p 까지이며
   곡(참고 오디오)을 받지 못한다. 나머지 모델은 3개·2~15초·합 15초다.
 - 첫·끝 장면 그림과는 함께 쓰지 못한다(`SPEC_CONFLICT`). 참고 이미지, 참고 인물, 곡(`host: "music"`)과는 함께 쓴다.
+- 프롬프트는 참고를 종류와 번호로 부른다(Image 1, Video 1, Audio 1). 번호는 같은 종류 안의 순서다(BytePlus Seedance
+  문서). DemoCut 은 `reference_asset_ids` 의 그림을 먼저 보내고 그 뒤에 `reference_character_ids` 순서로 멤버마다 고른
+  사진의 캐릭터 시트를 보낸다(democut-app `services/cuts.py`). 창고 그림 하나와 멤버 셋이면 창고가 Image 1, 멤버가
+  Image 2~4 다. 블록아웃은 Video 1, `host: "music"` 의 곡은 Audio 1 이다.
 - 값은 토큰으로 매기고 참고 영상도 결과와 같은 해상도로 토큰을 센다. 8초 컷에 8초 참고 영상을 넣은 견적이다
   (2026-11-22, 요율 v5, `democut_estimate_cuts` 에 spec 을 주면 초안을 바꾸지 않고 값만 낸다).
 
@@ -56,30 +64,34 @@
 ## 만드는 법
 
 1. **컷을 데이터로 적는다.** 박 n 의 프레임은 `round(n × 60 / BPM × fps)` 다(130 BPM·24fps 면 0, 11, 22, 33, 44 …).
-   멤버의 자리, 대형이 바뀌는 박, 낮아지는 박, 카메라 숏(거리·높이·바라보는 높이)과 그 숏에 도착하는 박을 적는다.
+   멤버의 자리, 대형이 바뀌는 박, 카메라 숏(거리·높이·바라보는 높이)과 그 숏에 도착하는 박을 적는다.
    대형의 간격은 [`choreography.md`](choreography.md) 「간격은 그 대형에서 하는 가장 큰 동작으로 정한다」대로 잡는다.
-   가사 동작은 블록아웃이 아니라 프롬프트에 적는다. 단어는 `mv_timing.py lyrics` 로 박에 놓고
+   가사 동작과 낮아지는 박은 블록아웃이 아니라 프롬프트에 적는다. 단어는 `mv_timing.py lyrics` 로 박에 놓고
    [`choreography.md`](choreography.md) 「가사에서 동작으로」대로 뜻을 몸으로 옮긴다.
 2. **알약을 세운다.** 아래 「알약」.
 3. **Blender 로 만든다.** Workbench, 1280×720, 24fps, H.264 yuv420p, 소리 없음, 화면 글자 없음. 길이는 정수 초다.
    Codex 에게 맡길 때는 아래 「Codex 가 Blender 를 쓰는 법」.
-   - 세계는 회색이고 색은 알약에만 있다. 세트가 컷 안에서 바뀌면 그 벽도 회색 덩어리로 넣는다(아래 「결과」의
-     세트 전환 실패 참고. 넣었을 때 따라오는지는 미확인).
-   - 카메라는 숏을 박에 키로 넣고 모션 블러를 쓰지 않는다. 카메라는 하나이고 화면을 나누지 않는다. 클로즈업을 작은
-     창으로 겹치면 영상 모델이 분할 화면으로 따라 한다.
+   - 세계는 회색이고 색은 알약에만 있다. 벽은 중간에서 어두운 회색으로 둔다. 화면 양쪽에 밝고 큰 면이 있으면 생성이
+     깨진다(kit `skills/blockout/SKILL.md`). 세트가 컷 안에서 바뀌면 그 벽도 회색 덩어리로 넣는다. v11·v12 에서는
+     블록아웃 벽이 솟는 자리와 시각에 슬라임이 솟아 창고가 됐다.
+   - 카메라는 숏을 박에 키로 넣는다. 블록아웃 렌더에는 모션 블러를 넣지 않는다. 결과의 블러는 프롬프트의 셔터 줄이
+     정한다(아래 「프롬프트」). 카메라는 하나이고 화면을 나누지 않는다. 클로즈업을 작은 창으로 겹치면 영상 모델이 분할
+     화면으로 따라 한다.
    - 가사 단어와 히트 박에 이름 붙은 타임라인 마커를 넣고 카메라를 켠 `.blend` 로 저장한다.
 4. **사람이 감독한다.** 렌더를 기다리지 않고 `.blend` 를 사람이 쓰는 Blender 에서 열어(Blender MCP, 포트 9876)
    스페이스바로 재생하게 한다. 메모는 「95~101프레임 사선이 너무 늦다」처럼 프레임 번호로 받아 고친다. 돈을 쓰는 생성은
    사람이 블록아웃을 확인한 뒤에 한다. A7 v6 에서는 Claude 가 숫자로만 검수하고 생성했다가, 사람이 한눈에 본 엉거주춤한
    자세를 3,118원을 쓴 뒤에 알았다.
-5. **장소 그림을 만든다.** 알약을 숨기고 카메라 자리에서 세트 스틸을 렌더한다. 이미지 모델로 그 구도의 실사 장소
-   그림을 만들어 참고 이미지로 넣으면 장소가 블록아웃과 맞는다
-   ([Thomas Lundström, 9:53](https://www.youtube.com/watch?v=mx1yjt4k73o)). 실내는 「사람이 사는 듯한」 같은 말을 넣어야
-   텅 비어 보이지 않는다(같은 제작자의 광고 영상 7:51).
+5. **장소 그림을 넣는다.** 장소 하나에 그림 하나다. 같은 장소의 그림이 여럿이면 서로 다툰다. 새로 만들 때는 알약을
+   숨긴 회색 세트를 가장 넓고 잘 보이는 카메라로 렌더하고 이미지 모델에 「Turn this grey blockout into a photoreal film
+   still. Keep the layout exactly: …」로 시작하는 프롬프트를 준다. 배치는 그대로, 사람 없음, 읽히는 글자 없음, 렌즈와
+   빛은 영화 말로 적는다(kit 「Location plates」). 실내는 「사람이 사는 듯한」 같은 말을 넣어야 텅 비어 보이지 않는다
+   ([Thomas Lundström, 7:51](https://www.youtube.com/watch?v=jc0Qh09Qrlo)). 그림이 블록아웃에 없는 큰 가구를 더하면
+   영상에도 나온다(drama-film A2 의 탁자). 그림을 블록아웃과 맞대 보고 다르면 그림을 다시 만든다.
 6. **올리기 전에 확인한다.** 박마다 한 칸 격자(`mv_timing.py sheet <영상> <격자.jpg> --fps 0 --bpm <BPM>`), 곡을 입힌
-   확인용 파일, 그리고 수치(첫 전신 프레임, 전신이 된 뒤 모든 프레임에서 알약 위아래가 화면 안인지, 알약끼리 겹치는지)를
-   본다. 매 프레임 멤버끼리(알약, 팔, 손) 3D 거리가 0.3m 이상인지, 화면에서 서로 겹치지 않는지도 잰다. 걸리면 동작을
-   줄이지 않고 대형을 넓힌다. 박 1 이 컷 0초가 아니면 `--offset` 에 박 1 의 컷 시각을 준다.
+   확인용 파일, 그리고 수치(첫 전신 프레임, 전신이 된 뒤 모든 프레임에서 알약 위아래가 화면 안인지, 알약끼리 3D 거리와
+   화면 겹침)를 본다. 알약이 굳어 있는지(높이, 기울기, 팔이 없는지)도 프레임마다 본다. 박 1 이 컷 0초가 아니면
+   `--offset` 에 박 1 의 컷 시각을 준다.
 7. **480p 로 먼저 본다.** 제작자들은 draft 모드로 오류를 본 뒤 고화질로 다시 만든다. 군무 컷의 초안은 Seedance 2.5
    480p 로 만든다. 곡을 함께 실을 수 있고 값은 720p 의 절반 아래다(위 표). flash 는 더 싸지만 곡을 받지 못해 박을 확인할
    수 없다. 초안에서 자리, 대형, 카메라, 세트가 맞으면 같은 spec 의 해상도만 올려 다시 만든다. 다시 만든 컷은 새
@@ -89,20 +101,16 @@
 
 - 멤버마다 캡슐 하나. 높이는 멤버 캐릭터(AI 인플루언서)의 `look_text` 에 적은 키, 반지름 약 0.17m 다.
 - 가로 띠로 멤버를 가른다. 위 캡은 머리색, 윗 띠는 상의, 아랫 띠는 바지나 쇼츠, 맨 아래 띠는 부츠 색이다. 앞면에
-  주황색 세로줄 하나를 그어 어느 쪽을 보는지 알게 한다. 팔, 머리, 얼굴은 넣지 않는다.
-- 몸의 움직임은 이동, 방향, 높이뿐이다. 앉는 박(와이드 플리에, 웅크리기)은 알약의 높이를 발 기준으로 줄여 보인다.
-  흔들기는 넣지 않는다.
-- 팔은 막대 두 마디(위팔 0.186, 아래팔 0.146, 키에 대한 비)와 납작한 손판이다. 평소에는 몸 옆에 늘어뜨리고 가사의 히트
-  박에만 손이 그 자리(배, 가슴, 머리 위, V, 허벅지, 포갠 손바닥)로 가서 그 박에 닿는다. 손판의 손바닥 면은 주황색이라
-  손바닥 방향이 보인다. 팔 없는 알약으로는 손 모양과 히트 박이 전해지지 않는다는 판단에서 사용자가 이 안을 골랐다
-  (2026-11-22. 글만 적은 v13 에서 손 모양 16개가 거의 나오지 않았다).
-- 그림으로 어떻게 읽히는지 카메라 화면으로 본다. 머리 위에서 팔꿈치를 굽혀 손을 모으면 머리 위에 고리가 생겨 하트나
-  후광으로 읽힌다. 팔꿈치를 155도 넘게 펴서 좁은 Λ 로 만든다. 어깨가 가까운 대형에서 팔꿈치를 옆으로 벌리면 이웃 팔과
-  화면에서 엉킨다(A7 v9). 손끝을 위로 세우고 손바닥을 마주 보게 하면 기도하는 손이다(A7 v6).
-- 프롬프트는 자리를 이 색으로 부른다(예: LEFT = 검은 캡과 흰 아랫 띠).
+  주황색 세로줄 하나를 그어 어느 쪽을 보는지 알게 한다. kit 는 사람마다 한 색에 검은 줄무늬를 두고 그 색의 옷을 입힌다.
+  여기서는 띠를 머리와 옷 색으로 칠했고 v11·v12 에서 띠가 결과에 나오지 않았고 멤버도 바뀌지 않았다. 주황 옆 노랑,
+  파랑 옆 청록처럼 가까운 색 둘을 한 화면에 두지 않는다. 영상 모델이 섞는다(kit).
+- **알약은 굳어 있다.** 옮기고 돌리기만 한다. 팔, 고개, 높이 바꾸기, 기울기, 통통 튀기를 넣지 않는다. 앉는 박에도
+  알약은 제 키로 서 있고 낮아지는 동작은 프롬프트가 정한다. 막대 팔과 높이 줄이기를 넣은 v9b 의 결과는 위 「블록아웃은
+  몸 동작을 보이지 않는다」.
+- 프롬프트는 알약을 색, 자리, 이름, 그림 번호로 부른다(아래 「프롬프트」의 Colour key).
 
-마네킹을 쓰지 않는 이유는 위 「블록아웃이 정하지 않는 것」이다. 그 전의 강체 인형(v5)은 관절마다 공이 박히고 그린 실눈에
-팔이 길어 사용자가 기괴하다고 했다. 실제 비율의 MPFB 마네킹(v6)은 생김새는 나아졌지만 연기를 옮겼다.
+마네킹을 쓰지 않는 이유도 위와 같다. 그 전의 강체 인형(v5)은 관절마다 공이 박히고 그린 실눈에 팔이 길어 사용자가
+기괴하다고 했다. 실제 비율의 MPFB 마네킹(v6)은 생김새는 나아졌지만 연기를 옮겼다.
 
 ## Codex 가 Blender 를 쓰는 법
 
@@ -132,21 +140,85 @@ $B -b --online-mode --command blender_mcp --port 9877   # 작업용 Blender. 창
 
 ## 프롬프트
 
-참고 영상에서 무엇만 가져오고 무엇은 가져오지 말지를 맨 앞 문단에 둔다. 알약 블록아웃용 문단이다(생성 실측 전).
+kit 의 뼈대 순서를 따른다. 블록아웃 줄, 색 안내(Colour key), 규칙(Rules), 시각(Timing), 장면과 의상, 박(BEAT), 렌즈와 결,
+끝줄이다(kit 「Seedance run」, `lib/blockout/prompt.py`). 블록아웃이 춤을 정하지 않으므로 박 문단이 연기의 전부다.
+아래는 A7 v12 에 쓴 프롬프트다(3,990자, 결과는 아래 「결과」).
 
 ```text
-BLOCKOUT REFERENCE: video 1 is a rough grey blockout of THIS shot, timed to the same music. Use it ONLY for where each
-dancer stands and travels (LEFT = the pill with the black cap and white bottom band, CENTER = the pill with the blonde
-cap and lavender bands, RIGHT = the pill with the red cap and black bottom band), when they go low, where the hands are
-on each hit beat (the stick arms; orange shows the palm side), when the set forms, and the camera path. Copy nothing
-else from it: no pills, no stick arms, no grey world, no stiff motion. Real arms move fluidly with the whole body
-between the hits. The dancers' bodies, the dance itself, faces, hair and outfits come from this text, the music and
-the character references.
+8 s 16:9 K-pop dance performance, one continuous shot, to Audio 1.
+
+Video 1 is a coarse-blockout reference of this exact shot. Follow it exactly for camera position, camera movement, lens
+perspective, where each dancer stands, how large she is in frame, which way she faces, when and where she travels, and
+when and where the walls rise. Do not copy how it looks.
+
+Colour key
+The capsule with the blonde cap and lavender bands, in the centre, is 하이나 (Haina), Image 2.
+The capsule with the black cap and white bottom band, on the left, is 이담 (Idam), Image 3.
+The capsule with the red cap and black bottom band, on the right, is 신더 (Cinder), Image 4.
+The grey walls that rise are the warehouse of Image 1.
+
+Rules
+The capsules carry no body motion. Give every dancer real, fluid human dance movement from the first frame: knees, hips,
+ribs, shoulders, arms, head and hair all move, weight shifts on every beat. Each dancer keeps the position, path, speed
+and facing of her capsule.
+No capsule, coloured band, orange stripe or grey blockout geometry may ever appear in the result.
+Discard the grey look completely. Lighting, colour, texture and set detail come from this text and the reference images.
+Use each character reference for identity: face, hair and body only, never the pose or the background. Image 1 controls
+the warehouse's geography and materials only.
+
+Timing
+One continuous 8.00 s shot, no cuts. Five hits are pinned to Audio 1 at the times below; everything flows between them.
+
+Set
+An open jelly world first: glossy jelly floor, no walls. Liquid slime flows up out of the floor in one sticky wave, front
+edge first, exactly where and when the blockout walls rise, and hardens into the warehouse of Image 1, never bricks or blocks.
+
+Stage look
+하이나: silver-lavender high-neck crop, … 이담: … 신더: … Bare empty hands.
+
+Dance
+Sharp, confident K-pop choreography, sensual but tasteful; hair follows a moment later. The frame opens low on their
+boots, as in Video 1.
+BEAT 1, "Melt it down": arms start overhead and melt from the wrists down in one wave, a small dip.
+BEAT 2, "build it up": fists stack at belly, sternum, then overhead, rising onto the toes.
+BEAT 3, "다시 태어나": they curl small, arms around the ribs; at 1.92 s the chest opens and the arms bloom out to the
+sides into a wide V, hands far apart, head lifting last. They walk into the diagonal, hips swaying.
+BEAT 4, the second "Melt it down": 이담, then 하이나, then 신더 melt one after another into a deep wide plié that lands at
+3.96 s, chins up. On the diagonal and in the plié clear floor stays between them on screen; no arm crosses another dancer.
+BEAT 5, "build it up": a staircase, 이담 low, 하이나 mid, 신더 high, then fists stacked overhead on tiptoe at 5.13 s.
+BEAT 6, the music drops: they hold overhead, shoulders rising as if inhaling.
+BEAT 7, "Squish" at 6.04 s: all three squash down together, knees in, shoulders up to the ears; between sternum and navel
+the top palm presses flat onto the bottom palm, nothing between the hands, elbows close to the body. A small rebound,
+settled by 6.50 s.
+BEAT 8, from 6.50 s: they hold the Squish pose to the end, breathing, hair settling, as the camera moves in on the faces.
+
+Lens and look
+35 mm on full frame. Photoreal live-action music video, not a 3D render, not claymation or stop motion. Real 24 fps with a
+180-degree shutter: natural motion blur on fast arms and hair, every frame blending smoothly into the next. No morphing,
+jitter or high-shutter crispness. Real skin texture.
+
+Lips closed, eyes open and focused. No text, logos or celebrity likeness. Never: heart shapes, prayer hands, clapping,
+finger V, finger-gun, OK sign, covering the face, pointing down, jumping, hips thrust at the camera, lying on the floor,
+any ball or object in the hands.
 ```
 
-그 뒤에 춤을 적는다. 블록아웃이 춤을 정하지 않으므로 이 부분이 연기의 전부다. 가사마다 동작과 그 박의 시각, 그리고
-춤의 결(예: 「sharp K-pop idol choreography, confident, every move lands on the beat, standing tall between hits」)을
-적는다. 장면, 의상, 맨손 문장, 금지 목록은 평소 순서대로 둔다([`democut-mv.md`](democut-mv.md) 「프롬프트의 짜임」).
+- **알약을 색과 그림 번호로 부른다.** 「LEFT = 검은 캡 알약」만 적고 참고 인물의 번호를 적지 않은 v9b 이전 문단은 쓰지
+  않는다. 규칙 네 줄은 kit 의 문장을 그대로 쓴다.
+- **셔터 줄을 적는다.** v9b 까지는 `No motion blur` 를 적었다. 그 문장은 아크의 블러도 막지 못했고
+  ([`camera-moves.md`](camera-moves.md) 「아크샷」) kit 는 반대로 「180° shutter motion blur」와 「24fps smooth motion …
+  No jitter」를 적는다(kit `skills/shotlist-director-thomas/SKILL.md`). v11 에서 막대 팔을 빼면서 이 줄로 바꾸자 빠른
+  팔과 머리카락에 자연스러운 블러가 생겼다. 두 가지를 함께 바꿔 어느 쪽의 효과인지는 가르지 못했다.
+- **박에는 시각을 적지 않는 것이 kit 의 방식이다.** 한 테이크는 머리줄 달린 박으로 쓰고 시각을 넣지 않는다(kit 「A
+  one-take is written as beats, with no timecodes」). 박을 순서로만 적은 v11 은 Squish 가 6.04초가 아니라 약 6.4초에
+  닿았다. 다섯 박에 시각을 적은 v12 는 Squish 가 약 6.0초에 맞았지만 플리에와 V 는 v11 처럼 늦었다(「결과」). 막대
+  팔로 몸 동작을 보인 v9b 는 박이 맞았던 대신 클레이 애니메이션처럼 움직였다. 굳은 알약은 자연스러운 움직임을 얻고 몸
+  동작의 박을 글에 맡긴다. 곡의 끝 히트처럼 하나만 맞으면 되는 박에 시각을 적는다. 중간 박까지 맞아야 하면 그 박에서
+  컷을 나누는 것을 먼저 본다(한 번씩의 생성이라 아직 가설이다).
+- **보이면 안 되는 것을 이름으로 부르지 않는다.** 「a soft invisible ball between them」을 적은 v11 에서는 손 사이에
+  투명한 공이 나왔다. 「nothing between the hands」로 바꾸고 금지 목록에 「any ball or object in the hands」를 넣은 v12
+  에는 공이 없었다.
+- **첫 화면을 글로도 적는다.** 블록아웃이 부츠를 낮게 잡고 시작해도 v11 은 전신으로 시작했다. 「The frame opens low on
+  their boots, as in Video 1」을 넣은 v12 는 부츠로 시작했다.
 
 `image_prompt` 는 4,000자까지다. 지시가 길수록 모델이 지어내는 부분이 늘어난다는 제작자 경험이 있어 여러 숏을 한 번에
 만들면 15초 안쪽으로 끊는다([Thomas Lundström, 12:05](https://www.youtube.com/watch?v=mx1yjt4k73o)).
@@ -159,11 +231,14 @@ python3 scripts/mv_timing.py follow previs.mp4 result.mp4 --from 22
 
 프레임마다 앞 프레임과의 밝기 차(움직임 양)를 두 영상에서 재고 결과를 몇 프레임 밀었을 때 둘이 가장 닮는지(상관 r)를 낸다.
 마네킹이 춤까지 춘 v5·v6 에서는 r 이 0.79·0.90 이었다. 알약 블록아웃은 춤을 담지 않으므로 r 은 카메라와 이동만 반영해
-낮게 나올 수 있다. 그때는 `sheet` 격자로 자리, 대형, 낮아지는 박, 카메라 도착을 같은 프레임에서 맞대어 본다.
+낮게 나올 수 있다. 그때는 `sheet` 격자로 자리, 대형, 카메라 도착을 같은 프레임에서 맞대어 보고 시각을 적은 박마다 앞뒤
+1초를 10~12fps 로 잘라 동작이 닿는 프레임을 찾는다.
 
 ## 결과
 
-v5 강체 인형으로 잰 실측(2026-11-22, A7 후렴 8초, Seedance 2.5 720p, 곡을 들려줌, 멤버 셋 + 세트 참고 + 8초 프리비즈, 3,118원, 한 번 생성).
+모두 A7 후렴 8초, Seedance 2.5, 곡을 들려줌(`host: "music"`), 멤버 셋과 창고 참고, 한 번씩 생성한 실측이다.
+
+v5 강체 인형(2026-11-22, 720p, 3,118원).
 
 - **자리.** 왼쪽부터 이담, 하이나, 신더가 8초 내내 맞았다. 사선(이담이 앞), 하이나가 한 걸음 나온 대형, 일자가 모두 나왔다.
   글만 적은 같은 컷(v13)은 이담과 하이나가 바뀌어 있었다.
@@ -177,13 +252,42 @@ v5 강체 인형으로 잰 실측(2026-11-22, A7 후렴 8초, Seedance 2.5 720p,
 - **안 된 것.** 세트 전환은 글대로 되지 않았다. 0.92초에 이미 창고 뒷벽이 있었고 슬라임은 1.4~2.9초 동안 뒷벽 앞에
   번들거리는 막으로 섰다가 3.25초에 무광 벽이 됐다. 프리비즈에는 세트가 없어서 이 부분은 글로만 정해졌다.
 
-MPFB 리깅 마네킹과 가사 안무로 바꾼 v6 실측(2026-11-22, 같은 컷과 조건, 3,118원, 한 번 생성).
+v6 MPFB 리깅 마네킹과 가사 안무(2026-11-22, 720p, 3,118원).
 
 - **박.** `follow` 로 15~192프레임을 재니 시차 0 에서 r=0.90 이었다. 녹기, 주먹 쌓기, 웅크리기, V 로 피기, 사선, 차례로
   녹아 와이드 플리에, 높이가 다른 계단, 머리 위로 뻗기, 위아래로 포갠 손바닥이 모두 프리비즈의 착지 프레임에 나왔다.
   0.63초에 셋이 머리부터 발까지 보였다.
 - **키.** 왼쪽부터 큰 순서(이담, 하이나, 신더)가 8초 내내 보였다.
-- **연기.** 마네킹의 엉거주춤한 자세와 멈췄다 움직이는 흐름이 그대로 나왔다. 사용자가 받아들이지 않았다(위
-  「블록아웃이 정하지 않는 것」).
+- **연기.** 마네킹의 엉거주춤한 자세와 멈췄다 움직이는 흐름이 그대로 나왔다. 사용자가 받아들이지 않았다.
 - **모양.** 클레이 몸과 옷 껍데기는 묻어나지 않았다. 끝 클로즈업에서 셋 중 둘이 눈을 감았다.
 - **안 된 것.** 세트 전환은 이번에도 글대로 되지 않았다. 0.63초에 이미 창고 뒷벽이 있었고 바닥만 젤리처럼 번들거렸다.
+
+v9b 막대 팔과 높이가 줄어드는 알약, 벽이 솟는 회색 세트(2026-11-22, 480p, 1,458원). 프롬프트는 「BLOCKOUT REFERENCE …
+Use it ONLY for …」 문단, 히트 박의 손 자리, `No motion blur`.
+
+- **연기.** 막대 손이 멈춘 구간에 멤버도 멈췄고 Squish 는 약 3프레임 만에 꺾였다. 다리, 골반, 상체가 거의 움직이지
+  않았다. 사용자가 클레이 애니메이션 같다고 했다(위 「블록아웃은 몸 동작을 보이지 않는다」).
+- **박.** 몸 동작이 블록아웃에 있어서 박은 맞았다. 부츠로 시작했고 3.96초에 셋이 손을 허벅지에 얹은 플리에였고
+  Squish 는 약 6.0초에 닿았다.
+- **안 나온 것.** 알약과 막대는 결과에 나오지 않았다.
+
+v11 굳은 알약(팔과 높이 변화 없음, v9b 와 같은 자리·벽·카메라), kit 뼈대 프롬프트, 박은 순서만(2026-11-22, 480p, 1,458원).
+
+- **연기.** 알약이 나오지 않았다. 무릎, 골반, 상체가 함께 움직이고 빠른 팔과 머리카락에 블러가 생겼다. Squish 는
+  약 8프레임에 걸쳐 내려왔다.
+- **박.** Squish 가 6.04초가 아니라 약 6.4초에 닿았다. 두 번째 「Melt it down」의 플리에는 약 0.7초 늦었고 몸 접기는
+  3.0초에 일찍 시작했다.
+- **안 된 것.** 첫 화면이 부츠가 아니라 전신이었다. 사선(3.96~4.67초)에서 팔을 옆으로 편 셋이 화면에서 겹쳤다. 「태어나」
+  에서 팔이 머리 위로 하트 같은 고리를 지났다. Squish 의 손 사이에 투명한 공이 나왔다.
+
+v12 같은 블록아웃, v11 프롬프트에 다섯 박의 시각과 위 다섯 줄을 고친 것(2026-11-23, 480p, 1,458원).
+
+- **맞은 것.** 부츠를 낮게 잡고 시작했다. Squish 는 약 6.0초에 무릎을 모으고 손바닥을 포갰고 6.5초부터 끝까지 유지했다.
+  손 사이에 공이 없었다. 4.67초 사선에서 셋이 겹치지 않았다.
+- **안 맞은 것.** 플리에(3.96초로 적음)는 v11 처럼 약 4.6초에 닿았고 3.6~4.2초에는 팔을 옆으로 편 채 서 있었다. 이때
+  팔 끝이 이웃과 겹친 프레임이 남았다. V(1.92초로 적음)는 약 2.5초에 열렸고 그 전에 팔꿈치를 굽혀 머리 위에서 손이
+  모이는 고리를 지났다(2.2~2.4초). 이담은 5.13초 머리 위 자세 대신 아직 플리에였고 머리 위로 멈추는 구간(5.13~6.00초)
+  없이 Squish 로 내려왔다.
+- **움직임 양.** 카메라 움직임을 뺀 몸의 움직임(광학 흐름 잔차, 앞 148프레임)은 중앙값 v9b 3.92, v11 3.49, v12 5.42
+  픽셀이었다. 거의 멈춘 프레임은 7, 15, 13개였다. v11·v12 에는 끝 Squish 를 유지하는 구간이 들어 있다. 프레임 사이
+  움직임 양이 들쭉날쭉한 정도는 0.29, 0.22, 0.18 로 줄었다.
