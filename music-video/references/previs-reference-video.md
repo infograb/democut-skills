@@ -140,12 +140,14 @@ $B -b --online-mode --command blender_mcp --port 9877   # 작업용 Blender. 창
 
 ## 프롬프트
 
-kit 의 뼈대 순서를 따른다. 블록아웃 줄, 색 안내(Colour key), 규칙(Rules), 시각(Timing), 장면과 의상, 박(BEAT), 렌즈와 결,
-끝줄이다(kit 「Seedance run」, `lib/blockout/prompt.py`). 블록아웃이 춤을 정하지 않으므로 박 문단이 연기의 전부다.
-아래는 A7 v12 에 쓴 프롬프트다(3,990자, 결과는 아래 「결과」).
+kit 의 뼈대 순서를 따른다. 블록아웃 줄, 색 안내(Colour key), 규칙(Rules), 장면과 의상, 춤(Dance), 렌즈와 결, 끝줄이다
+(kit 「Seedance run」, `lib/blockout/prompt.py`). 블록아웃이 춤을 정하지 않으므로 춤 문단이 연기의 전부다. 춤 문단은 그루브
+한 단락과 정수 초 구간의 동작 서너 개다([`choreography.md`](choreography.md) 「영상 프롬프트로 옮기기」). 아래는 A7 v13
+의 앞 컷(4초, 히트에서 나눈 앞쪽)에 쓴 프롬프트다(3,798자, 결과는 아래 「결과」). 뒤 컷은 머리줄, 세트, 춤 구간만 다르다.
 
 ```text
-8 s 16:9 K-pop dance performance, one continuous shot, to Audio 1.
+4 s 16:9 K-pop dance performance, one continuous shot, to Audio 1. The first half of the chorus; the shot ends on the
+low hit.
 
 Video 1 is a coarse-blockout reference of this exact shot. Follow it exactly for camera position, camera movement, lens
 perspective, where each dancer stands, how large she is in frame, which way she faces, when and where she travels, and
@@ -155,51 +157,51 @@ Colour key
 The capsule with the blonde cap and lavender bands, in the centre, is 하이나 (Haina), Image 2.
 The capsule with the black cap and white bottom band, on the left, is 이담 (Idam), Image 3.
 The capsule with the red cap and black bottom band, on the right, is 신더 (Cinder), Image 4.
-The grey walls that rise are the warehouse of Image 1.
+The grey walls are the warehouse of Image 1.
 
 Rules
-The capsules carry no body motion. Give every dancer real, fluid human dance movement from the first frame: knees, hips,
-ribs, shoulders, arms, head and hair all move, weight shifts on every beat. Each dancer keeps the position, path, speed
-and facing of her capsule.
+The capsules carry no body motion. Give every dancer real, fluid human dance movement from the first frame. Each dancer
+keeps the position, path, speed and facing of her capsule.
 No capsule, coloured band, orange stripe or grey blockout geometry may ever appear in the result.
 Discard the grey look completely. Lighting, colour, texture and set detail come from this text and the reference images.
 Use each character reference for identity: face, hair and body only, never the pose or the background. Image 1 controls
 the warehouse's geography and materials only.
 
-Timing
-One continuous 8.00 s shot, no cuts. Five hits are pinned to Audio 1 at the times below; everything flows between them.
-
 Set
-An open jelly world first: glossy jelly floor, no walls. Liquid slime flows up out of the floor in one sticky wave, front
-edge first, exactly where and when the blockout walls rise, and hardens into the warehouse of Image 1, never bricks or blocks.
+An open jelly world first: glossy jelly floor, no walls. Liquid slime flows up out of the floor in one sticky wave,
+front edge first, exactly where and when the blockout walls rise, and hardens into the warehouse of Image 1, never
+bricks or blocks.
 
 Stage look
-하이나: silver-lavender high-neck crop, … 이담: … 신더: … Bare empty hands.
+하이나: silver-lavender high-neck crop, lavender faux-fur shrug, holographic shorts, white-silver fluffy boots. 이담: silver
+high-neck crop, white slim pants, white pointed-toe ankle boots. 신더: silver round-neck crop and shorts with lavender
+panels, black chunky knee boots. Bare empty hands.
 
 Dance
-Sharp, confident K-pop choreography, sensual but tasteful; hair follows a moment later. The frame opens low on their
-boots, as in Video 1.
-BEAT 1, "Melt it down": arms start overhead and melt from the wrists down in one wave, a small dip.
-BEAT 2, "build it up": fists stack at belly, sternum, then overhead, rising onto the toes.
-BEAT 3, "다시 태어나": they curl small, arms around the ribs; at 1.92 s the chest opens and the arms bloom out to the
-sides into a wide V, hands far apart, head lifting last. They walk into the diagonal, hips swaying.
-BEAT 4, the second "Melt it down": 이담, then 하이나, then 신더 melt one after another into a deep wide plié that lands at
-3.96 s, chins up. On the diagonal and in the plié clear floor stays between them on screen; no arm crosses another dancer.
-BEAT 5, "build it up": a staircase, 이담 low, 하이나 mid, 신더 high, then fists stacked overhead on tiptoe at 5.13 s.
-BEAT 6, the music drops: they hold overhead, shoulders rising as if inhaling.
-BEAT 7, "Squish" at 6.04 s: all three squash down together, knees in, shoulders up to the ears; between sternum and navel
-the top palm presses flat onto the bottom palm, nothing between the hands, elbows close to the body. A small rebound,
-settled by 6.50 s.
-BEAT 8, from 6.50 s: they hold the Squish pose to the end, breathing, hair settling, as the camera moves in on the faces.
+Lovely, playful K-pop girl-group chorus choreography in perfect unison, groove first. From the first frame to the last
+the knees bounce down on every beat and the weight rocks side to side with the hips; nobody ever stops moving, even
+inside a held shape. Each named move grows out of the bounce: the arms speed up into the accent and ease out of it,
+travelling through space, never snapping from one pose to the next.
+
+The frame opens low on their boots, as in Video 1.
+0-1 s, "Melt it down": a body wave rolls down from the chest through the hips into the knees while both hands slide down
+from the cheeks to the hips.
+1-2 s, "build it up": a body roll back up from the knees, two quick chest pops on the way up, wrists flicking beside the
+shoulders.
+2-3 s, "다시 태어나": arms cross softly over the chest, then the chest pops open and the hands open beside the face like a
+flower, elbows soft and close; they step into the diagonal with bouncy hip-sway steps. Clear floor stays between them on
+screen; no arm crosses another dancer.
+3-4 s, the second "Melt it down": a quick body wave down into a low groove squat, knees bent deep and turned out, hands
+landing on the knees, chins up. They land in the squat on the last beat; the last frame is this low squat.
 
 Lens and look
-35 mm on full frame. Photoreal live-action music video, not a 3D render, not claymation or stop motion. Real 24 fps with a
-180-degree shutter: natural motion blur on fast arms and hair, every frame blending smoothly into the next. No morphing,
-jitter or high-shutter crispness. Real skin texture.
+35 mm on full frame. Photoreal live-action music video, not a 3D render, not claymation or stop motion. Real 24 fps with
+a 180-degree shutter: natural motion blur on fast arms and hair, every frame blending smoothly into the next. No
+morphing, jitter or high-shutter crispness. Real skin texture.
 
-Lips closed, eyes open and focused. No text, logos or celebrity likeness. Never: heart shapes, prayer hands, clapping,
-finger V, finger-gun, OK sign, covering the face, pointing down, jumping, hips thrust at the camera, lying on the floor,
-any ball or object in the hands.
+Lips closed, eyes open and focused. No text, logos or celebrity likeness. Never: ballet positions, tiptoe, arms
+stretched straight out to the sides, heart shapes, prayer hands, clapping, finger V, finger-gun, OK sign, covering the
+face, pointing down, jumping, hips thrust at the camera, lying on the floor, any ball or object in the hands.
 ```
 
 - **알약을 색과 그림 번호로 부른다.** 「LEFT = 검은 캡 알약」만 적고 참고 인물의 번호를 적지 않은 v9b 이전 문단은 쓰지
@@ -213,7 +215,7 @@ any ball or object in the hands.
   닿았다. 다섯 박에 시각을 적은 v12 는 Squish 가 약 6.0초에 맞았지만 플리에와 V 는 v11 처럼 늦었다(「결과」). 막대
   팔로 몸 동작을 보인 v9b 는 박이 맞았던 대신 클레이 애니메이션처럼 움직였다. 굳은 알약은 자연스러운 움직임을 얻고 몸
   동작의 박을 글에 맡긴다. 곡의 끝 히트처럼 하나만 맞으면 되는 박에 시각을 적는다. 중간 박까지 맞아야 하면 그 박에서
-  컷을 나누는 것을 먼저 본다(한 번씩의 생성이라 아직 가설이다).
+  컷을 나눈다(아래 「히트에서 컷을 나눈다」, v13 에서 박은 맞았다).
 - **보이면 안 되는 것을 이름으로 부르지 않는다.** 「a soft invisible ball between them」을 적은 v11 에서는 손 사이에
   투명한 공이 나왔다. 「nothing between the hands」로 바꾸고 금지 목록에 「any ball or object in the hands」를 넣은 v12
   에는 공이 없었다.
@@ -222,6 +224,35 @@ any ball or object in the hands.
 
 `image_prompt` 는 4,000자까지다. 지시가 길수록 모델이 지어내는 부분이 늘어난다는 제작자 경험이 있어 여러 숏을 한 번에
 만들면 15초 안쪽으로 끊는다([Thomas Lundström, 12:05](https://www.youtube.com/watch?v=mx1yjt4k73o)).
+
+## 히트에서 컷을 나눈다
+
+컷 안에 적은 시각은 박자 안내에 그친다. Runway 는 Seedance 2.5 의 시각을 「pacing guidance rather than frame-exact cut
+points」로 다룬다([Runway](https://runway.com/resources/seedance-2-5-prompt-guide)). 시각 다섯 개를 적은 v12 도 마지막
+히트만 맞았다. 가운데 히트까지 박에 맞아야 하면 그 박에서 컷을 둘로 나눈다. A7 v13 에서 쓴 순서다.
+
+1. 블록아웃을 히트 프레임에서 자른다. 앞 조각은 `ffmpeg -i blockout.mp4 -vf "select='lt(n\,96)',setpts=N/24/TB" -an -r 24
+   -c:v libx264 -crf 16 a.mp4`, 뒤 조각은 `gte(n\,96)` 이다. Seedance 는 4~15초만 받으므로(DemoCut `SEEDANCE_DURATION_S`)
+   두 조각 모두 4초 이상이어야 한다.
+2. 두 조각을 올려 컷 둘의 `reference_video_asset_ids` 에 하나씩 넣고 컷마다 `democut_set_cut_bgm` 으로 곡 구간을 준다
+   (A7 은 `song_start_ms` 44508 과 48508).
+3. 앞 컷은 히트로 끝난다. 머리줄에 「the shot ends on the low hit」, 마지막 구간에 「the last frame is this low squat」을
+   적는다. 뒤 컷은 같은 자세로 연다(「The shot opens with all three already in a low groove squat」).
+4. 첫 장면 지정(`image_asset_id`)은 쓰지 않는다. 곡을 들려주는 컷(`host: "music"`)이면 DemoCut 이 첫 장면과 곡을 함께
+   보내지 않고(`SPEC_CONFLICT`) 사용자도 쓰지 말라고 했다(2026-11-23).
+5. 두 컷은 따로 만들어 이어 붙인다. 이어 붙일 때는 `ffmpeg -f concat -safe 0 -i list.txt -c copy` 로 시각을 건드리지
+   않는다. `concat` 필터에 `-r 24` 를 주면 이음매에 프레임이 하나 겹쳐 들어가 192프레임이 194프레임이 됐다. 4초 컷은
+   738원씩이라 8초 한 컷(1,458원)과 거의 같다.
+
+v13 에서 박은 맞았고 이음매는 튀었다(「결과」). 뒤 컷은 블록아웃의 자리와 세트를 따르지 않았다. 다음에는 아래를
+함께 바꾼다(아직 시험 전).
+
+- 뒤 컷의 세트를 앞 컷 결과에 보이는 대로 적는다. 앞 컷이 회색 콘크리트 창고로 끝났으면 「the grey concrete
+  warehouse of Image 1」라고 적고 슬라임 같은 다른 재질 낱말을 넣지 않는다.
+- 자리를 문장으로도 적는다(「이담이 왼쪽 앞, 하이나가 가운데 뒤, 신더가 오른쪽 가장 뒤. 하이나는 앞으로 나오지 않는다」).
+  카메라가 다가가는 끝 숏 크기도 적는다(「the last frame still shows all three head to toe」).
+- 컷을 나누는 박에서 블록아웃 카메라도 바꾼다. 같은 숏 크기와 각도로 이으면 작은 차이도 점프 컷으로 보인다. 숏 크기나
+  각도가 바뀌면 세트와 자세의 작은 차이가 편집으로 읽힌다(편집의 일반 원칙이고 이 파이프라인에서는 미확인).
 
 ## 만든 뒤 확인
 
@@ -291,3 +322,18 @@ v12 같은 블록아웃, v11 프롬프트에 다섯 박의 시각과 위 다섯 
 - **움직임 양.** 카메라 움직임을 뺀 몸의 움직임(광학 흐름 잔차, 앞 148프레임)은 중앙값 v9b 3.92, v11 3.49, v12 5.42
   픽셀이었다. 거의 멈춘 프레임은 7, 15, 13개였다. v11·v12 에는 끝 Squish 를 유지하는 구간이 들어 있다. 프레임 사이
   움직임 양이 들쭉날쭉한 정도는 0.29, 0.22, 0.18 로 줄었다.
+
+v13 v11 블록아웃을 4.00초(96프레임)에서 나눈 4초 컷 둘. 아이돌 춤 낱말, 그루브 문단, 정수 초 구간으로 다시 쓴 프롬프트
+([`choreography.md`](choreography.md) 「끊겨 보이는 춤」 「영상 프롬프트로 옮기기」), 첫 장면 지정 없음(2026-11-23, 480p,
+738원씩 1,476원).
+
+- **박.** 앞 컷의 낮은 스쿼트가 약 3.65초(적은 박 3.96초)에 닿아 컷(4.00초)까지 이어졌다. v12 는 같은 자리가 약 4.6초였다.
+  앞 컷의 정수 초 구간도 그 구간에 나왔다(2.4초 팔 감싸기, 3.0초 얼굴 옆으로 연 손). 뒤 컷의 팔 뻗기는 5.13초 무렵,
+  Squish 는 약 6.0초에 닿았고 그 뒤 손바닥 누르기를 되풀이했다.
+- **움직임.** `motion_check.py` 로 멈춘 프레임 14개(7%), 가장 빠른 프레임 36.5픽셀(너비의 4.3%)이었다. v12 는 42개(22%),
+  44.2픽셀(5.2%)이었다. 두 파일 모두 겹치거나 섞인 프레임은 없었다.
+- **안 된 것.** 뒤 컷이 블록아웃을 따르지 않았다. 하이나가 앞 가운데로 나와 화면을 채웠고 셋이 붙었으며 카메라는
+  블록아웃보다 가깝게 시작해 끝에는 얼굴 클로즈업까지 들어갔다. 세트는 앞 컷의 회색 콘크리트 창고가 아니라 갈색으로
+  번들거리는 슬라임 동굴이었다. 뒤 컷 프롬프트에 「walls of hardened slime」을 적은 탓으로 보인다(미확인). 자세는
+  이어졌지만 4.00초 컷에서 세트, 대형, 숏 크기가 한꺼번에 바뀌었다. 앞 컷도 3.96초에 블록아웃보다 넓게 잡혔고 하이나와
+  신더가 가깝게 붙었다.
