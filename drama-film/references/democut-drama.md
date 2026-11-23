@@ -17,15 +17,23 @@
 - `persona_text` 에 말하는 방식(「짧게 핵심만 말한다」)을 적으면 대사가 없는 컷에서도 입이 말하는 모양으로 움직였다(Seedance 2.0,
   democut-app 같은 파일의 주석에 남은 실측). 대사가 없는 구간은 프롬프트에 「lips closed」 를 적는다.
 - `democut_put_character` 는 전체 교체다. 이름, 목소리, 성격을 함께 보낸다.
+- 옷 색은 블록아웃 알약의 띠 색과 맞춘다. 모델이 색으로 누가 누구인지 안다. 캐릭터 시트에는 손에 든 소품을 넣지 않고 여러
+  사람을 한 판에 넣지 않는다. 여럿이 든 판은 키프레임처럼 복사된다(blockout-kit `skills/blockout/SKILL.md` 「Seedance
+  run」). drama A2 의 인물 사진은 한 사람에 133원(상한)이었다(2026-11-22).
 
 ## 장소 그림
 
 1. 블록아웃 장소 스틸(인물을 숨긴 카메라 화면)을 자산으로 올린다. 로컬 파일은 `democut_create_upload_url` 로 주소를 받아
    `curl -T` 로 올린다.
-2. `democut_add_cut(mode="ai_image")` 에 그 스틸을 참고로 넣고 「이 구도와 구조 그대로 실사 장소」 프롬프트를 적는다. 실내는
-   「lived-in, personal objects, a little mess」 처럼 사람이 사는 흔적을 적는다. 같은 장소를 적었을 때 이 말 하나로 텅 빈 방과
-   살아 있는 방이 갈렸다([Thomas Lundström, 7:51~8:25](https://www.youtube.com/watch?v=jc0Qh09Qrlo)).
-3. `democut_estimate_cut_image` → 동의 → `democut_make_cut_image` → `democut_wait_jobs` → 받아서 사람이 본다.
+2. `democut_add_cut(mode="ai_image")` 에 그 스틸을 참고로 넣고 kit 의 틀로 프롬프트를 적는다. 「Turn this grey blockout
+   into a photoreal film still. Keep the layout exactly: the same camera angle and lens, every wall, …」 다음에 블록아웃의
+   구조물을 자리와 함께 나열하고 장소와 시간, 빛을 적는다. 사람과 읽히는 글자는 넣지 않고 렌즈와 질감은 영화 말로 적는다
+   (kit 「Location plates」). 실내는 「lived-in, personal objects, a little mess」 처럼 사람이 사는 흔적을 적는다. 같은 장소를
+   적었을 때 이 말 하나로 텅 빈 방과 살아 있는 방이 갈렸다([Thomas Lundström, 7:51~8:25](https://www.youtube.com/watch?v=jc0Qh09Qrlo)).
+3. `democut_estimate_cut_image` → 동의 → `democut_make_cut_image` → `democut_wait_jobs` → 받아서 사람이 본다. 그림
+   한 장(1536×1024, 품질 보통, 참고 그림 하나)이 38원이었다(2026-11-22, 요율 v5). 그림을 블록아웃 스틸과 맞대 본다. drama A2 의
+   그림은 블록아웃에 없는 탁자를 더했고 영상에도 탁자가 나왔다. 프롬프트에 「There is no coffee table」을 적어도 그림이
+   이겼다. 다르면 그림을 다시 만든다.
 4. 고른 그림을 `democut_upload_asset(kind="image")` 로 올려 영상 컷의 `reference_asset_ids` 에 넣는다.
 
 같은 장소가 상태를 바꾸면(깨끗한 거실, 부서진 거실) 상태마다 그림을 만든다. 스케치에서 실사로 가는 이미지 컷의 자세한
@@ -39,7 +47,7 @@
 ## 컷
 
 구간 하나가 `mode="ai_video"` 컷 하나다. `democut_add_cut(slug, mode="ai_video", title, after, draft_spec)` 으로 만들고 고칠
-때는 `democut_get_cut` 으로 새 `rev` 를 받은 직후 `democut_put_cut_draft` 한다.
+때는 `democut_get_storyboard` 로 새 `rev` 를 받은 직후 `democut_put_cut_draft` 한다. `democut_get_cut` 의 응답에는 `rev` 가 없다.
 
 ```json
 {
@@ -57,6 +65,11 @@
 
 - `duration_s` 는 정수 초, Seedance 2.5 는 4~15초다. 블록아웃 길이와 같게 한다.
 - 참고 인물과 참고 이미지를 합쳐 4개까지다. 두 사람과 장소 하나면 하나가 남는다.
+- 영상 모델에는 `reference_asset_ids` 의 그림이 먼저 가고 그 뒤에 `reference_character_ids` 순서로 사람마다 고른 사진의 캐릭터
+  시트가 간다(democut-app `services/cuts.py`). 프롬프트는 이 순서로 Image 1, Image 2 … 라고 부르고 블록아웃은 Video 1 이다
+  (BytePlus Seedance 문서의 참고 이름). 장소 그림 하나와 두 사람이면 장소가 Image 1 이다.
+- 참고 인물과 장소 그림 없이 블록아웃만 넣으면 알약이 결과에 남았다(drama A). 둘을 넣은 A2 는 남지 않았다
+  ([`prompt.md`](prompt.md) 「실측」).
 - 참고 영상이 있으면 첫·끝 장면 그림(`image_asset_id`, `end_image`)을 쓰지 못한다(`SPEC_CONFLICT`).
 - `host` 는 비워 둔다(기본 `model`). 영상 모델이 대사를 말하고 현장음을 만든다.
 
@@ -104,7 +117,8 @@ democut_wait_jobs(…)
 ffmpeg -v error -i cut.mp4 -vf "fps=2,scale=320:-1,tile=6x4" -frames:v 1 sheet.jpg
 ```
 
-- 샷 경계가 `beats` 의 시각에 왔는가, 화면 방향과 시선이 샷리스트대로인가.
+- 샷 경계가 `beats` 의 시각에 왔는가, 화면 방향과 시선이 샷리스트대로인가. 말하는 사람이 상대가 아니라 렌즈를 보지
+  않는가(drama A2 의 둘째 샷).
 - 장소가 장소 그림대로인가, 회색 배경이나 블록아웃 덩어리가 남지 않았는가.
 - 대사가 적은 그대로이고 말하는 사람의 입이 움직이는가. 말이 샷 안에 끝나는가(`speech_rate` 를 고칠 근거).
 
