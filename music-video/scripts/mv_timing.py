@@ -2,16 +2,27 @@
 """music-video: 곡과 영상의 시각을 잰다. 콘티의 컷 경계를 마디에 맞추고, 비트가 들어오는 자리와
 만든 영상의 장면 시각을 숫자로 확인한다.
 
-표준 라이브러리만 쓴다(Python 3.8+). energy·tempo·sheet 는 ffmpeg 가 PATH 에 있어야 한다.
+표준 라이브러리만 쓴다(Python 3.8+). energy·accents·tempo·sheet·follow 는 ffmpeg 가 PATH 에 있어야 한다.
 
   python3 mv_timing.py grid  --bpm 130 --length 110.7 [--bars-per-row 4] [--shot-beats 4] [--offset 0] [--json]
   python3 mv_timing.py energy song.mp3 [--from 0] [--to 20] [--window-ms 50] [--jump-db 6]
+  python3 mv_timing.py accents song.mp3 --bpm 130 --from 44.508 --to 52.508 [--offset 44.508] [--align] [--fps 24] [--json]
+  python3 mv_timing.py lyrics words.json --bpm 130 --from 44.508 --to 52.508 [--offset 44.558] [--audio-start 40] [--json]
   python3 mv_timing.py tempo  song.mp3 [--from 0] [--to 60] [--min 70] [--max 180]
   python3 mv_timing.py sheet  cut.mp4 out.jpg [--fps 2] [--bpm 130] [--offset 0] [--from 0] [--to 0] [--cols 6] [--width 320]
+  python3 mv_timing.py follow previs.mp4 result.mp4 [--from 22] [--to 0] [--max-lag 8] [--json]
+  python3 mv_timing.py buffer --bpm 130 --cut "0ms..2bar both" [--fps 24] [--json]
+  python3 mv_timing.py cutplan --bpm 130 --durations 5/10 --cut "0ms..2bar head" --cut "2bar..4bar tail"
 
 시각은 모두 초(소수) 또는 ms 정수다. 곡 시각은 곡 파일 맨 앞이 0 이다.
+lyrics 는 whisper 의 단어 시각 JSON(`whisper 파일 --word_timestamps True --output_format json`)을 읽어
+단어마다 가까운 반 박과 프레임을 적는다. 곡 일부를 잘라 돌렸으면 --audio-start 에 잘라 낸 곡 시각을 준다.
 sheet 의 --bpm 은 칸마다 박 번호를 적는다(박 1 = --offset, 기본 0). --fps 0 이면
 한 박에 칸 하나(--bpm 필수, fps = bpm / 60). 기본 --fps 2 는 그대로다.
+
+buffer 와 cutplan 은 같은 명령이다. 영상 모델은 정수 초만 만들므로, 컷마다 머리·꼬리
+버퍼를 두고 그 초로 만든 뒤 DemoCut 트림을 프레임에 맞춘다. 반올림 오차는 다음 컷으로
+넘겨 그림의 누적이 곡과 반 프레임 안에 있게 한다. 박 1·마디 1 은 첫 다운비트다.
 """
 import argparse
 import json
@@ -22,11 +33,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from fractions import Fraction
 
 
 def _need_ffmpeg():
     if not shutil.which("ffmpeg"):
-        sys.exit("ffmpeg 가 없다. energy·tempo·sheet 는 ffmpeg 가 있어야 한다.")
+        sys.exit("ffmpeg 가 없다. energy·accents·tempo·sheet·follow 는 ffmpeg 가 있어야 한다.")
 
 
 def _clock(sec):
@@ -90,8 +102,11 @@ def cmd_grid(a):
                   % (len(r["shot_starts_s"]), " ".join("%.2f" % x for x in r["shot_starts_s"])))
 
 
-def _rms_series(path, start, end, window_ms):
-    """ffmpeg astats 로 window_ms 마다 RMS(dBFS)를 잰다. 소리가 없으면 -120 으로 둔다."""
+def _rms_series(path, start, end, window_ms, pre=""):
+    """ffmpeg astats 로 window_ms 마다 RMS(dBFS)를 잰다. 소리가 없으면 -120 으로 둔다.
+
+    pre 는 RMS 를 재기 전에 거는 ffmpeg 필터(대역을 나눌 때)다.
+    """
     _need_ffmpeg()
     rate = 48000
     n = max(1, int(rate * window_ms / 1000))
@@ -103,6 +118,7 @@ def _rms_series(path, start, end, window_ms):
         if end:
             cmd += ["-t", "%.3f" % max(0.0, end - start)]
         cmd += ["-i", path, "-vn", "-ac", "1", "-af",
+                (pre + "," if pre else "") +
                 "aresample=%d,asetnsamples=%d,astats=metadata=1:reset=1,"
                 "ametadata=print:key=lavfi.astats.Overall.RMS_level:file=%s" % (rate, n, meta),
                 "-f", "null", "-"]
@@ -152,6 +168,176 @@ def cmd_energy(a):
             print("  %s (%.3f초)  %.1f → %.1f dB" % (_clock(t), t, b, f))
     else:
         print("\n1초 평균이 %.0fdB 넘게 오르는 자리는 없다." % a.jump_db)
+
+
+ACCENT_BANDS = (
+    ("kick", "lowpass=f=120,lowpass=f=120,lowpass=f=120"),
+    ("snare", "highpass=f=1500,highpass=f=1500,lowpass=f=4000,lowpass=f=4000"),
+    ("hat", "highpass=f=8000,highpass=f=8000,highpass=f=8000"),
+)
+
+
+def _onsets(vals, step, rise_db, min_gap_s):
+    """소리가 들어온 창의 (시각, 오른 dB). 직전 30ms 의 최댓값보다 rise_db 넘게 오른 국소 최대다."""
+    look = max(1, int(round(0.03 / step)))
+    floor = min(vals) if vals else -120.0
+    rises = []
+    for i, v in enumerate(vals):
+        rises.append(v - (max(vals[max(0, i - look):i]) if i else floor))
+    found = []
+    for i, r in enumerate(rises):
+        if r < rise_db or r < max(rises[max(0, i - look):i + look + 1]):
+            continue
+        t = i * step
+        if found and t - found[-1][0] < min_gap_s:
+            continue
+        found.append((t, r))
+    return found
+
+
+def _half_beat_slot(t, bpm, offset):
+    """곡 시각 t 에 가장 가까운 반 박 자리(박 1 = offset)와 거기서 벗어난 ms."""
+    pos = (t - offset) * bpm / 60.0
+    half = round(pos * 2) / 2.0
+    return half + 1, (pos - half) * 60000.0 / bpm
+
+
+def _slot_label(slot):
+    return "%d" % slot if slot == int(slot) else "%d&" % math.floor(slot)
+
+
+def accent_map(path, bpm, start, end, offset=None, fps=24.0, window_ms=10, rise_db=6.0,
+               min_gap_ms=80, tolerance_ms=60, align=False):
+    """대역마다 소리가 들어온 시각을 반 박 격자에 놓는다. 격자에서 tolerance_ms 넘게 벗어난 것은 따로 모은다.
+
+    phase_ms 는 소리가 반 박 자리보다 늦은 ms 의 중앙값이다. align 이면 박 1 을 그만큼 옮겨 다시 놓는다.
+    """
+    offset = start if offset is None else offset
+    pre_roll = min(0.1, start)
+    step = window_ms / 1000.0
+    heard = []
+    for name, flt in ACCENT_BANDS:
+        vals = _rms_series(path, start - pre_roll, end, window_ms, pre=flt)
+        for t, rise in _onsets(vals, step, rise_db, min_gap_ms / 1000.0):
+            song_t = start - pre_roll + t
+            if song_t >= start - step / 2:
+                heard.append((name, song_t, rise))
+    devs = sorted(_half_beat_slot(t, bpm, offset)[1] for _, t, _ in heard)
+    phase_ms = devs[len(devs) // 2] if devs else 0.0
+    if align:
+        offset += phase_ms / 1000.0
+    slots, off_grid = {}, []
+    for name, song_t, rise in heard:
+        slot, dev = _half_beat_slot(song_t, bpm, offset)
+        if abs(dev) > tolerance_ms:
+            off_grid.append({"band": name, "song_s": round(song_t, 3), "cut_s": round(song_t - start, 3)})
+            continue
+        row = slots.setdefault(slot, {})
+        if rise > row.get(name, (0, 0))[0]:
+            row[name] = (round(rise, 1), round(dev))
+    rows = []
+    for slot in sorted(slots):
+        song_t = offset + (slot - 1) * 60.0 / bpm
+        rows.append({
+            "beat": _slot_label(slot),
+            "song_s": round(song_t, 3),
+            "cut_s": round(song_t - start, 3),
+            "frame": int(round((song_t - start) * fps)),
+            "bands": {k: {"rise_db": v[0], "dev_ms": v[1]} for k, v in slots[slot].items()},
+        })
+    return {"bpm": bpm, "start_s": start, "end_s": end, "offset_s": round(offset, 4), "fps": fps,
+            "phase_ms": round(phase_ms), "aligned": bool(align), "slots": rows, "off_grid": off_grid}
+
+
+def cmd_accents(a):
+    end = a.end
+    if not end:
+        sys.exit("--to 가 필요하다(컷이 끝나는 곡 시각).")
+    res = accent_map(a.path, a.bpm, a.start, end, offset=a.offset, fps=a.fps, window_ms=a.window_ms,
+                     rise_db=a.rise_db, tolerance_ms=a.tolerance_ms, align=a.align)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return
+    print("곡 %.3f~%.3f초, %g BPM, 박 1 = %.3f초%s. 숫자는 그 대역이 직전보다 오른 dB(클수록 센 강세)."
+          % (a.start, end, a.bpm, res["offset_s"], " (--align 으로 옮김)" if res["aligned"] else ""))
+    if abs(res["phase_ms"]) >= 20 and not res["aligned"]:
+        print("소리가 반 박 자리보다 가운데값 %+dms 어긋난다. 박 1 이 %.3f초일 수 있다. --align 으로 옮겨 다시 본다."
+              % (res["phase_ms"], res["offset_s"] + res["phase_ms"] / 1000.0))
+    print("%-5s %8s %7s %5s  %6s %6s %6s" % ("박", "곡 시각", "컷 시각", "프레임", "kick", "snare", "hat"))
+    for r in res["slots"]:
+        cells = ["%6s" % (("%.0f" % r["bands"][b]["rise_db"]) if b in r["bands"] else "-") for b, _ in ACCENT_BANDS]
+        print("%-5s %8.3f %7.3f %5d  %s" % (r["beat"], r["song_s"], r["cut_s"], r["frame"], " ".join(cells)))
+    both = [r["beat"] for r in res["slots"] if "kick" in r["bands"] and "snare" in r["bands"]]
+    halves = [r["beat"] for r in res["slots"] if r["beat"].endswith("&")]
+    n_beats = int(math.floor((end - res["offset_s"]) * a.bpm / 60.0 + 1e-9))
+    heard = {r["beat"] for r in res["slots"]}
+    silent = ["%d" % b for b in range(1, n_beats + 1) if "%d" % b not in heard]
+    print("\n킥과 스네어가 같이 오는 박(크게 찍는 히트 후보): %s" % (", ".join(both) or "없음"))
+    print("반 박에 소리가 있는 자리(잘게 쪼갠 팝·탭 후보): %s" % (", ".join(halves) or "없음"))
+    print("어느 대역도 들어오지 않는 박(멈춤·흐름 후보): %s" % (", ".join(silent) or "없음"))
+    if res["off_grid"]:
+        print("반 박 격자에서 %dms 넘게 벗어난 소리 %d개(16분음표 이하의 잔리듬일 수 있다): %s"
+              % (a.tolerance_ms, len(res["off_grid"]),
+                 ", ".join("%s %.3f" % (o["band"], o["cut_s"]) for o in res["off_grid"][:12])))
+
+
+def lyric_beats(words, bpm, start, end, offset=None, fps=24.0, audio_start=0.0):
+    """단어(text, 시작, 끝; 오디오 파일 기준 초)를 컷 구간의 반 박 격자에 놓는다.
+
+    whisper 의 단어 시각은 수백 ms 어긋날 수 있어 가장 가까운 반 박과 벗어난 ms 를 함께 적는다.
+    """
+    offset = start if offset is None else offset
+    rows = []
+    for text, w0, w1 in words:
+        s0, s1 = w0 + audio_start, w1 + audio_start
+        if s1 <= start or s0 >= end:
+            continue
+        slot, dev = _half_beat_slot(s0, bpm, offset)
+        slot_t = offset + (slot - 1) * 60.0 / bpm
+        rows.append({"word": text.strip(), "song_s": round(s0, 3), "cut_s": round(s0 - start, 3),
+                     "end_cut_s": round(s1 - start, 3), "beat": _slot_label(slot), "dev_ms": round(dev),
+                     "beat_frame": int(round((slot_t - start) * fps)), "frame": int(round((s0 - start) * fps))})
+    return {"bpm": bpm, "start_s": start, "end_s": end, "offset_s": offset, "fps": fps, "words": rows}
+
+
+def _whisper_words(path):
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    words, untimed = [], []
+    for seg in data.get("segments", []):
+        for w in seg.get("words") or []:
+            if w.get("start") is None or w.get("end") is None:
+                untimed.append(str(w.get("word", "")).strip())
+                continue
+            words.append((w["word"], float(w["start"]), float(w["end"])))
+    if untimed:
+        print("시각이 없는 단어 %d개는 뺐다: %s" % (len(untimed), " ".join(untimed[:10])), file=sys.stderr)
+    if not words:
+        sys.exit("%s 에 단어 시각이 없다. whisper 를 --word_timestamps True 로 다시 돌린다." % path)
+    return words
+
+
+def cmd_lyrics(a):
+    if not a.end or a.end <= a.start:
+        sys.exit("--to 에 컷이 끝나는 곡 시각을 준다(--from 보다 커야 한다).")
+    res = lyric_beats(_whisper_words(a.path), a.bpm, a.start, a.end, offset=a.offset, fps=a.fps,
+                      audio_start=a.audio_start)
+    if not res["words"]:
+        print("컷 구간에 단어가 없다. 곡 일부를 잘라 whisper 에 넣었으면 --audio-start 에 잘라 낸 곡 시각을 준다.",
+              file=sys.stderr)
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return
+    print("곡 %.3f~%.3f초, %g BPM, 박 1 = %.3f초. 반 박은 가장 가까운 자리이고 괄호는 벗어난 ms 다."
+          % (a.start, a.end, a.bpm, res["offset_s"]))
+    print("%-5s %5s %8s %7s %5s  %s" % ("박", "박 프레임", "곡 시각", "컷 시각", "단어 프레임", "단어"))
+    for r in res["words"]:
+        print("%-5s %5d %8.3f %7.3f %5d  %s (%+dms, %.2f초까지)"
+              % (r["beat"], r["beat_frame"], r["song_s"], r["cut_s"], r["frame"], r["word"], r["dev_ms"],
+                 r["end_cut_s"]))
+    print("\n동작의 도착은 박 프레임에 둔다. 컷 앞에서 시작한 못갖춘마디 단어는 프레임이 음수다(박 0& 은 박 1 의 반 박 앞)."
+          "\n단어 끝은 다음 단어 시작까지 늘어나기 쉽고, 길게 끄는 단어는 앞의 쉼부터 시작한 것으로 잡히기도 한다."
+          " 히트를 줄 단어는 accents 의 강세와 맞대어 본다.")
 
 
 def cmd_tempo(a):
@@ -289,6 +475,881 @@ def cmd_sheet(a):
         print("  칸 %2d (행 %d, 열 %d) = %.3f초%s" % (i, i // a.cols + 1, i % a.cols + 1, t, extra))
 
 
+# --- buffer / cutplan -------------------------------------------------------
+# 영상 모델은 정수 초만 굽는다. 마디로 자른 구간은 그 초에 떨어지지 않으므로
+# 컷마다 버퍼를 두고 더 길게 만든 뒤, 쓰는 구간만 프레임 경계로 남긴다.
+MOTION_W, MOTION_H = 64, 36
+
+
+def _motion_energy(path):
+    """프레임마다 바로 앞 프레임과의 평균 밝기 차(0~255). 첫 프레임은 0."""
+    _need_ffmpeg()
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-vf",
+                          "scale=%d:%d,format=gray" % (MOTION_W, MOTION_H), "-f", "rawvideo", "-"],
+                         capture_output=True, check=True).stdout
+    size = MOTION_W * MOTION_H
+    frames = [raw[i:i + size] for i in range(0, len(raw) - size + 1, size)]
+    return [0.0] + [sum(abs(x - y) for x, y in zip(frames[i], frames[i - 1])) / size
+                    for i in range(1, len(frames))]
+
+
+def _pearson(xs, ys):
+    if not xs:
+        return 0.0
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+    if not sx or not sy:
+        return 0.0
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sx * sy)
+
+
+def follow_lag(ref_energy, out_energy, start=0, end=0, max_lag=8):
+    """결과가 참고 영상보다 몇 프레임 늦게 움직이는지(lag)와 그때의 상관 r."""
+    end = min(end or len(ref_energy), len(ref_energy), len(out_energy))
+    start = min(max(start, 0), end)
+    scores = {}
+    for lag in range(-max_lag, max_lag + 1):
+        idx = [i for i in range(start, end) if 0 <= i + lag < len(out_energy)]
+        scores[lag] = _pearson([ref_energy[i] for i in idx], [out_energy[i + lag] for i in idx])
+    best = max(scores, key=lambda k: (scores[k], -abs(k)))
+    return {"from_frame": start, "to_frame": end, "lag_frames": best,
+            "r": round(scores[best], 2), "r_at_0": round(scores[0], 2)}
+
+
+def cmd_follow(a):
+    res = follow_lag(_motion_energy(a.reference), _motion_energy(a.result), a.start, a.end, a.max_lag)
+    if res["to_frame"] - res["from_frame"] < 2:
+        sys.exit("비교할 프레임이 없다(%d~%d). --from·--to 를 영상 길이 안으로 준다." % (res["from_frame"], res["to_frame"]))
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False))
+        return
+    print("프레임 %d~%d: 결과가 참고 영상보다 %+d 프레임 늦게 움직인다(r=%.2f, 시차 0 의 r=%.2f)."
+          % (res["from_frame"], res["to_frame"], res["lag_frames"], res["r"], res["r_at_0"]))
+    if res["r"] < 0.5:
+        print("r 이 0.5 아래다. 결과가 참고 영상의 움직임을 따르지 않았을 수 있다. 격자로 같은 프레임을 맞대어 본다.")
+
+
+# DemoCut 은 그림 길이를 프레임으로 올리고 소리는 ms 그대로 둔다. 컷마다 올리면
+# 오차가 쌓이므로, 여기서는 누적 그림이 곡의 합에 가장 가까운 프레임 수를 고른다.
+
+DEFAULT_MIN_BUFFER_MS = 500
+DEFAULT_FPS = 24
+DEFAULT_DURATIONS = "4-15"  # Seedance 2.5
+CROSSFADE_MS = 500
+CLIP_VOLUME_DB = -40
+TRACK_VOLUME_DB = 0
+
+
+class PlanError(Exception):
+    pass
+
+
+def as_fraction(x):
+    if isinstance(x, Fraction):
+        return x
+    if isinstance(x, bool) or not isinstance(x, (int, float, str)):
+        raise PlanError("숫자가 아니다: %r" % (x,))
+    if isinstance(x, float):
+        return Fraction(str(x))
+    return Fraction(x)
+
+
+def nearest_int(x):
+    """양수에서 0.5 는 위로. 프레임 수에 은행가 반올림을 쓰지 않는다."""
+    x = as_fraction(x)
+    if x >= 0:
+        return int(x + Fraction(1, 2))
+    return -int((-x) + Fraction(1, 2))
+
+
+def num(x, places=3):
+    """JSON 에 넣을 수. 정수로 떨어지면 int."""
+    f = float(x)
+    r = round(f, places)
+    if abs(r - round(r)) < 1e-9:
+        return int(round(r))
+    return r
+
+
+def parse_durations(spec):
+    """'4-15' 는 그 범위의 정수 초, '5/10'·'5,10' 은 그 목록만."""
+    if isinstance(spec, (list, tuple)):
+        try:
+            vals = [int(x) for x in spec]
+        except (TypeError, ValueError):
+            raise PlanError("생성 길이는 정수 초다: %r" % (spec,))
+    else:
+        text = str(spec).strip()
+        m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", text)
+        if m:
+            lo, hi = int(m.group(1)), int(m.group(2))
+            if hi < lo or lo <= 0:
+                raise PlanError("생성 길이 범위가 잘못되었다: %s" % text)
+            vals = list(range(lo, hi + 1))
+        else:
+            parts = [p for p in re.split(r"[\s,/;]+", text) if p]
+            if not parts:
+                raise PlanError("생성 길이가 비었다.")
+            try:
+                vals = [int(p) for p in parts]
+            except ValueError:
+                raise PlanError("생성 길이는 정수 초다: %s" % text)
+    vals = sorted(set(vals))
+    if not vals or any(v <= 0 for v in vals):
+        raise PlanError("생성 길이는 1초 이상의 정수여야 한다.")
+    return vals
+
+
+def picture_frames_for_ms(duration_ms, fps):
+    """DemoCut 이 그림 길이를 프레임으로 올릴 때의 프레임 수. 딱 맞으면 그 프레임."""
+    if duration_ms <= 0:
+        return 0
+    x = Fraction(int(duration_ms)) * as_fraction(fps) / 1000
+    if x.denominator == 1:
+        return int(x)
+    return int(x) + 1
+
+
+def _ms_on_frame(frame, fps):
+    """그 프레임으로 반올림되는 정수 ms 가운데, 프레임 시각에 가장 가까운 것."""
+    fps_f = as_fraction(fps)
+    exact = Fraction(int(frame)) * 1000 / fps_f
+    guess = nearest_int(exact)
+    best = None
+    for delta in (0, -1, 1, -2, 2, -3, 3):
+        ms = guess + delta
+        if ms < 0:
+            continue
+        if nearest_int(Fraction(ms) * fps_f / 1000) != frame:
+            continue
+        err = abs(Fraction(ms) - exact)
+        if best is None or err < best[0]:
+            best = (err, ms)
+    if best is None:
+        raise PlanError("프레임 %d 에 맞는 ms 가 없다." % frame)
+    return best[1]
+
+
+def snap_trim_ms(start_frame, n_frames, fps):
+    """트림 시작·끝(정수 ms).
+
+    시작과 끝은 그 프레임으로 반올림되고, (끝-시작) 을 프레임으로 올리면
+    n_frames 가 된다. DemoCut 이 그림만 프레임으로 올리는 길이와 같다.
+    """
+    if n_frames < 1 or start_frame < 0:
+        raise PlanError("프레임 창이 잘못되었다.")
+    fps_f = as_fraction(fps)
+    end_frame = int(start_frame) + int(n_frames)
+    start_ms = _ms_on_frame(start_frame, fps)
+    exact_end = Fraction(end_frame) * 1000 / fps_f
+    guess = nearest_int(exact_end)
+    candidates = []
+    for delta in range(-4, 5):
+        end_ms = guess + delta
+        if end_ms <= start_ms:
+            continue
+        if nearest_int(Fraction(end_ms) * fps_f / 1000) != end_frame:
+            continue
+        if picture_frames_for_ms(end_ms - start_ms, fps) != n_frames:
+            continue
+        candidates.append((abs(Fraction(end_ms) - exact_end), end_ms))
+    if not candidates:
+        raise PlanError("트림을 프레임에 맞추지 못했다 (%d+%d, fps %s)." % (start_frame, n_frames, fps))
+    candidates.sort()
+    return start_ms, candidates[0][1]
+
+
+def _frames_at_least(ms, fps):
+    ms = as_fraction(ms)
+    if ms <= 0:
+        return 0
+    x = ms * as_fraction(fps) / 1000
+    if x.denominator == 1:
+        return int(x)
+    return int(x) + 1
+
+
+def _duration_frames(duration_s, fps):
+    x = as_fraction(duration_s) * as_fraction(fps)
+    if x.denominator == 1:
+        return int(x)
+    return nearest_int(x)
+
+
+class _Ctx(object):
+    def __init__(self, bpm, offset_ms, beats, beats_per_bar):
+        self.bpm = None if bpm is None else as_fraction(bpm)
+        if self.bpm is not None and self.bpm <= 0:
+            raise PlanError("--bpm 은 0보다 커야 한다.")
+        self.offset_ms = as_fraction(0 if offset_ms is None else offset_ms)
+        self.beats = None
+        if beats:
+            self.beats = [as_fraction(b) for b in beats]
+            if any(self.beats[i] > self.beats[i + 1] for i in range(len(self.beats) - 1)):
+                raise PlanError("박 파일은 시간이 오르는 순이어야 한다.")
+        self.beats_per_bar = int(beats_per_bar)
+        if self.beats_per_bar < 1:
+            raise PlanError("--beats-per-bar 는 1 이상이어야 한다.")
+
+
+def _beat_whole(index, ctx):
+    index = int(index)
+    if index < 0:
+        raise PlanError("박 위치가 첫 다운비트보다 앞이다.")
+    if ctx.beats is not None:
+        n = len(ctx.beats)
+        if index < n:
+            return ctx.beats[index]
+        if n >= 2:
+            step = ctx.beats[-1] - ctx.beats[-2]
+            if step <= 0:
+                raise PlanError("박 파일의 마지막 간격이 0이다.")
+            return ctx.beats[-1] + step * (index - (n - 1))
+        if ctx.bpm is not None:
+            return ctx.beats[0] + Fraction(index) * (Fraction(60000) / ctx.bpm)
+        raise PlanError("박 파일이 %d박까지 없다. --bpm 을 주거나 박을 더 적는다." % (index + 1))
+    if ctx.bpm is None:
+        raise PlanError("박·마디 위치에는 --bpm 또는 --beats 가 필요하다.")
+    return ctx.offset_ms + Fraction(index) * (Fraction(60000) / ctx.bpm)
+
+
+def time_of_beat_index(index, ctx):
+    """index 0 은 첫 다운비트. 소수는 이웃 박 사이를 나눈다."""
+    index = as_fraction(index)
+    if index < 0:
+        raise PlanError("박 위치가 첫 다운비트보다 앞이다.")
+    whole = int(index)
+    frac = index - whole
+    t0 = _beat_whole(whole, ctx)
+    if frac == 0:
+        return t0
+    t1 = _beat_whole(whole + 1, ctx)
+    return t0 + (t1 - t0) * frac
+
+
+def parse_position(text, ctx):
+    """곡 파일 ms. 숫자·Nms 는 파일 시각, Nbar·Nbeat 는 첫 다운비트에서의 거리,
+    bar:N·beat:N 은 grid 와 같은 1부터의 번호다."""
+    if isinstance(text, bool):
+        raise PlanError("위치가 아니다.")
+    if isinstance(text, (int, float, Fraction)):
+        return as_fraction(text)
+    s = str(text).strip()
+    m = re.fullmatch(r"(-?\d+(?:\.\d+)?)ms", s)
+    if m:
+        return as_fraction(m.group(1))
+    m = re.fullmatch(r"(-?\d+(?:\.\d+)?)s", s)
+    if m:
+        return as_fraction(m.group(1)) * 1000
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)bars?", s)
+    if m:
+        return time_of_beat_index(as_fraction(m.group(1)) * ctx.beats_per_bar, ctx)
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)beats?", s)
+    if m:
+        return time_of_beat_index(as_fraction(m.group(1)), ctx)
+    m = re.fullmatch(r"bar:(\d+(?:\.\d+)?)", s)
+    if m:
+        n = as_fraction(m.group(1))
+        if n < 1:
+            raise PlanError("마디 번호는 1부터다: %s" % s)
+        return time_of_beat_index((n - 1) * ctx.beats_per_bar, ctx)
+    m = re.fullmatch(r"beat:(\d+(?:\.\d+)?)", s)
+    if m:
+        n = as_fraction(m.group(1))
+        if n < 1:
+            raise PlanError("박 번호는 1부터다: %s" % s)
+        return time_of_beat_index(n - 1, ctx)
+    raise PlanError("위치를 못 읽는다(0ms, 3.692s, 2bar, 8beat, bar:1, beat:1): %s" % s)
+
+
+_POS_PREFIX = re.compile(
+    r"^("
+    r"-?\d+(?:\.\d+)?ms|"
+    r"-?\d+(?:\.\d+)?s|"
+    r"\d+(?:\.\d+)?bars?|"
+    r"\d+(?:\.\d+)?beats?|"
+    r"bar:\d+(?:\.\d+)?|"
+    r"beat:\d+(?:\.\d+)?"
+    r")"
+)
+
+
+def _split_mark(value):
+    m = _POS_PREFIX.match(str(value).strip())
+    if not m:
+        raise PlanError("표시 시각을 못 읽는다: %s" % value)
+    pos = m.group(1)
+    rest = str(value).strip()[m.end():]
+    if not rest:
+        return pos, ""
+    if not rest.startswith(":"):
+        raise PlanError("표시는 위치:이름 이다: %s" % value)
+    return pos, rest[1:]
+
+
+def _parse_cut_token(text):
+    text = text.strip()
+    if not text or text.startswith("#"):
+        return None
+    parts = text.split()
+    if ".." not in parts[0]:
+        raise PlanError("컷 형식은 0ms..2bar both 이다: %s" % text)
+    inn, out = parts[0].split("..", 1)
+    if not inn or not out:
+        raise PlanError("컷의 시작과 끝이 없다: %s" % text)
+    cut = {"in": inn, "out": out, "marks": []}
+    i = 1
+    if i < len(parts) and parts[i] in ("head", "tail", "both"):
+        cut["buffer"] = parts[i]
+        i += 1
+    for p in parts[i:]:
+        if "=" not in p:
+            raise PlanError("알 수 없는 컷 옵션: %s" % p)
+        k, v = p.split("=", 1)
+        if k == "id":
+            cut["id"] = v
+        elif k in ("min", "min-buffer-ms", "min_buffer_ms"):
+            cut["min_buffer_ms"] = v
+        elif k in ("mark", "at"):
+            pos, label = _split_mark(v)
+            cut["marks"].append({"at": pos, "label": label})
+        elif k == "buffer":
+            if v not in ("head", "tail", "both"):
+                raise PlanError("버퍼는 head, tail, both 중 하나다: %s" % v)
+            cut["buffer"] = v
+        else:
+            raise PlanError("알 수 없는 컷 옵션: %s" % k)
+    return cut
+
+
+def _as_end(value):
+    if isinstance(value, str) or isinstance(value, (int, float, Fraction)):
+        return value
+    raise PlanError("컷의 시작·끝이 아니다: %r" % (value,))
+
+
+def _cut_ends(raw):
+    if "in" in raw and "out" in raw:
+        return _as_end(raw["in"]), _as_end(raw["out"])
+    if "in_ms" in raw and "out_ms" in raw:
+        return _as_end(raw["in_ms"]), _as_end(raw["out_ms"])
+    if "in_beat" in raw and "out_beat" in raw:
+        return "beat:%s" % raw["in_beat"], "beat:%s" % raw["out_beat"]
+    if "in_bar" in raw and "out_bar" in raw:
+        return "bar:%s" % raw["in_bar"], "bar:%s" % raw["out_bar"]
+    raise PlanError("컷에 in/out (또는 in_ms/out_ms, in_beat/out_beat, in_bar/out_bar) 이 없다.")
+
+
+def _normalize_marks(raw_marks):
+    marks = []
+    for m in raw_marks or []:
+        if isinstance(m, str):
+            pos, label = _split_mark(m)
+            marks.append({"at": pos, "label": label})
+        elif isinstance(m, dict):
+            at = m.get("at", m.get("song"))
+            if at is None:
+                raise PlanError("mark 에 at 이 없다.")
+            marks.append({"at": at, "label": m.get("label") or ""})
+        else:
+            raise PlanError("mark 형식이 아니다.")
+    return marks
+
+
+def _normalize_cut(raw, index, default_buffer, default_min):
+    if isinstance(raw, str):
+        raw = _parse_cut_token(raw)
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise PlanError("컷은 문자열이나 객체여야 한다.")
+    inn, out = _cut_ends(raw)
+    buf = raw.get("buffer") or raw.get("mode") or default_buffer
+    if buf not in ("head", "tail", "both"):
+        raise PlanError("버퍼는 head, tail, both 중 하나다: %s" % buf)
+    if "min_buffer_ms" in raw:
+        min_b = raw["min_buffer_ms"]
+    elif "min" in raw:
+        min_b = raw["min"]
+    else:
+        min_b = default_min
+    min_b = as_fraction(min_b)
+    if min_b < 0:
+        raise PlanError("최소 버퍼는 0 이상이어야 한다.")
+    return {
+        "id": str(raw["id"]) if raw.get("id") not in (None, "") else str(index + 1),
+        "in": inn,
+        "out": out,
+        "buffer": buf,
+        "min_buffer_ms": min_b,
+        "marks": _normalize_marks(raw.get("marks")),
+    }
+
+
+def load_beats(path):
+    """한 줄에 박 하나. 정수와 JSON 숫자는 ms, 소수(점이 있음)와 Ns 는 초."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    stripped = text.lstrip()
+    if not stripped:
+        raise PlanError("박 파일이 비었다.")
+    if stripped.startswith("["):
+        data = json.loads(text)
+        if not isinstance(data, list) or not data:
+            raise PlanError("박 파일은 비어 있지 않은 배열이어야 한다.")
+        return [_beat_value(x, from_json=True) for x in data]
+    beats = []
+    for line in text.splitlines():
+        body = line.split("#", 1)[0].strip()
+        if body:
+            beats.append(_beat_value(body, from_json=False))
+    if not beats:
+        raise PlanError("박 파일이 비었다.")
+    return beats
+
+
+def _beat_value(x, from_json):
+    if isinstance(x, bool):
+        raise PlanError("박 시각이 아니다.")
+    if isinstance(x, (int, float)):
+        return float(x) if from_json else float(x)
+    s = str(x).strip()
+    if s.endswith("ms"):
+        return float(s[:-2])
+    if s.endswith("s"):
+        return float(s[:-1]) * 1000.0
+    if not from_json and "." in s:
+        return float(s) * 1000.0
+    return float(s)
+
+
+def load_cuts_file(path):
+    """JSON 객체(cuts 배열)이거나, 한 줄에 컷 하나인 텍스트."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    stripped = text.lstrip()
+    if not stripped:
+        raise PlanError("컷 파일이 비었다.")
+    if stripped.startswith("{") or stripped.startswith("["):
+        data = json.loads(text)
+        if isinstance(data, list):
+            return {}, data
+        if not isinstance(data, dict):
+            raise PlanError("컷 파일은 객체나 배열이어야 한다.")
+        if "cuts" not in data:
+            raise PlanError("컷 파일에 cuts 가 없다.")
+        meta = dict(data)
+        cuts = meta.pop("cuts")
+        return meta, cuts
+    cuts = []
+    for line in text.splitlines():
+        body = line.split("#", 1)[0].strip()
+        if not body:
+            continue
+        parsed = _parse_cut_token(body)
+        if parsed:
+            cuts.append(parsed)
+    return {}, cuts
+
+
+def _select_duration(used, mode, min_buf, allowed, fps, n_frames):
+    need_head = min_buf if mode in ("head", "both") else Fraction(0)
+    need_tail = min_buf if mode in ("tail", "both") else Fraction(0)
+    need = used + need_head + need_tail
+    min_head_f = _frames_at_least(need_head, fps)
+    min_tail_f = _frames_at_least(need_tail, fps)
+    for dur in allowed:
+        if Fraction(dur) * 1000 < need:
+            continue
+        dframes = _duration_frames(dur, fps)
+        if dframes >= min_head_f + n_frames + min_tail_f:
+            return dur, dframes, need_head, need_tail, need
+    return None
+
+
+def _beats_in_clip(song_in, song_out, head_ms, duration_ms, ctx):
+    if ctx.bpm is None and not ctx.beats:
+        return []
+    beats = []
+    if ctx.beats is not None:
+        # 파일 간격은 고르지 않을 수 있다. 앞에서부터 본다.
+        start_idx = 0
+    elif ctx.bpm is not None:
+        beat = Fraction(60000) / ctx.bpm
+        t_lo = song_in - head_ms
+        start_idx = int((t_lo - ctx.offset_ms) / beat) - 1
+        if start_idx < 0:
+            start_idx = 0
+    else:
+        start_idx = 0
+    idx = start_idx
+    for _ in range(10000):
+        try:
+            t = time_of_beat_index(idx, ctx)
+        except PlanError:
+            break
+        prompt = head_ms + (t - song_in)
+        if prompt > duration_ms + Fraction(1, 10):
+            break
+        if prompt >= Fraction(-1, 10):
+            if t < song_in - Fraction(1, 100):
+                place = "head"
+            elif t <= song_out + Fraction(1, 100):
+                place = "used"
+            else:
+                place = "tail"
+            beats.append({
+                "beat": idx + 1,
+                "bar": idx // ctx.beats_per_bar + 1,
+                "beat_in_bar": (idx % ctx.beats_per_bar) + 1,
+                "song_ms": num(t),
+                "prompt_ms": num(prompt),
+                "prompt_s": round(float(prompt) / 1000.0, 3),
+                "place": place,
+            })
+        idx += 1
+    return beats
+
+
+def _prompt_hint(head_ms, tail_ms, used_end_ms, duration_ms, marks):
+    head_s = float(head_ms) / 1000.0
+    tail_s = float(tail_ms) / 1000.0
+    used_end_s = float(used_end_ms) / 1000.0
+    gen_s = float(duration_ms) / 1000.0
+    parts = []
+    if head_s > 0.0005:
+        parts.append(
+            "0.00-%.2fs: already in motion, neutral pre-roll continuing into the first beat, no walk-in."
+            % head_s
+        )
+        parts.append("First downbeat hit at %.2fs." % head_s)
+    else:
+        parts.append("First downbeat hit at 0.00s. Start already on the beat, no walk-in.")
+    if marks:
+        bits = []
+        for m in marks:
+            label = m["label"] or "action"
+            bits.append("%s at %.2fs" % (label, m["prompt_ms"] / 1000.0))
+        parts.append("Actions shifted by the head buffer: %s." % ", ".join(bits))
+    if tail_s > 0.0005:
+        parts.append(
+            "%.2f-%.2fs: keep the choreography moving on the beat past the used end; do not drop the arms or settle."
+            % (used_end_s, gen_s)
+        )
+    return " ".join(parts)
+
+
+def _plan_one(raw, ctx, allowed, fps, cum_song, cum_frames):
+    song_in = parse_position(raw["in"], ctx)
+    song_out = parse_position(raw["out"], ctx)
+    if song_in < 0 or song_out < 0:
+        raise PlanError("컷 %s: 곡 시각이 0보다 앞이다." % raw["id"])
+    if song_out <= song_in:
+        raise PlanError("컷 %s: 끝이 시작보다 뒤여야 한다." % raw["id"])
+    used = song_out - song_in
+    mode = raw["buffer"]
+    min_buf = raw["min_buffer_ms"]
+    cum_song_next = cum_song + used
+    target = cum_song_next * as_fraction(fps) / 1000
+    desired = nearest_int(target)
+    n = desired - cum_frames
+    clamped = n < 1
+    if n < 1:
+        n = 1
+    picked = _select_duration(used, mode, min_buf, allowed, fps, n)
+    if picked is None and clamped:
+        raise PlanError("컷 %s: 쓰는 구간이 한 프레임보다 짧다." % raw["id"])
+    if picked is None:
+        raise PlanError(
+            "컷 %s: 쓰는 길이 %.0fms 에 버퍼를 더하면 허용 생성 길이(%s)에 안 들어간다. 컷을 나누거나 --durations 를 늘린다."
+            % (raw["id"], float(used), "/".join(str(d) for d in allowed))
+        )
+    dur_s, dframes, need_head, need_tail, need = picked
+    if mode == "head":
+        nominal_head = need_head
+    elif mode == "tail":
+        nominal_head = Fraction(0)
+    else:
+        nominal_head = (Fraction(dur_s) * 1000 - used) / 2
+    min_head_f = _frames_at_least(need_head, fps)
+    min_tail_f = _frames_at_least(need_tail, fps)
+    lo = min_head_f
+    hi = dframes - n - min_tail_f
+    if lo > hi:
+        raise PlanError("컷 %s: 프레임으로 맞춘 창이 생성 길이에 안 들어간다." % raw["id"])
+    ideal = nearest_int(nominal_head * as_fraction(fps) / 1000)
+    if ideal < lo:
+        start = lo
+    elif ideal > hi:
+        start = hi
+    else:
+        start = ideal
+    end_frame = start + n
+    duration_ms = int(dur_s) * 1000
+    trim_start_ms, trim_end_ms = snap_trim_ms(start, n, fps)
+    if trim_end_ms > duration_ms:
+        # 끝 ms 가 생성 길이를 넘으면 창을 한 프레임 앞으로 당긴다.
+        if start <= lo:
+            raise PlanError("컷 %s: 트림이 생성 길이를 넘는다." % raw["id"])
+        start -= 1
+        end_frame = start + n
+        trim_start_ms, trim_end_ms = snap_trim_ms(start, n, fps)
+        if trim_end_ms > duration_ms or trim_start_ms < 0:
+            raise PlanError("컷 %s: 트림이 생성 길이를 넘는다." % raw["id"])
+    head_ms = Fraction(start) * 1000 / as_fraction(fps)
+    picture_ms = Fraction(n) * 1000 / as_fraction(fps)
+    tail_frames = dframes - end_frame
+    tail_ms = Fraction(tail_frames) * 1000 / as_fraction(fps)
+    cum_frames_next = cum_frames + n
+    cum_picture = Fraction(cum_frames_next) * 1000 / as_fraction(fps)
+    drift = cum_picture - cum_song_next
+    half = Fraction(500) / as_fraction(fps)
+    drift_ok = abs(drift) <= half + Fraction(1, 1000)
+    song_in_i = nearest_int(song_in)
+    song_start_ms = song_in_i - trim_start_ms
+    span = trim_end_ms - trim_start_ms
+    fade = min(CROSSFADE_MS, span // 2)
+    marks = []
+    for m in raw["marks"]:
+        at = parse_position(m["at"], ctx)
+        prompt = head_ms + (at - song_in)
+        marks.append({
+            "label": m["label"],
+            "song_ms": num(at),
+            "prompt_ms": num(prompt),
+            "prompt_s": round(float(prompt) / 1000.0, 3),
+        })
+    warnings = []
+    if song_start_ms < 0:
+        warnings.append(
+            "song_start_ms 가 음수다. BGM 에 넣지 말고 편집 트랙의 in_ms 를 쓴다. "
+            "생성을 이 머리로 하려면 곡이 0초보다 앞에서 시작해야 하므로, 곡의 맨 앞에서 시작하는 컷은 tail 로 다시 잡는다."
+        )
+    if not drift_ok:
+        warnings.append("누적 그림 드리프트가 반 프레임을 넘는다.")
+    if fade < CROSSFADE_MS:
+        warnings.append("컷이 짧아 크로스페이드를 %dms 로 줄였다." % fade)
+    hint = _prompt_hint(head_ms, tail_ms, head_ms + picture_ms, Fraction(duration_ms), marks)
+    cut = {
+        "id": raw["id"],
+        "buffer": mode,
+        "song_in_ms": num(song_in),
+        "song_out_ms": num(song_out),
+        "used_ms": num(used),
+        "min_buffer_ms": num(min_buf),
+        "need_ms": num(need),
+        "duration_s": int(dur_s),
+        "duration_ms": duration_ms,
+        "duration_frames": dframes,
+        "nominal_head_ms": num(nominal_head),
+        "head_buffer_ms": num(head_ms),
+        "tail_buffer_ms": num(tail_ms),
+        "head_frames": start,
+        "used_frames": n,
+        "tail_frames": tail_frames,
+        "trim_start_frame": start,
+        "trim_end_frame": end_frame,
+        "trim_start_ms": trim_start_ms,
+        "trim_end_ms": trim_end_ms,
+        "trim_in_ms": trim_start_ms,
+        "trim_out_ms": trim_end_ms,
+        "picture_ms": num(picture_ms),
+        "cum_song_ms": num(cum_song_next),
+        "cum_picture_ms": num(cum_picture),
+        "drift_ms": num(drift),
+        "drift_ok": drift_ok,
+        "song_start_ms": song_start_ms,
+        "track_at_ms": trim_start_ms,
+        "track_in_ms": song_in_i,
+        "track_length_ms": span,
+        "clip_volume_db": CLIP_VOLUME_DB,
+        "track_volume_db": TRACK_VOLUME_DB,
+        "bgm": None,
+        "crossfade_ms": fade,
+        "fade_in_ms": fade,
+        "fade_out_ms": fade,
+        "prompt_shift_ms": num(head_ms),
+        "beats": _beats_in_clip(song_in, song_out, head_ms, Fraction(duration_ms), ctx),
+        "marks": marks,
+        "prompt_hint": hint,
+        "warnings": warnings,
+        "edit": {
+            "trim_in_ms": trim_start_ms,
+            "trim_out_ms": trim_end_ms,
+            "volume_db": CLIP_VOLUME_DB,
+            "tracks": [{
+                "at_ms": trim_start_ms,
+                "in_ms": song_in_i,
+                "length_ms": span,
+                "volume_db": TRACK_VOLUME_DB,
+                "fade_in_ms": fade,
+                "fade_out_ms": fade,
+            }],
+        },
+    }
+    return cut, cum_song_next, cum_frames_next
+
+
+def plan_cuts(cuts, bpm=None, offset_ms=0, beats=None, beats_per_bar=4,
+              fps=DEFAULT_FPS, min_buffer_ms=DEFAULT_MIN_BUFFER_MS,
+              durations=DEFAULT_DURATIONS, default_buffer="both"):
+    """컷 목록의 생성 길이·트림·곡 시작·프롬프트 이동을 계산한다.
+
+    cuts 의 각 항목은 '0ms..2bar both' 문자열이거나
+    {in, out, buffer, id, min_buffer_ms, marks} 객체다.
+    순서는 타임라인 순서다. 드리프트는 그 순서로 넘긴다.
+    """
+    if fps is None or as_fraction(fps) <= 0:
+        raise PlanError("--fps 는 0보다 커야 한다.")
+    if default_buffer not in ("head", "tail", "both"):
+        raise PlanError("버퍼는 head, tail, both 중 하나다.")
+    ctx = _Ctx(bpm, offset_ms, beats, beats_per_bar)
+    allowed = parse_durations(durations)
+    min_default = as_fraction(min_buffer_ms)
+    if min_default < 0:
+        raise PlanError("최소 버퍼는 0 이상이어야 한다.")
+    norm = []
+    for i, raw in enumerate(cuts):
+        item = _normalize_cut(raw, i, default_buffer, min_default)
+        if item is not None:
+            norm.append(item)
+    if not norm:
+        raise PlanError("컷이 없다.")
+    cum_song = Fraction(0)
+    cum_frames = 0
+    out = []
+    for raw in norm:
+        cut, cum_song, cum_frames = _plan_one(raw, ctx, allowed, fps, cum_song, cum_frames)
+        out.append(cut)
+    reported_offset = ctx.beats[0] if ctx.beats else ctx.offset_ms
+    return {
+        "bpm": None if ctx.bpm is None else num(ctx.bpm, 4),
+        "offset_ms": num(reported_offset),
+        "timing": "beats" if ctx.beats else "bpm",
+        "fps": num(as_fraction(fps), 4),
+        "frame_ms": num(Fraction(1000) / as_fraction(fps), 4),
+        "half_frame_ms": num(Fraction(500) / as_fraction(fps), 4),
+        "min_buffer_ms": num(min_default),
+        "durations_s": allowed,
+        "beats_per_bar": ctx.beats_per_bar,
+        "crossfade_ms": CROSSFADE_MS,
+        "cuts": out,
+    }
+
+
+def format_plan(plan):
+    durs = plan["durations_s"]
+    if len(durs) == 1:
+        dur_s = str(durs[0])
+    elif durs == list(range(durs[0], durs[-1] + 1)):
+        dur_s = "%d-%d" % (durs[0], durs[-1])
+    else:
+        dur_s = "/".join(str(d) for d in durs)
+    lines = []
+    head = "fps %s · 프레임 %sms · 반 프레임 %sms · 최소 버퍼 %sms · 생성 %s" % (
+        plan["fps"], plan["frame_ms"], plan["half_frame_ms"], plan["min_buffer_ms"], dur_s)
+    lines.append(head)
+    if plan.get("bpm") is not None:
+        lines.append("BPM %s · 첫 다운비트 %sms (%s)" % (plan["bpm"], plan["offset_ms"], plan["timing"]))
+    elif plan.get("timing") == "beats":
+        lines.append("박 파일 · 첫 다운비트 %sms" % plan["offset_ms"])
+    lines.append("드리프트는 타임라인에 쌓인 그림과, 그 컷까지 쓴 곡 길이의 합이다. 반 프레임을 넘기지 않게 프레임 수를 고른다.")
+    lines.append("")
+    lines.append("%-8s %-5s %10s %8s %6s %8s %8s %8s %8s %9s" % (
+        "컷", "버퍼", "곡ms", "사용", "생성", "머리", "trim_in", "trim_out", "in_ms", "drift"))
+    for c in plan["cuts"]:
+        lines.append("%-8s %-5s %5.0f~%-4.0f %6.0fms %5ds %6.0fms %8d %8d %8d %+8.1fms" % (
+            c["id"], c["buffer"], c["song_in_ms"], c["song_out_ms"], c["used_ms"],
+            c["duration_s"], c["head_buffer_ms"], c["trim_in_ms"], c["trim_out_ms"],
+            c["track_in_ms"], c["drift_ms"]))
+        lines.append("         계산 머리 %.1fms → %d프레임(%.3f초) · 꼬리 %.1fms · song_start_ms=%d · at_ms=%d · 프롬프트 +%sms" % (
+            c["nominal_head_ms"], c["head_frames"], c["head_buffer_ms"] / 1000.0,
+            c["tail_buffer_ms"], c["song_start_ms"], c["track_at_ms"], c["prompt_shift_ms"]))
+        for w in c["warnings"]:
+            lines.append("         ! %s" % w)
+        lines.append("         %s" % c["prompt_hint"])
+        used = [b for b in c["beats"] if b["place"] == "used"]
+        tail = [b for b in c["beats"] if b["place"] == "tail"]
+        if used:
+            lines.append("         쓸 박(프롬프트 초) %s" % " ".join(
+                "b%d@%.3f" % (b["beat"], b["prompt_s"]) for b in used))
+        if tail:
+            lines.append("         꼬리 박(프롬프트 초) %s" % " ".join(
+                "b%d@%.3f" % (b["beat"], b["prompt_s"]) for b in tail))
+    return "\n".join(lines)
+
+
+def cmd_buffer(a):
+    file_meta = {}
+    file_cuts = []
+    try:
+        if a.cuts:
+            file_meta, file_cuts = load_cuts_file(a.cuts)
+        if a.offset_ms is not None and a.offset is not None:
+            sys.exit("--offset-ms 와 --offset 은 같이 쓰지 않는다.")
+        if a.offset_ms is not None:
+            offset_ms = a.offset_ms
+        elif a.offset is not None:
+            offset_ms = a.offset * 1000.0
+        elif "offset_ms" in file_meta:
+            offset_ms = file_meta["offset_ms"]
+        elif "offset_s" in file_meta:
+            offset_ms = float(file_meta["offset_s"]) * 1000.0
+        else:
+            offset_ms = 0
+        bpm = a.bpm if a.bpm is not None else file_meta.get("bpm")
+        fps = a.fps if a.fps is not None else file_meta.get("fps", DEFAULT_FPS)
+        min_buffer = a.min_buffer_ms if a.min_buffer_ms is not None else file_meta.get(
+            "min_buffer_ms", DEFAULT_MIN_BUFFER_MS)
+        durations = a.durations if a.durations is not None else file_meta.get("durations", DEFAULT_DURATIONS)
+        bpb = a.beats_per_bar if a.beats_per_bar is not None else file_meta.get("beats_per_bar", 4)
+        default_buffer = a.buffer if a.buffer else file_meta.get("buffer", "both")
+        beats = None
+        beats_path = a.beats or file_meta.get("beats")
+        if isinstance(beats_path, list):
+            beats = beats_path
+        elif beats_path:
+            beats = load_beats(beats_path)
+        if beats and (a.offset_ms is not None or a.offset is not None or "offset_ms" in file_meta):
+            sys.stderr.write("박 파일이 있으면 박·마디 위치는 파일 시각을 쓴다. offset 은 파일 시각에 더하지 않는다.\n")
+        cuts = list(file_cuts)
+        if a.cut:
+            cuts.extend(a.cut)
+        if not cuts:
+            sys.exit("컷이 없다. 예: --cut \"0ms..2bar both\"  또는 --cuts 파일")
+        plan = plan_cuts(
+            cuts, bpm=bpm, offset_ms=offset_ms, beats=beats, beats_per_bar=bpb,
+            fps=fps, min_buffer_ms=min_buffer, durations=durations, default_buffer=default_buffer)
+    except PlanError as err:
+        sys.exit(str(err))
+    except (OSError, ValueError, json.JSONDecodeError) as err:
+        sys.exit("컷 계획을 읽지 못했다: %s" % err)
+    if a.json:
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+    else:
+        print(format_plan(plan))
+
+
+def _add_buffer_parser(sub, name):
+    b = sub.add_parser(name, help="정수 초 생성에 버퍼를 두고, 프레임에 맞춘 트림·곡 시작·프롬프트 시각을 계산한다")
+    b.add_argument("--bpm", type=float, default=None)
+    b.add_argument("--offset-ms", type=float, default=None, help="첫 다운비트(ms)")
+    b.add_argument("--offset", type=float, default=None, help="첫 다운비트(초). --offset-ms 와 같이 쓰지 않는다")
+    b.add_argument("--beats", default=None, help="박 시각 파일. 정수 ms, 소수면 초, Ns·Nms, 또는 JSON 배열(ms)")
+    b.add_argument("--beats-per-bar", type=int, default=None)
+    b.add_argument("--fps", type=float, default=None, help="기본 24")
+    b.add_argument("--min-buffer-ms", type=float, default=None, help="쓰는 쪽마다의 최소 버퍼. 기본 500")
+    b.add_argument("--durations", default=None, help="허용 생성 길이. 4-15(기본, Seedance 2.5) 또는 5/10")
+    b.add_argument("--buffer", default=None, choices=["head", "tail", "both"],
+                   help="컷에 버퍼를 안 적었을 때의 기본. 기본 both")
+    b.add_argument("--cut", action="append", default=None,
+                   help="시작..끝 [head|tail|both] id=이름 min=500 mark=0ms:hit  를 반복한다")
+    b.add_argument("--cuts", default=None, help="컷 목록 파일. JSON 이거나 한 줄에 컷 하나")
+    b.add_argument("--json", action="store_true")
+    b.set_defaults(fn=cmd_buffer)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -312,6 +1373,31 @@ def main():
     e.add_argument("--jump-db", type=float, default=6.0)
     e.set_defaults(fn=cmd_energy)
 
+    ac = sub.add_parser("accents", help="킥·스네어·하이햇이 들어오는 자리를 반 박 격자에 놓는다(안무의 히트·멈춤을 정할 때)")
+    ac.add_argument("path")
+    ac.add_argument("--bpm", type=float, required=True)
+    ac.add_argument("--from", dest="start", type=float, default=0.0, help="컷이 시작하는 곡 시각(초)")
+    ac.add_argument("--to", dest="end", type=float, default=0.0, help="컷이 끝나는 곡 시각(초)")
+    ac.add_argument("--offset", type=float, default=None, help="박 1 이 되는 곡 시각(초). 기본 --from")
+    ac.add_argument("--fps", type=float, default=24.0)
+    ac.add_argument("--window-ms", type=int, default=10)
+    ac.add_argument("--rise-db", type=float, default=6.0, help="직전 30ms 보다 이만큼 오르면 소리가 들어온 것으로 본다")
+    ac.add_argument("--tolerance-ms", type=float, default=60.0, help="반 박 자리에서 이만큼까지 벗어난 소리를 그 자리로 센다")
+    ac.add_argument("--align", action="store_true", help="박 1 을 잰 위상만큼 옮겨 격자를 소리에 맞춘다")
+    ac.add_argument("--json", action="store_true")
+    ac.set_defaults(fn=cmd_accents)
+
+    ly = sub.add_parser("lyrics", help="whisper 단어 시각을 컷의 반 박 격자와 프레임에 놓는다(가사를 동작으로 옮길 때)")
+    ly.add_argument("path", help="whisper --word_timestamps True --output_format json 결과")
+    ly.add_argument("--bpm", type=float, required=True)
+    ly.add_argument("--from", dest="start", type=float, default=0.0, help="컷이 시작하는 곡 시각(초)")
+    ly.add_argument("--to", dest="end", type=float, default=0.0, help="컷이 끝나는 곡 시각(초)")
+    ly.add_argument("--offset", type=float, default=None, help="박 1 이 되는 곡 시각(초). accents --align 의 값을 쓴다")
+    ly.add_argument("--audio-start", type=float, default=0.0, help="whisper 에 넣은 오디오의 0초가 곡의 몇 초인가")
+    ly.add_argument("--fps", type=float, default=24.0)
+    ly.add_argument("--json", action="store_true")
+    ly.set_defaults(fn=cmd_lyrics)
+
     t = sub.add_parser("tempo", help="BPM 을 어림한다(악보·생성 설정의 BPM 이 없을 때)")
     t.add_argument("path")
     t.add_argument("--from", dest="start", type=float, default=0.0)
@@ -333,6 +1419,18 @@ def main():
     s.add_argument("--cols", type=int, default=6)
     s.add_argument("--width", type=int, default=320)
     s.set_defaults(fn=cmd_sheet)
+
+    fo = sub.add_parser("follow", help="결과 영상이 참고 영상(프리비즈)의 움직임을 몇 프레임 늦게 따랐는지 잰다")
+    fo.add_argument("reference")
+    fo.add_argument("result")
+    fo.add_argument("--from", dest="start", type=int, default=0, help="비교를 시작할 프레임")
+    fo.add_argument("--to", dest="end", type=int, default=0, help="비교를 끝낼 프레임. 0 이면 끝까지")
+    fo.add_argument("--max-lag", type=int, default=8)
+    fo.add_argument("--json", action="store_true")
+    fo.set_defaults(fn=cmd_follow)
+
+    _add_buffer_parser(sub, "buffer")
+    _add_buffer_parser(sub, "cutplan")
 
     a = p.parse_args()
     a.fn(a)

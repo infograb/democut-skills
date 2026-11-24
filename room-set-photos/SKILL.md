@@ -114,6 +114,7 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 창의 기본은 한국 샷시 미닫이다. 흰 PVC(또는 알루미늄) 틀에 짝이 둘이고, 열린 창은 한쪽 짝만 다른 짝 뒤로 밀린다. 도면이 `style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않고, `Avoid:` 에 `casement, hinged, or push-out windows` 를 넣는다. 열린 창(`open: true`)이면 「one pane slid open behind the other」 를 짧게 붙인다. 원룸 창의 기본 크기는 120×120cm, 턱 90cm다. 스케치와 프롬프트는 도면의 오프셋·폭·높이·턱으로 창을 두고, 바로 아래 가구가 있으면 「above the desk」 처럼 그 이름을 붙인다. 위 끝은 턱+높이이고 천장까지 올리지 않는다.
 원룸·작은 방 창(`glass: "frosted"`, 빼면 그 기본)이 화면에 있으면 유리는 간유리·반투명이고, 바깥 쇠창살 실루엣이 그 유리에 비친다. In view 줄에 `frosted translucent glass with the outside security-bar silhouette on it` 을 붙이고, 나무·하늘·건물이 선명한 창밖 문장은 붙이지 않는다. `Avoid:` 에 `clear transparent glass, a sharp outdoor view of trees, sky, or buildings` 를 넣는다. 확인 목록은 「창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다」 다. 빛은 그 유리를 통과한 퍼진 낮·저녁 빛이다. 방향 문장은 `Diffuse daylight comes only through the frosted glass of the window…` 이고, 컨셉 빛이 직사를 말하면 `diffuse through the frosted glass` 를 보탠다. 이미 퍼진 빛이라고 적은 컨셉은 그대로 둔다.
 방 안의 가구는 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 처럼, 화면 밖에 있어도 그 방에 있으면 센다. 항목 하나당 하나고 `qty` 는 세지 않는다. 화면의 좌우는 도면 자리를 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 문장은 4,000자 한도로 빼지 않는다.
+화장실 컷의 수건걸이는 스케치와 영어 프롬프트가 같은 자리를 말한다. 모델에 넣는 스케치는 글자 없이 도면의 벽·설치 높이에 봉을 그린다. 사람용 범례와 프롬프트는 같은 문장이다. `Towel bar: on the left wall, on the left side of the frame, mounted 130 cm above the floor. One white towel hangs on this bar.` 벽은 이 카메라로 본 벽이고, 왼쪽·오른쪽은 화면 기준, 높이는 `z` 다. 낮 컷과 저녁 컷이 이 문장을 같이 쓴다. 확인 목록은 「수건걸이 — 화장실에 있고, 모든 컷(낮·저녁)에서 house.json 과 같은 자리다」 다. 이 문장은 4,000자 한도로 빼지 않는다. 벽 고리에 수건을 따로 걸지 않는다.
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
@@ -209,7 +210,7 @@ python3 -I <스킬>/scripts/shots.py board photos/shots.json --images <2단계 �
 4. 대표 컷이 통과하면 그 그림을 나머지 컷의 레퍼런스 1번으로 넣고, 남은 컷의 견적을 표로 모아 동의를 받은 뒤
    `shots.md` 의 번호 순서대로 만든다. 레퍼런스에 다른 컷의 그림(`role: neighbor`)이 있는 컷은 그 그림이 나와 확인한 뒤 넣는다.
    `opposite_view` 인 참고는 마감과 빛만 맞춘다. 가구 배치·좌우·깊이는 그 컷의 스케치와 프롬프트를 따른다.
-5. 컷마다 확인 목록으로 검사한다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
+5. 컷마다 확인 목록으로 검사한다. 수건걸이 — 화장실에 있고, 모든 컷(낮·저녁)에서 house.json 과 같은 자리다. 틀린 컷은 원인을 프롬프트에 적어 다시 만든다(다시 견적·동의).
    거의 맞고 **제품 한두 개만** 틀렸으면 다시 만들지 말고 `shots.py fix` 로 그 제품만 편집한다
    ([`references/product-fidelity.md`](references/product-fidelity.md) 「틀린 제품만 고치기」).
    받침 위 작은 소품이 크게 나오면 다시 만들어도 같다. 그림에서 재서 `fix --scale` 로 줄인다.
@@ -301,7 +302,7 @@ room-set-planner 의 house.json 에 아래를 더한다. room-set-planner 는 �
 
 이 스킬이 내는 사진은 빈 방이다. 나중에 그 그림에 사람을 앉힐 때 빈 의자가 하나 더 생기고, 좌우가 도면과 뒤집힌 일이 있었다(2026-11-18). 같은 방 사진을 레퍼런스로 쓰는 컷은 모두 아래를 지킨다.
 
-- 레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구(의자·침대 등)를 방 소품으로 따로 적지 않는다. `the single chair from the reference, and she is sitting in that same chair` 처럼 그 사람과 같은 물건이라고 적는다. 가구 이름만 바꾼다.
+- 레퍼런스에 이미 있는, 사람이 앉거나 쓰는 가구(의자·침대 등)를 방 소품으로 따로 적지 않는다. `the single chair from the reference, and Yeonjae is sitting in that same chair` 처럼 그 사람과 같은 물건이라고 적는다. 예의 Yeonjae 는 그 사람의 이름으로 바꾸고, 가구 이름은 그 가구로 바꾼다. 성별 대명사(she·her·he·his)는 쓰지 않는다.
 - 그 빈 방 컷 프롬프트의 개수 문장(`Exactly one … No second …, no extra empty …`)과 `Layout:` 문장을 그대로 옮긴다. 좌우를 다시 짐작하지 않는다.
 - 같은 레퍼런스를 쓰는 다른 컷에도 같은 문장을 넣는다.
 - 의자에 사람이 앉는 컷의 방 레퍼런스는 책상 쪽에서 찍은 사진(책상 컷, `day-desk-to-bed`)이다. 책상 정면 제품 컷(`hero-desk`)이나 문간에서 본 전체 컷을 쓰지 않는다. 그 둘을 레퍼런스로 쓰면 연재 앞에 책상이 하나 더 생기거나 빈 의자가 하나 더 생긴다. 호빵 훅 v5 는 v11 `day-desk-to-bed` 를 레퍼런스로 썼고, 책상과 의자가 정확히 하나씩 나왔다(2026-11-19).

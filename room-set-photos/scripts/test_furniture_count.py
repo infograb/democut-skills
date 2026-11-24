@@ -64,8 +64,13 @@ def main():
     assert layout in text, text
     assert S._COUNT_CHECK in checks, checks
     assert S._LAYOUT_CHECK in checks, checks
+    assert S.person_same_furniture("chair", "Yeonjae") == (
+        "the single chair from the reference, and Yeonjae is sitting in that same chair")
+    assert S.person_same_furniture("bed", "Yeonjae") == (
+        "the single bed from the reference, and Yeonjae is sitting in that same bed")
     assert S.person_same_furniture("chair") == (
-        "the single chair from the reference, and she is sitting in that same chair")
+        "the single chair from the reference, and <person name> is sitting in that same chair")
+    assert "she" not in S.person_same_furniture("chair", "Yeonjae")
 
     two = S.room_count_lines([
         {"id": "a", "category": "chair", "qty": 4},
@@ -83,7 +88,8 @@ def main():
         assert S._COUNT_CHECK in shot["checks"] and S._LAYOUT_CHECK in shot["checks"]
         assert len(shot["prompt"]) <= S.PROMPT_MAX, len(shot["prompt"])
         md = open(os.path.join(out, "shots.md"), encoding="utf-8").read()
-        assert "the single chair from the reference, and she is sitting in that same chair" in md
+        assert "the single chair from the reference, and Yeonjae is sitting in that same chair" in md
+        assert "she is sitting" not in md
         saved = json.load(open(os.path.join(out, "shots.json"), encoding="utf-8"))
         assert saved["shots"][0]["id"] == "wide"
     print("ok furniture-count")
