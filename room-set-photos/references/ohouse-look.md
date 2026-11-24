@@ -31,7 +31,7 @@
 (2026-11-13 사용자 지적). 그래서 `shots.py` 는 `type: "oneroom"` 이고 유리가 맑을 때만 창밖에 건너편 빌라를 넣고
 `Avoid:` 에 아파트 단지를 넣는다. 기본인 간유리 창은 그 문장 대신 쇠창살 실루엣을 적는다. 커튼을 쳐서 바깥을 가리려면 `photo.view` 를 `false` 로 두고 `photo.curtains` 에 친 커튼을 적는다.
 
-가구는 방 전체의 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 화면 밖에 있는 것도 그 방에 있으면 센다. 좌우는 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 빈 방 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때는 그 가구를 따로 적지 않고 `the single chair from the reference, and she is sitting in that same chair` 라고 적는다. 개수·좌우 문장은 그 컷의 것을 그대로 옮기고, 같은 사진을 쓰는 다른 컷에도 넣는다(2026-11-18, 빈 의자가 더 생기고 좌우가 뒤집힘).
+가구는 방 전체의 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 화면 밖에 있는 것도 그 방에 있으면 센다. 좌우는 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 빈 방 사진을 사람이 앉는 컷의 레퍼런스로 쓸 때는 그 가구를 따로 적지 않고 `the single chair from the reference, and Yeonjae is sitting in that same chair` 라고 적는다. 예의 Yeonjae 는 그 사람의 이름이다. 개수·좌우 문장은 그 컷의 것을 그대로 옮기고, 같은 사진을 쓰는 다른 컷에도 넣는다(2026-11-18, 빈 의자가 더 생기고 좌우가 뒤집힘).
 
 **식물은 요청할 때만 넣는다.** 「화분 한두 개」 라고만 써도 모델은 서랍장·협탁·창가마다 화분을 늘어놓는다(2026-11-11 사용자 지적).
 프리셋 소품에는 식물이 없고 `Avoid:` 줄이 식물·꽃을 막는다. 사용자가 식물을 원하면 `photo.plants` 를 켠다(`true` 면 작은 화분
@@ -71,8 +71,10 @@ SS 침대 프레임(110×204cm, SS 매트리스와 거의 같은 크기)의 대�
 |---|---|---|
 | `bedroom`·`living`·`dressroom` | 프리셋 그대로 | 한국 집 디테일(샷시·걸레받이·실크 벽지·원형 LED) · 프리셋 소품 |
 | `kitchen` | 프리셋 벽 + 싱크대 뒤 흰 타일 · 프리셋 바닥 | 같은 디테일 · 건조대의 그릇, 흰 전기포트, 접은 행주 |
-| `bathroom` | 바닥부터 천장까지 흰 유광 타일 · 배수구로 기운 연회색 논슬립 타일 | 타일 벽·바닥, 배수구, 문턱, 사각 평판 LED · 벽 고리의 흰 수건, 세면대 옆 디스펜서·칫솔컵 |
+| `bathroom` | 바닥부터 천장까지 흰 유광 타일 · 배수구로 기운 연회색 논슬립 타일 | 타일 벽·바닥, 배수구, 문턱, 사각 평판 LED · 도면의 수건걸이(그 벽·화면의 왼쪽·오른쪽·설치 높이), 세면대 옆 디스펜서·칫솔컵. 벽 고리에 수건을 따로 걸지 않는다 |
 | `entrance` | 프리셋 벽 · 옆 방보다 한 단 낮은 타일. 현관 전체(문간 벽 두께 포함)를 벽에서 벽까지 덮고, 경계는 옆방 벽 선 한 줄 | 같은 디테일 · 바닥 타일 위 흰 운동화 한 켤레. 경계를 주방·방 안이나 현관 안쪽으로 밀지 않는다. 현관 가구는 통째로 타일 위, 옆방 가구는 통째로 마루 위 |
+
+욕실 수건은 수건걸이에만 건다. 스케치는 봉을 도면의 벽과 설치 높이(`z`)에 그린다. 프롬프트는 `Towel bar: on the left wall, on the left side of the frame, mounted 130 cm above the floor.` 처럼 벽·화면의 왼쪽·오른쪽·높이를 적고, 낮 컷과 저녁 컷이 그 문장을 같이 쓴다. 자리가 컷마다 달라지지 않게, 벽 고리를 소품으로 더하지 않는다.
 
 값은 `photo.rooms` 에 방 종류나 방 id 를 키로 덮어쓴다(`walls`·`floor`·`details`·`props`). 방 이름은 원룸이면
 「the bathroom of a one-room studio in a 4-story Korean villa」 처럼 그 집 안의 공간으로 적는다. 대표 컷(침실)을 레퍼런스로
