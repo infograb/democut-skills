@@ -44,7 +44,7 @@ democut_add_cut(slug, mode="ai_image", title="<컷 id> <제목>",
 - `after` 를 주지 않는다(ai_image 컷은 순서에 들어가지 않는다. 주면 422).
 - **`reference_asset_ids` 는 `refs` 와 같은 순서**여야 한다. 프롬프트가 「Reference image 1 is …」 처럼 번호로 가리킨다.
   레퍼런스는 3장까지다(`shots.py` 는 대표 컷·스케치·보드 셋을 넘기지 않는다).
-- 프롬프트는 4,000자까지다.
+- 한도는 8,000자다. 도구가 거절하면(도구 설명이 아직 4,000자일 수 있다) 4,000자 이하로 줄여 다시 낸다.
 
 ```text
 democut_estimate_cut_image(slug, cut_id, model=<shots.json 의 model>, quality=<shots.json 의 quality>)

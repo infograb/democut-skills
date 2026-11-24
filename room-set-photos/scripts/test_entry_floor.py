@@ -139,7 +139,8 @@ def test_never_trimmed():
     fin = S.room_finish(house, concept, room)
     view = dict(room=room, space="a kitchen", finish=dict(fin, props="a folded towel " * 60),
                 master_finish=fin, colors=(S.TILE,), entry_floor=line)
-    thru = [dict(head="Through the open wall is the entryway.", lines=["2. Shoe cabinet: " + "white " * 300],
+    thru = [dict(head="Through the open wall is the entryway.",
+                 lines=["2. Shoe cabinet: " + "white " * (S.PROMPT_MAX // 3)],
                  short=["2. Shoe cabinet: 60x35x100 cm."], avoids=[])]
     refs = [dict(role="master", same_room=True), dict(role="sketch")]
 

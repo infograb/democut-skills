@@ -112,8 +112,8 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 [`references/ohouse-look.md`](references/ohouse-look.md) 「전체 컷 카메라」.
 창의 기본은 한국 샷시 미닫이다. 흰 PVC(또는 알루미늄) 틀에 짝이 둘이고, 열린 창은 한쪽 짝만 다른 짝 뒤로 밀린다. 도면이 `style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않고, `Avoid:` 에 `casement, hinged, or push-out windows` 를 넣는다. 열린 창(`open: true`)이면 「one pane slid open behind the other」 를 짧게 붙인다. 원룸 창의 기본 크기는 120×120cm, 턱 90cm다. 스케치와 프롬프트는 도면의 오프셋·폭·높이·턱으로 창을 두고, 바로 아래 가구가 있으면 「above the desk」 처럼 그 이름을 붙인다. 위 끝은 턱+높이이고 천장까지 올리지 않는다.
 원룸·작은 방 창(`glass: "frosted"`, 빼면 그 기본)이 화면에 있으면 유리는 간유리·반투명이고, 바깥 쇠창살 실루엣이 그 유리에 비친다. In view 줄에 `frosted translucent glass with the outside security-bar silhouette on it` 을 붙이고, 나무·하늘·건물이 선명한 창밖 문장은 붙이지 않는다. `Avoid:` 에 `clear transparent glass, a sharp outdoor view of trees, sky, or buildings` 를 넣는다. 확인 목록은 「창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다」 다. 빛은 그 유리를 통과한 퍼진 낮·저녁 빛이다. 방향 문장은 `Diffuse daylight comes only through the frosted glass of the window…` 이고, 컨셉 빛이 직사를 말하면 `diffuse through the frosted glass` 를 보탠다. 이미 퍼진 빛이라고 적은 컨셉은 그대로 둔다.
-방 안의 가구는 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 처럼, 화면 밖에 있어도 그 방에 있으면 센다. 항목 하나당 하나고 `qty` 는 세지 않는다. 화면의 좌우는 도면 자리를 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 문장은 4,000자 한도로 빼지 않는다.
-화장실 컷의 수건걸이는 스케치와 영어 프롬프트가 같은 자리를 말한다. 모델에 넣는 스케치는 글자 없이 도면의 벽·설치 높이에 봉을 그린다. 사람용 범례와 프롬프트는 같은 문장이다. `Towel bar: on the left wall, on the left side of the frame, mounted 130 cm above the floor. One white towel hangs on this bar.` 벽은 이 카메라로 본 벽이고, 왼쪽·오른쪽은 화면 기준, 높이는 `z` 다. 낮 컷과 저녁 컷이 이 문장을 같이 쓴다. 확인 목록은 「수건걸이 — 화장실에 있고, 모든 컷(낮·저녁)에서 house.json 과 같은 자리다」 다. 이 문장은 4,000자 한도로 빼지 않는다. 벽 고리에 수건을 따로 걸지 않는다.
+방 안의 가구는 개수를 적는다. `Exactly one chair in the whole room. No second chair, no extra empty chair.` 처럼, 화면 밖에 있어도 그 방에 있으면 센다. 항목 하나당 하나고 `qty` 는 세지 않는다. 화면의 좌우는 도면 자리를 이 카메라로 본 쪽이다. `Layout: desk and chair on the left side of the frame, bed on the right side of the frame.` 확인 목록은 「가구 개수 — 도면과 같다(빈 의자·침대가 더 없다)」, 「좌우 — 화면의 왼쪽·오른쪽이 도면과 같다」 다. 이 문장은 8,000자 한도로 빼지 않는다.
+화장실 컷의 수건걸이는 스케치와 영어 프롬프트가 같은 자리를 말한다. 모델에 넣는 스케치는 글자 없이 도면의 벽·설치 높이에 봉을 그린다. 사람용 범례와 프롬프트는 같은 문장이다. `Towel bar: on the left wall, on the left side of the frame, mounted 130 cm above the floor. One white towel hangs on this bar.` 벽은 이 카메라로 본 벽이고, 왼쪽·오른쪽은 화면 기준, 높이는 `z` 다. 낮 컷과 저녁 컷이 이 문장을 같이 쓴다. 확인 목록은 「수건걸이 — 화장실에 있고, 모든 컷(낮·저녁)에서 house.json 과 같은 자리다」 다. 이 문장은 8,000자 한도로 빼지 않는다. 벽 고리에 수건을 따로 걸지 않는다.
 창이 보이는 전체 컷이 **대표 컷(★)** 이 된다. 다른 방의 첫 전체 컷은 대표 컷을 「같은 집 다른 방」 으로 받아 창틀·문·빛만
 맞추고, 벽·바닥은 그 방 종류의 마감(욕실 타일 등, [`references/ohouse-look.md`](references/ohouse-look.md) 「방 종류별 마감」)을
 따른다. 그 방의 나머지 컷은 그 방의 첫 전체 컷을 받는다.
@@ -123,10 +123,10 @@ python3 <스킬>/scripts/shots.py plan house.json [-o photos/] [--max-hero 6]
 (`Through the open right wall … It is 60 cm deep past this opening, no wider. It is a shallow 60 cm-deep space, not a hallway or corridor; the far wall is only 60 cm past the opening and fills the frame as in the sketch. … flush with the opening. The fridge and the shoe cabinet stand side by side against it. Draw only these there`).
 깊이가 100cm 이하인 너머 방은 그 깊이를 cm 로 적고, 복도 종류(`hall`)가 아니면 hallway·corridor 라고 부르지 않는다. 「no wider」 만으로는 깊이가 늘지 않는다. 벽 전체가 트인 개구부는 문틀이 없다는 말과 함께, 양쪽 벽이 같은 폭의 한 면으로 이어지고 더 좁은 문간을 넣지 말라고 적는다.
 같은 문간을 반대쪽(시선이 약 180°, 40° 안)에서 본 앞 컷은 같은 방 대표(`role: master`, `same_room`)로 넣지 않는다. `role: neighbor` 에 `opposite_view` 로 넣고, 그 사진의 좌우를 베끼지 말라고 적는다. 도면에서 한 벽에 있는 가구는 그 벽에 두고, 화면에서만 좌우가 바뀐다. 좌우·깊이·먼 벽의 크기는 이 컷의 스케치가 정한다.
-나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장, 화면에 있는 받침 위의 품목 문장은 구조다. 4,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
+나란히 선 가구, 깊이·폭, 벽 전체가 트였다는 문장, 양쪽 벽이 한 면이라는 문장, 화면에 있는 받침 위의 품목 문장은 구조다. 8,000자를 넘으면 문간 너머 생김새, 소품, 레퍼런스 설명을 먼저 줄인다. 그 구조 문장은 빼지 않는다. 그래도 넘으면 그 컷을 내지 않고, look 을 줄여 다시 plan 하라고 멈춘다.
 `Styling:` 의 소품은 스케치와 목록에 없는 벽에 가구 줄을 만들지 않는다.
 그 너머 방에 또 트인 문간이 보이면 그 방도 같은 카메라로 이어서 그린다. 한 단계만 그리면 그 다음 문간이 빈 회색 판으로 남는다.
-받침이 화면에 있고 그 위에 올린 품목(`on`)이 한 픽셀도 없으면, 같은 방·문간 너머 모두 「stands on its top just out of frame」 과 「if the 〈받침〉 top shows, the 〈품목〉 stands on it」 을 적는다. 4,000자로 줄여 문간 너머 생김새를 빼도(`brief`) 이 조건은 남긴다. 「just out of frame」만 남기면 모델이 받침 윗면을 비워 그린다. `Avoid:` 에 `a bare 〈받침〉 top` 을 넣는다. 이름은 집 모델의 그 가구다.
+받침이 화면에 있고 그 위에 올린 품목(`on`)이 한 픽셀도 없으면, 같은 방·문간 너머 모두 「stands on its top just out of frame」 과 「if the 〈받침〉 top shows, the 〈품목〉 stands on it」 을 적는다. 8,000자로 줄여 문간 너머 생김새를 빼도(`brief`) 이 조건은 남긴다. 「just out of frame」만 남기면 모델이 받침 윗면을 비워 그린다. `Avoid:` 에 `a bare 〈받침〉 top` 을 넣는다. 이름은 집 모델의 그 가구다.
 손으로 프롬프트를 고치거나 여러 글을 합칠 때도, 화면에 있는 받침의 올린 품목은 하나도 빼지 않는다. 확인은 `shots.py stacked` 다. `house.json` 과 최종 프롬프트, 그리고 그 컷에서 보이던 받침 id 를 넣으면, 빠진 `on` 품목 이름으로 끝난다(없으면 `ok stacked`).
 
 ```bash
@@ -140,7 +140,7 @@ python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visib
 - 글은 「Entry floor: … covering the whole entry wall to wall (about W x D cm). The tile ends in one straight line at the opening, level with the entry-side face of the 〈경계에 닿은 옆방 가구〉」 다음에, 화면에 있는 현관 가구는 「stands entirely on the tile; the tile runs past its full width and depth」, 경계에 닿은 옆방 가구는 「stands entirely on the wood floor; no tile under any part of it」 로 이름을 대어 적는다. 레퍼런스 사진보다 이 글과 스케치를 따른다고 적는다.
 - 스케치에 타일이 한 픽셀도 없으면(카메라가 현관 타일 위에 서서 발밑이 화면 밖) 「out of frame … draw no tile anywhere」 로 적는다. 「보이면 타일」 처럼 열어 두면 모델이 화면 아래에 타일을 지어 옆방 바닥까지 깔았다(2026-11-17).
 - `Avoid:` 에 `tile boundary shifted into the kitchen/room or set back into the entry`, 그 컷의 가구 이름으로 `tile spilling under the 〈옆방 가구〉`·`tile ending partway under the 〈현관 가구〉`(타일이 화면 밖이면 `any tile floor in frame`)를 넣는다.
-- 이 문장들은 구조라 4,000자 한도로 줄이지 않는다(`_fit_prompt` 는 소품·레퍼런스·너머 생김새만 줄인다).
+- 이 문장들은 구조라 8,000자 한도로 줄이지 않는다(`_fit_prompt` 는 소품·레퍼런스·너머 생김새만 줄인다).
 - 같은 뷰를 다른 빛(저녁 등)으로 다시 만들 때, 먼저 만든 사진의 타일 경계가 틀렸으면 그 사진을 레이아웃 레퍼런스로 넣지 않는다. 틀린 경계를 그대로 베낀다(2026-11-17: 낮 사진의 타일이 옆방 가구 밑·현관 가구 중간에서 끝났고 저녁 컷이 그대로 따라 했다). 스케치와 글로 다시 만든다.
 그 빈 판이 화면의 0.3% 이상이면 그 컷은 내지 않는다. 프롬프트의 문간 너머 문장은 스케치에 실제로 보인 방과 가구만 적는다.
 모델에 넣는 스케치는 `sketch/<컷>.png` 다. `sketch/<컷>-legend.png` 는 색 이름 범례가 붙은 사람용이라 레퍼런스로 올리지 않는다.
@@ -153,8 +153,10 @@ python3 <스킬>/scripts/shots.py stacked house.json --prompt edited.txt --visib
 출력 끝의 경고를 처리한다.
 
 - `look 이 없는 품목` — 2단계로 돌아가 적는다. 비우면 상품명이 프롬프트에 들어가 모양이 틀어진다.
-- `프롬프트가 DemoCut 한도(4,000자)를 넘는다`·`가깝다` — 넘으면 DemoCut 이 거절한다. `look`·`keep`·`props` 를 줄인다.
+- `프롬프트가 DemoCut 한도(8,000자)를 넘는다`·`가깝다` — 넘으면 DemoCut 이 거절한다. `look`·`keep`·`props` 를 줄인다.
   프롬프트 길이도 견적에 들어간다.
+- 한도는 8,000자다. 도구가 거절하면(도구 설명이 아직 4,000자일 수 있다) 4,000자 이하로 줄여 다시 낸다.
+  plan 은 프롬프트가 4,000자를 넘으면 이 안내를 낸다.
 - `화면 … 끝에 잘려 걸린다` — 넓은 컷에서 카메라 가까이(1.5m 안) 있는 큰 가구가 절반 넘게 화면 밖이고 모서리만 걸렸다.
   생성 모델은 그 가구를 다른 가구보다 크고 높게 그린다. `photo.shots` 로 카메라를 옮겨 화면 밖으로 빼거나
   전체가 들어오게 한다. 그 가구는 제품 컷에서 보인다. 자동 컷은 이런 자리를 피한다.

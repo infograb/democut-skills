@@ -86,7 +86,8 @@ PROMINENT = 0.06             # 이 비율 이상 보이면 「화면에 들어�
 HORIZON = {"9:16": 0.38, "1:1": 0.42, "16:9": 0.46}
 SCORE_DIV = 6               # 후보를 고를 때는 1/6 크기로 그려 본다
 BOARD_CELLS = 4             # 제품 보드 한 장의 칸 수(2×2 × 512px = 1024px, DemoCut 레퍼런스 상자에서 줄지 않는다)
-PROMPT_MAX = 4000           # DemoCut ai_image 프롬프트 한도
+PROMPT_MAX = 8000           # DemoCut ai_image 프롬프트 한도
+PROMPT_FALLBACK = 4000      # 도구 설명이 아직 이 길이를 한도로 적을 수 있다. 넘으면 요약에 안내를 낸다
 SHALLOW_MM = 1000           # 문간 너머 깊이가 이하면 복도로 늘리지 말라고 적는다
 AVOID_SHALLOW = "a hallway or corridor longer than the stated depth"
 AVOID_JAMB = "a door frame or jambs in a full-width opening"
@@ -1746,7 +1747,7 @@ def _opening(sc, m, cam):
     낸다(2026-11-13 주방·현관: 벽 전체 162cm 가 트인 자리에 벽과 문틀이 섰고 현관은 그 벽만큼 넓어졌다). 그래서 폭·높이를
     cm 로 적고, 벽을 거의 다 차지하면(WALL_WIDE) 그쪽에 벽이 없다고 적는다.
     돌려주는 것: the(너머 방 머리 줄의 「Through {the}」), a(In view 줄 — 「{to}」 자리에 부르는 쪽이 「 to the kitchen」 을
-    끼운다), ko(확인 목록 말). 주방 컷은 프롬프트 한도(4,000자) 가까이라 말을 짧게 둔다."""
+    끼운다), ko(확인 목록 말). 주방 컷은 말을 짧게 둔다. 한도는 8,000자고, 도구가 4,000자로 거절할 수 있다."""
     o, side = m["op"], m["side"]
     x0, y0, x1, y1 = P.rr(sc.room)
     L = (x1 - x0) if side in "ns" else (y1 - y0)
@@ -2226,7 +2227,8 @@ def _span_sentence(cam, o, room, narrow):
         extra.append("{} cm {}".format(_cm(right), "right"))
     d, w = _cm(g["depth"]), _cm(g["width"])
     ow = abs(o["b"] - o["a"])
-    # 주방 컷은 4,000자에 붙어 있어 문장을 짧게 둔다. 뜻은 같다: 문간에서 잰 깊이·폭, 개구부 밖으로 더 나간 쪽.
+    # 주방 컷은 문장을 짧게 둔다. 한도는 8,000자고, 도구가 4,000자로 거절하면 더 줄인다.
+    # 뜻은 같다: 문간에서 잰 깊이·폭, 개구부 밖으로 더 나간 쪽.
     if not extra and abs(g["width"] - ow) <= 50:
         s = "It is {} cm deep past this opening, no wider".format(d)
     elif not extra:
@@ -3848,6 +3850,20 @@ def stacked_check(house_path, prompt_path=None, shots_path=None, shot_id=None, v
 
 # ----------------------------------------------------------------------------- CLI
 
+def prompt_limit_notes(n):
+    """plan 요약에 붙일 한도 알림. 8,000자를 넘거나 가까우면 경고하고,
+    4,000자를 넘으면 도구가 그 길이로 거절할 수 있다고 알린다."""
+    lines = []
+    if n > PROMPT_MAX:
+        lines.append("⚠ 프롬프트가 DemoCut 한도({:,}자)를 넘는다 — 거절된다. look·keep·props 를 줄인다".format(PROMPT_MAX))
+    elif n > PROMPT_MAX - 200:
+        lines.append("⚠ 프롬프트가 DemoCut 한도({:,}자)에 가깝다. look 을 줄인다".format(PROMPT_MAX))
+    if n > PROMPT_FALLBACK:
+        lines.append("ℹ 한도는 {:,}자다. 도구가 거절하면(도구 설명이 아직 {:,}자일 수 있다) {:,}자 이하로 줄여 다시 낸다.".format(
+            PROMPT_MAX, PROMPT_FALLBACK, PROMPT_FALLBACK))
+    return lines
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="house.json → 촬영 컷·프롬프트·레퍼런스")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -3886,10 +3902,8 @@ def main(argv=None):
         for i, s in enumerate(data["shots"], 1):
             print("  {}. {:<18} {} · 보이는 품목 {} · 프롬프트 {}자{}".format(
                 i, s["id"], s["title"], len(s["items"]), s["prompt_chars"], " ★대표" if s["master"] else ""))
-            if s["prompt_chars"] > PROMPT_MAX:
-                print("     ⚠ 프롬프트가 DemoCut 한도({:,}자)를 넘는다 — 거절된다. look·keep·props 를 줄인다".format(PROMPT_MAX))
-            elif s["prompt_chars"] > PROMPT_MAX - 200:
-                print("     ⚠ 프롬프트가 DemoCut 한도({:,}자)에 가깝다. look 을 줄인다".format(PROMPT_MAX))
+            for note in prompt_limit_notes(s["prompt_chars"]):
+                print("     " + note)
             for w in s["warnings"]:
                 print("     ⚠ " + w)
         for sk in data.get("skipped") or []:

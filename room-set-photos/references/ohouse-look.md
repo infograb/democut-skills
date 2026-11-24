@@ -23,7 +23,7 @@
 그 그림은 한눈에 AI 가 만든 티가 난다(2026-11-11 실제 생성에서 사용자가 지적). 그래서 공통 문장은 「사는 사람이 폰으로 찍은
 사진」 쪽 질감을 겨누고, `Avoid:` 줄이 HDR 광·과한 채도·선명한 햇빛 무늬를 막는다.
 
-창은 기본이 한국 샷시 미닫이다. PVC 또는 알루미늄 틀에 짝이 나란히 둘이고, 가로 레일 위를 한쪽만 밀어 연다. 다른 짝은 닫혀 있다. 도면이 `openings[].style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않는다. 창이 화면에 있으면 In view 줄은 「a WxH cm sliding sash on the far wall (center), above the desk, sill N cm」 이다. 폭·높이는 도면의 mm 를 cm 로 줄인 것이고, 바로 아래 가구가 있을 때만 above 를 붙인다. `open: true` 이면 「one pane slid open behind the other」 를 붙인다. `Avoid:` 에는 `casement, hinged, or push-out windows` 가 들어간다. 원룸 기본은 120×120cm, 턱 90cm다. 180cm 폭은 원룸에 크다. 위 끝은 턱+높이이고 천장까지 올리지 않는다. 문장은 이 길이로 두고 더 늘리지 않는다. 프롬프트 한도는 4,000자다.
+창은 기본이 한국 샷시 미닫이다. PVC 또는 알루미늄 틀에 짝이 나란히 둘이고, 가로 레일 위를 한쪽만 밀어 연다. 다른 짝은 닫혀 있다. 도면이 `openings[].style` 로 달리 적지 않으면 여닫이·들창·틸트창을 쓰지 않는다. 창이 화면에 있으면 In view 줄은 「a WxH cm sliding sash on the far wall (center), above the desk, sill N cm」 이다. 폭·높이는 도면의 mm 를 cm 로 줄인 것이고, 바로 아래 가구가 있을 때만 above 를 붙인다. `open: true` 이면 「one pane slid open behind the other」 를 붙인다. `Avoid:` 에는 `casement, hinged, or push-out windows` 가 들어간다. 원룸 기본은 120×120cm, 턱 90cm다. 180cm 폭은 원룸에 크다. 위 끝은 턱+높이이고 천장까지 올리지 않는다. 문장은 이 길이로 두고 더 늘리지 않는다. 프롬프트 한도는 8,000자다.
 
 원룸·작은 방 창의 유리는 간유리(반투명)다. 쇠창살은 창 바깥에 있고 그 실루엣이 유리에 비친다(2026-11-18). 도면이 `glass`·`bars` 를 빼면 이 기본이다. 화면에 그 창이 있으면 `frosted translucent glass with the outside security-bar silhouette on it` 을 붙이고, `Avoid:` 에 `clear transparent glass, a sharp outdoor view of trees, sky, or buildings` 를 넣는다. 확인 목록은 「창 — 간유리(반투명)에 바깥 쇠창살 실루엣. 맑은 유리로 나무·하늘·건물이 선명하지 않다」 다. 간유리 창에는 건너편 빌라처럼 밖이 선명한 문장을 붙이지 않는다. `glass: "clear"` 로 적힌 창만 아래 창밖 문장을 쓴다.
 
@@ -46,7 +46,7 @@ flush on the frame from head to foot」, 10cm 안에 다른 가구가 선 것은
 it and the bed (7 cm gap).」. 짝은 보이는데 자기는 화면 밖이면 「Its chair is out of
 frame: draw no chair at it.」 를 붙인다(한 픽셀도 그려지지 않을 때만. 짝에 가려진 것은 아래 붙박이). 받침은 보이는데 그 위 소품이 화면 밖이면 「Its lamp stands on its top just
 out of frame past the right edge: show no more of the cabinet than the sketch does; if the cabinet top shows, the lamp
-stands on it.」 를 붙인다. 4,000자로 줄여도 조건은 남긴다(「If the cabinet top shows, the lamp stands on it.」). `Avoid:` 에
+stands on it.」 를 붙인다. 8,000자로 줄여도 조건은 남긴다(「If the cabinet top shows, the lamp stands on it.」). `Avoid:` 에
 `a bare cabinet top` 을 넣는다. 짝과 달리 소품은 그 받침 위에 있으므로 「그리지 말라」 고 쓰지 않는다. 2026-11-13
 끝에 조금 걸친 받침을 모델이 거의 다 그리고 그 위 조명은 빼 맨 윗면이 나왔다. 「just out of frame」만 남기면 같은 일이 다시 난다. 배치 자체가 불가능하면(부딪침·짝보다 높은데 밑에 들어감·받침 밖) `plan` 이 멈추고
 room-set-planner 로 돌려보낸다.
@@ -144,7 +144,7 @@ Through the open right wall is the kitchen (walls: …; floor: …). Its far wal
 - 너머 방 상자는 이 방 상자와 겹치지 않는 색을 받는다. `keep` 은 적지 않는다. 제품 생김새는 그 방 컷이 맡는다.
 - 너머가 화면의 1% 안 되는 가는 띠면 스케치에만 그리고 글로 적지 않는다. 가구가 없는 방이면 「No furniture shows there」 다.
 - 스케치 범례는 실제로 칠해진 색만 적는다. 너머 방이 그려진 문간은 짙은 회색이 아니다.
-- 프롬프트가 한도(4,000자)를 넘으면 너머 가구의 생김새를 빼고 크기·자리만 적는다. 그래도 넘으면 이어진 벽의 가구 짝
+- 프롬프트가 한도(8,000자)를 넘으면 너머 가구의 생김새를 빼고 크기·자리만 적는다. 그래도 넘으면 이어진 벽의 가구 짝
   문장을 뺀다(둘 다 경고가 나온다).
 - 너머 방이 화면의 3% 넘게 보이고, 그 방의 첫 전체 컷이 먼저 만들어지고, 레퍼런스 칸이 남으면 그 그림을 `role: neighbor`
   로 넣는다. 소품과 제품 생김새까지 같아진다. 칸은 제품 보드가 먼저 쓴다. `shots.md` 는 그 컷을 앞 번호로 당기고, 두 방이

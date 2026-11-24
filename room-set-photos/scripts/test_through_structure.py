@@ -98,13 +98,14 @@ def _prompt_parts(head, lines, short, props="a folded towel"):
 def test_trim_keeps_structure():
     pair = " The fridge and the shoe cabinet stand side by side against it."
     head = "Through the open wall is the entryway. It is 60 cm deep past this opening, no wider." + pair
-    view, thru, build = _prompt_parts(head, ["2. Fridge: " + ("a white fridge " * 400)], ["2. Fridge: 48x50x85 cm."])
+    view, thru, build = _prompt_parts(
+        head, ["2. Fridge: " + ("a white fridge " * (S.PROMPT_MAX // 8))], ["2. Fridge: 48x50x85 cm."])
     prompt, notes = S._fit_prompt("hero-fridge", build, view, thru)
     assert pair in prompt, prompt[-400:]
     assert "a white fridge a white fridge" not in prompt
     assert len(prompt) <= S.PROMPT_MAX
     assert notes
-    huge = "Through the open wall." + (" word" * 2500) + pair
+    huge = "Through the open wall." + (" word" * S.PROMPT_MAX) + pair
     view2, thru2, build2 = _prompt_parts(huge, ["2. x"], ["2. x"])
     try:
         S._fit_prompt("hero-fridge", build2, view2, thru2)
