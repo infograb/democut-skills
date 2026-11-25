@@ -89,6 +89,19 @@ BOARD_CELLS = 4             # 제품 보드 한 장의 칸 수(2×2 × 512px = 1
 PROMPT_MAX = 8000           # DemoCut ai_image 프롬프트 한도
 PROMPT_FALLBACK = 4000      # 도구 설명이 아직 이 길이를 한도로 적을 수 있다. 넘으면 요약에 안내를 낸다
 SHALLOW_MM = 1000           # 문간 너머 깊이가 이하면 복도로 늘리지 말라고 적는다
+# 책상 컷. 책상 한 끝, 그 뒤 모서리에서 방 건너편(침대 발치)을 본다.
+# 높이는 앉은 눈높이보다 위다. 1,100mm 쯤에서는 책상 조명·스탠드가 방을 가린다(2026-11-19).
+# 렌즈·높이의 기준은 연재 HOME v11 day-desk-to-bed: 높이 1,550mm, 24mm, pitch −16°.
+DESK_H = 1550
+DESK_H_MIN = 1500
+DESK_LENS = 24.0
+DESK_WALL = 80              # 모서리에 바짝 선다. 전체 컷의 벽 여유(30cm)보다 좁다
+DESK_BODY = 40              # 책상 뒤 모서리 바로 옆. 전체 컷의 몸 여유(35cm)를 여기 쓰면 자리가 없어진다
+DESK_DAY_LIGHT = "soft cream-toned daylight from the window, diffuse, no direct sun on the floor"
+DESK_EVE_LIGHT = ("warm evening light from the ceiling light and the desk lamp, with a little dusk "
+                  "through the window and no hard sun")
+DESK_AVOID_CHAIR = "the chair hiding the bed"
+DESK_AVOID_DOOR = "a door to another room cut off at the frame edge"
 AVOID_SHALLOW = "a hallway or corridor longer than the stated depth"
 AVOID_JAMB = "a door frame or jambs in a full-width opening"
 AVOID_SIDE = "furniture on the opposite side of the frame from this shot's sketch"
@@ -1651,6 +1664,268 @@ def plan_hero(sc, it, ratio):
     return best[1] if best else None
 
 
+def _is_desk_spec(s):
+    """책상 컷인가. 자동 컷은 kind 가 desk 이고, 직접 적은 컷은 id 에 desk-to- 가 있다."""
+    if s.get("kind") == "desk":
+        return True
+    return "desk-to-" in (s.get("id") or "")
+
+
+def _back_corners(rect, facing):
+    """책상 뒤쪽 모서리 둘. 앉은 사람(정면을 마주 봄)의 왼쪽을 먼저 돌려준다. (x, y, left)."""
+    x0, y0, x1, y1 = rect
+    fx, fy = NORMAL[facing]
+    left = (-fy, fx)                    # 앉은 사람의 왼쪽. 시선은 정면의 반대
+    if facing == "s":
+        corners = [(x0, y0), (x1, y0)]
+    elif facing == "n":
+        corners = [(x0, y1), (x1, y1)]
+    elif facing == "e":
+        corners = [(x0, y0), (x0, y1)]
+    else:
+        corners = [(x1, y0), (x1, y1)]
+    mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    tagged = []
+    for c in corners:
+        is_left = (c[0] - mx) * left[0] + (c[1] - my) * left[1] > 0
+        tagged.append((c[0], c[1], is_left))
+    tagged.sort(key=lambda t: not t[2])
+    return tagged
+
+
+def _corner_pockets(rect, facing, corner, left):
+    """모서리 밖, 책상 뒤쪽 절반에 있는 서는 점. (x, y, left, behind, dist)."""
+    x0, y0, x1, y1 = rect
+    cx, cy = corner
+    mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    ax = 1 if cx >= mx else -1
+    ay = 1 if cy >= my else -1
+    if facing == "s":
+        back_half = lambda x, y: y <= my
+    elif facing == "n":
+        back_half = lambda x, y: y >= my
+    elif facing == "e":
+        back_half = lambda x, y: x <= mx
+    else:
+        back_half = lambda x, y: x >= mx
+    out = []
+    for dx in range(-420, 421, 140):
+        for dy in range(-420, 421, 140):
+            if dx * dx + dy * dy < 1600:
+                continue
+            x, y = cx + dx, cy + dy
+            if x0 < x < x1 and y0 < y < y1:
+                continue
+            if not back_half(x, y):
+                continue
+            out.append((x, y, left, dx * ax > 0 and dy * ay > 0, math.hypot(dx, dy)))
+    return out
+
+
+def _desk_stand(sc, x, y):
+    """책상 컷 카메라가 설 수 있나. 모서리 쪽이므로 전체 컷보다 벽·가구에 가깝다."""
+    x0, y0, x1, y1 = P.rr(sc.room)
+    if not (x0 + DESK_WALL <= x <= x1 - DESK_WALL and y0 + DESK_WALL <= y <= y1 - DESK_WALL):
+        return False
+    for r in sc.obstacles():
+        if r[0] - DESK_BODY < x < r[2] + DESK_BODY and r[1] - DESK_BODY < y < r[3] + DESK_BODY:
+            return False
+    return True
+
+
+def _foot_point(rect, facing, which):
+    """침대 발치. which mid 는 발치 가운데, end 는 한쪽 모서리."""
+    x0, y0, x1, y1 = rect
+    if facing == "s":
+        return ((x0 + x1) / 2.0, y1) if which == "mid" else (x1, y1)
+    if facing == "n":
+        return ((x0 + x1) / 2.0, y0) if which == "mid" else (x0, y0)
+    if facing == "e":
+        return (x1, (y0 + y1) / 2.0) if which == "mid" else (x1, y1)
+    return (x0, (y0 + y1) / 2.0) if which == "mid" else (x0, y0)
+
+
+def _desk_aims(sc, bed_id, x, y):
+    """바라볼 점. 침대가 있으면 발치, 없으면 카메라에서 가장 먼 방 모서리."""
+    if bed_id and bed_id in sc.ctx.geo:
+        g = sc.ctx.geo[bed_id]
+        return [_foot_point(g["rect"], g["facing"], "mid"), _foot_point(g["rect"], g["facing"], "end")]
+    x0, y0, x1, y1 = P.rr(sc.room)
+    corners = [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]
+    far = max(corners, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)
+    return [far, ((x0 + x1) / 2.0, (y0 + y1) / 2.0)]
+
+
+def _desk_pitch(dist):
+    """조금 내려다본다. 연재 HOME v11 은 −16° 였다. 거리에 따라 그 근처로 둔다."""
+    pitch = math.atan2(420.0 - DESK_H, max(500.0, dist))
+    return max(math.radians(-26.0), min(math.radians(-12.0), pitch))
+
+
+def _room_door_on_edge(sc, st, cam, edge=1):
+    """다른 방으로 가는 문·개구부가 화면 왼쪽·오른쪽 끝에 잘려 걸리면 True.
+    밖으로 난 현관문은 보지 않는다. 화면에 아예 없으면 걸린 것이 아니다."""
+    for oid, m in sc.ops.items():
+        o = m["op"]
+        if o.get("type") not in ("door", "opening"):
+            continue
+        other = o.get("to") if o["room"] == sc.room["id"] else o["room"]
+        if other in (None, "outside") or other not in sc.ctx.rooms:
+            continue
+        s = st.get(oid)
+        if not s or s[0] < 6:
+            continue
+        if s[3] <= edge or s[4] >= cam.w - 1 - edge:
+            return True
+    return False
+
+
+def _chair_hides_bed(sc, cv, bed_id, limit=0.30):
+    """의자 픽셀이 침대에 그려진 덩어리의 limit 를 넘기면 의자가 침대를 가린다."""
+    bid = sc.iid.get(bed_id)
+    if not bid:
+        return False
+    drawn = cv.drawn.get(bid) or 0
+    if drawn < 20:
+        return False
+    for it in sc.items:
+        if it.get("category") != "chair":
+            continue
+        cid = sc.iid[it["id"]]
+        if cv.occ.get((bid, cid), 0) / float(drawn) > limit:
+            return True
+    return False
+
+
+def _judge_desk(sc, cam, desk_id, bed_id, full):
+    """이 카메라가 책상 컷으로 서면 (책상 비율, 침대 비율), 아니면 (None, 거절 이유)."""
+    raw = sc.render(cam)
+    if _room_door_on_edge(sc, raw.stats(), cam):
+        return None, "문"
+    cv = see_through(sc, cam, raw)
+    if void_faults(cv):
+        return None, "빈문"
+    st = cv.stats()
+    if full and scale_faults(sc, cam, cv, st):
+        return None, "크기"
+    A = float(cam.w * cam.h)
+    desk_share = _share(st, sc.iid[desk_id], A)
+    if desk_share < 0.008:
+        return None, "책상"
+    bed_share = 0.0
+    if bed_id:
+        bed_share = _share(st, sc.iid[bed_id], A)
+        if bed_share < 0.012:
+            return None, "침대"
+        if _chair_hides_bed(sc, cv, bed_id):
+            return None, "의자"
+    # 앉는 컷의 레퍼런스로 쓰려면 의자가 보이는 편이 낫다. 없어도 탈락시키지는 않는다.
+    chair_share = sum(_share(st, sc.iid[it["id"]], A) for it in sc.items if it.get("category") == "chair")
+    return (desk_share, bed_share, chair_share), None
+
+
+def _desk_why(miss, bed_id):
+    """자리를 못 찾았을 때의 경고. plan 이 내는 다른 경고와 같이 한 문장이다."""
+    bits = []
+    if miss.get("자리"):
+        bits.append("책상 뒤 모서리에 설 자리가 없다")
+    if miss.get("의자"):
+        bits.append("의자가 침대를 가린다")
+    if miss.get("문"):
+        bits.append("다른 방 문이 화면 왼쪽·오른쪽 끝에 걸린다")
+    if miss.get("침대"):
+        bits.append("침대 발치가 화면에 안 들어온다")
+    if miss.get("책상"):
+        bits.append("책상이 화면에 안 들어온다")
+    if miss.get("빈문"):
+        bits.append("화면에 안 그린 트인 문간이 남는다")
+    if miss.get("크기"):
+        bits.append("상자가 치수와 안 맞는다")
+    if not bits:
+        bits.append("책상 뒤에서 방 건너편을 보는 자리를 찾지 못했다")
+    where = "침대 발치" if bed_id else "방 건너편"
+    return ("책상 뒤 모서리에서 {} 쪽을 보는 카메라가 서지 못한다({}). "
+            "photo.shots 로 낮·저녁을 같은 카메라로 직접 적는다").format(where, ", ".join(bits))
+
+
+def _desk_cam(ratio, x, y, yaw, pitch, w, h):
+    sw = RATIOS[ratio][3]
+    hfov = 2 * math.atan((sw / 2.0) / DESK_LENS)
+    return Cam(x, y, DESK_H, yaw, pitch, hfov, w, h, DESK_LENS, cyf=0.5)
+
+
+def plan_desk(sc, ratio):
+    """방에 책상이 있으면 책상 컷 카메라 하나. 낮·저녁 두 장은 plan 이 이 카메라로 만든다.
+    책상이 없으면 (None, None). 못 놓으면 (None, 경고 문장)."""
+    desks = [it for it in sc.items if it.get("category") == "desk"]
+    if not desks:
+        return None, None
+    if DESK_H < DESK_H_MIN:
+        raise SystemExit("책상 컷 카메라 높이가 1,500mm 보다 낮다")
+    beds = [it for it in sc.items if it.get("category") == "bed"]
+
+    def area(it):
+        r = sc.ctx.geo[it["id"]]["rect"]
+        return (r[2] - r[0]) * (r[3] - r[1])
+
+    bed = max(beds, key=area) if beds else None
+    bed_id = bed["id"] if bed else None
+    linked = {it.get("with") for it in sc.items if it.get("category") == "chair" and it.get("with")}
+    desks = sorted(desks, key=lambda it: (it["id"] not in linked, -area(it)))
+    W, H, _, _, _ = RATIOS[ratio]
+    lw, lh = max(8, W // SCORE_DIV), max(8, H // SCORE_DIV)
+    yaw_offs = (0.0, math.radians(-10), math.radians(10))
+    miss = Counter()
+    passed = []
+    for desk in desks:
+        g = sc.ctx.geo[desk["id"]]
+        pockets = []
+        for cx, cy, left in _back_corners(g["rect"], g["facing"]):
+            pockets.extend(_corner_pockets(g["rect"], g["facing"], (cx, cy), left))
+        stand = [p for p in pockets if _desk_stand(sc, p[0], p[1])]
+        if not stand:
+            miss["자리"] += 1
+            continue
+        low = []
+        for x, y, left, behind, dist_c in stand:
+            for ax, ay in _desk_aims(sc, bed_id, x, y):
+                base = math.atan2(ay - y, ax - x)
+                dist = math.hypot(ax - x, ay - y)
+                pitch = _desk_pitch(dist)
+                for off in yaw_offs:
+                    cam = _desk_cam(ratio, x, y, base + off, pitch, lw, lh)
+                    got, why = _judge_desk(sc, cam, desk["id"], bed_id, full=False)
+                    if why:
+                        miss[why] += 1
+                        continue
+                    score = (got[1] * 5.0 + got[0] * 1.2 + (0.8 if got[2] >= 0.01 else 0.0)
+                             + (0.35 if left else 0.0) + (0.25 if behind else 0.0) - dist_c / 8000.0)
+                    low.append(dict(score=score, x=x, y=y, yaw=base + off, pitch=pitch, desk=desk["id"]))
+        low.sort(key=lambda s: -s["score"])
+        for cand in low[:8]:
+            cam = _desk_cam(ratio, cand["x"], cand["y"], cand["yaw"], cand["pitch"], W, H)
+            got, why = _judge_desk(sc, cam, cand["desk"], bed_id, full=True)
+            if why:
+                miss[why] += 1
+                continue
+            passed.append(dict(cand, score=cand["score"] + got[1]))
+        if passed:
+            break
+    if not passed:
+        return None, _desk_why(miss, bed_id)
+    best = max(passed, key=lambda s: s["score"])
+    return dict(x=best["x"], y=best["y"], z=DESK_H, yaw=best["yaw"], pitch=best["pitch"], lens=DESK_LENS,
+                kind="desk", target=best["desk"], bed=bed_id, aim="bed" if bed_id else "far",
+                where="desk", cyf=0.5), None
+
+
+def seated_room_refs(shots):
+    """의자에 사람이 앉는 컷의 방 레퍼런스 id. 책상 쪽에서 본 컷만이다.
+    책상 정면 제품 컷이나 문간 컷은 넣지 않는다. 그 사진을 쓰면 사람 앞에 책상이 더 생기거나
+    빈 의자가 더 생긴다(2026-11-19, 호빵 훅 v5 는 day-desk-to-bed 로 책상·의자가 하나씩 나왔다)."""
+    return [s["id"] for s in shots if s.get("seated_ref") or s.get("kind") == "desk" or _is_desk_spec(s)]
+
+
 # ----------------------------------------------------------------------------- 글
 
 def _cm(v):
@@ -2953,7 +3228,7 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
         R[4], cam.lens_mm, _cm(cam.z), tilt))
     out.append("Space: {}, {:.1f} m x {:.1f} m, ceiling {:.1f} m. Walls: {}. Floor: {}.".format(
         view["space"], (rx1 - rx0) / 1000.0, (ry1 - ry0) / 1000.0, C / 1000.0, fin["walls"], fin["floor"]))
-    light = concept["light"]
+    light = view.get("light") or concept["light"]
     # 컨셉이 햇빛을 말해도 간유리 창의 빛은 퍼진 낮·저녁 빛이다. 이미 diffuse 인 문장은 그대로 둔다.
     if light_dir and "frosted glass" in light_dir and "diffuse" not in light.lower():
         light = light.rstrip(".") + ", diffuse through the frosted glass, no direct sun"
@@ -2963,6 +3238,13 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
         out.append("Light: {}. {}".format(light, light_dir) if light_dir else
                    "Light: soft even light from the LED ceiling light, with a little daylight from the opening.")
     out.append("View: {}.".format(kind_txt))
+    if view.get("desk_cut"):
+        # 책상 컷의 주의. 한도로 줄이는 문장(소품·레퍼런스·너머 생김새)이 아니라 이 컷의 구조다.
+        sentence = "Shot from the back corner behind one end of the desk, looking toward the opposite end of the room."
+        if view.get("desk_bed"):
+            sentence += " The chair must not hide the bed."
+        sentence += " No door to another room is cut off at the left or right edge of the frame."
+        out.append(sentence)
     rules, body = [], []
     for ln in lines:
         if ln.startswith("Layout: ") or ln.startswith("Exactly "):
@@ -3006,6 +3288,9 @@ def build_prompt(house, concept, ratio, cam, kind_txt, view, lines, ops, board, 
                       "shot's sketch and text place that wall on the other side. Match only the opening width, the shared "
                       "wall's finishes, and the light. This shot's massing sketch is the authority for left, right, depth "
                       "and how large the far wall is in the frame.".format(i))
+        elif ref["role"] == "master" and ref.get("same_camera"):
+            rt.append("Reference image {} is this same camera in the other light: keep the identical layout, furniture, "
+                      "walls and floor, and change only the time of day.".format(i))
         elif view.get("short_refs") and ref["role"] in ("master", "neighbor"):
             rt.append("Reference image {} matches finishes and light only, not the layout.".format(i))
         elif ref["role"] == "master" and ref.get("same_room"):
@@ -3062,6 +3347,18 @@ def _view_text(sc, cam, spec, byid):
         sub_ko = P.KIND_KO.get(sub.get("kind") or "", "방")
         return ("a wide shot standing in the {}, looking through the opening into the {}".format(here_en, sub_en),
                 "{}에서 열린 문간으로 {} 쪽을 본다".format(here_ko, sub_ko))
+    if spec.get("kind") == "desk":
+        if spec.get("aim") == "bed":
+            en = ("a shot from the back corner behind the desk, looking across the room toward the foot of the bed")
+            ko = "책상 뒤 모서리에서 침대 발치 쪽"
+        else:
+            en = "a shot from one end of the desk, looking across the room toward the far end"
+            ko = "책상 끝에서 방 건너편"
+        if spec.get("time") == "evening":
+            ko = "저녁 — " + ko
+        elif spec.get("time") == "day":
+            ko = "낮 — " + ko
+        return en, ko
     rel = {sd: _wall_rel(sd, cam) for sd in NORMAL}
     fl = next((sd for sd in NORMAL if rel[sd] == "far-left"), None)
     fr = next((sd for sd in NORMAL if rel[sd] == "far-right"), None)
@@ -3132,7 +3429,11 @@ def shot_order(specs, master, first, looks):
         # 서로 문간에 서서 상대 방을 찍는 두 컷은 서로의 대표를 기다리지 않는다
         if other and other.get("for_room") == s["room"] and s.get("for_room") == other.get("room"):
             m = None
-        return {m if m and m != s["id"] else master} - {s["id"]}
+        req = {m if m and m != s["id"] else master} - {s["id"]}
+        pair = s.get("pair_of")
+        if pair and pair != s["id"]:
+            req.add(pair)
+        return req
 
     def pick(s, path):                  # s 가 보는 방의 첫 전체 컷을 먼저 만들 수 있으면 그 컷(사슬이면 끝까지)
         for r in looks.get(s["id"], ()):
@@ -3174,6 +3475,9 @@ def _room_photo_ref(spec, by_spec, master_of_room, global_master, made):
     돌려주는 것: (refs, warnings)."""
     if spec["id"] == global_master:
         return [], []
+    # 낮·저녁은 같은 카메라다. 저녁은 낮 사진을 받아 빛만 바꾼다.
+    if spec.get("pair_of") and spec["pair_of"] in made:
+        return [dict(role="master", shot=spec["pair_of"], same_room=True, same_camera=True)], []
     m = master_of_room.get(spec["room"])
     other = by_spec.get(m) if m and m != spec["id"] else None
     if other and _same_opening(spec, other) and _yaw_opposite(spec["yaw"], other["yaw"]):
@@ -3261,8 +3565,16 @@ def plan(house, out_dir, max_hero=6, ratio=None):
     taken = {s["id"] for s in specs}
     heroes = sum(1 for s in specs if s["kind"] == "hero")
     unshot = []
+    desk_unplaced = []
     for room in rooms:
-        if room["id"] in covered or room["id"] in skip:
+        if room["id"] in skip:
+            continue
+        has_desk = any(it["room"] == room["id"] and it.get("category") == "desk" for it in ctx.items)
+        if room["id"] in covered:
+            # 직접 적은 컷이 그 방의 자동 컷을 대신한다. 책상 컷을 빠뜨리면 경고만 남긴다.
+            if has_desk and not any(s["room"] == room["id"] and _is_desk_spec(s) for s in specs):
+                desk_unplaced.append(dict(room=room["id"], why=(
+                    "photo.shots 에 책상 컷이 없다. 책상 뒤 모서리에서 방 건너편을 보는 낮·저녁을 같은 카메라로 적는다")))
             continue
         sc = Scene(ctx, room, ceil)
         pre = "" if len(rooms) == 1 else room["id"] + "-"
@@ -3272,6 +3584,25 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         for k, s in enumerate(wides, 1):
             s["id"] = "{}wide-{}".format(pre, k)
             specs.append(s)
+        if has_desk:
+            spec, why = plan_desk(sc, ratio)
+            if spec:
+                day_id = None
+                noun = "bed" if spec.get("aim") == "bed" else "far"
+                for time in ("day", "evening"):
+                    sid = "{}{}-desk-to-{}".format(pre, time, noun)
+                    if sid in taken:
+                        sid = "{}-{}".format(sid, re.sub(r"[^A-Za-z0-9_-]", "_", spec["target"]))
+                    shot = dict(spec)
+                    shot.update(id=sid, room=room["id"], time=time)
+                    if time == "evening" and day_id:
+                        shot["pair_of"] = day_id
+                    else:
+                        day_id = sid
+                    specs.append(shot)
+                    taken.add(sid)
+            elif why:
+                desk_unplaced.append(dict(room=room["id"], why=why))
         for it in sc.items:
             if it["id"] not in review or heroes >= max_hero:
                 continue
@@ -3410,9 +3741,24 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                              "photo.shots 로 카메라를 옮겨 화면 밖으로 빼거나 전체가 들어오게 한다".format(
                                  P.label_of(it), d / 1000.0, "왼쪽" if side == "left" else "오른쪽"))
         en, ko = _view_text(sc, cam, s, byid)
-        light_en, light_ko = light_direction(sc, cam, st)
+        if s.get("time") == "evening":
+            light_en = ("Warm light from the ceiling and the desk lamp, with a little dusk from the window. "
+                        "No hard sunlight. Same camera as the daytime pair.")
+            light_ko = "저녁 — 천장등과 책상 조명, 창으로는 어스름만. 낮 컷과 같은 카메라"
+        else:
+            light_en, light_ko = light_direction(sc, cam, st)
         view = dict(room=room, space=_room_space(house, room), finish=room_finish(house, concept, room),
                     master_finish=master_finish, colors=colors)
+        if s.get("time") == "day":
+            view["light"] = DESK_DAY_LIGHT
+        elif s.get("time") == "evening":
+            view["light"] = DESK_EVE_LIGHT
+        if s.get("kind") == "desk":
+            view["desk_cut"] = True
+            view["desk_bed"] = bool(s.get("bed"))
+        if _is_desk_spec(s) and s["z"] < DESK_H_MIN:
+            warns.append("카메라 높이 — {:.0f}mm. 책상 컷은 1,500mm 이상이다. 앉은 눈높이에서는 책상 조명·스탠드가 가린다".format(
+                s["z"]))
         kids = set()
         if room.get("kind") == "kitchen":
             kids.add(room["id"])
@@ -3450,6 +3796,11 @@ def plan(house, out_dir, max_hero=6, ratio=None):
                 if a not in avoid:
                     avoid.append(a)
             checks.extend(entry_floor_checks(ctx, eids, vids, tin))
+        if s.get("kind") == "desk":
+            if s.get("bed") and DESK_AVOID_CHAIR not in avoid:
+                avoid.append(DESK_AVOID_CHAIR)
+            if DESK_AVOID_DOOR not in avoid:
+                avoid.append(DESK_AVOID_DOOR)
         brooms = []
         if room.get("kind") == "bathroom":
             brooms.append(room)
@@ -3484,14 +3835,26 @@ def plan(house, out_dir, max_hero=6, ratio=None):
         if board:
             checks.append("제품 모양·비율·색·광택이 보드와 같다 — 다르면 `shots.py fix` 로 그 제품만 고친다")
         if not is_master and not any(r.get("opposite_view") for r in refs):
-            checks.append("벽지·바닥·창틀·커튼·빛이 대표 컷과 같다")
+            if any(r.get("same_camera") for r in refs):
+                checks.append("벽지·바닥·창틀·커튼·가구 자리가 낮 컷과 같다. 빛만 저녁이다")
+            else:
+                checks.append("벽지·바닥·창틀·커튼·빛이 대표 컷과 같다")
+        if s.get("kind") == "desk":
+            checks.append("책상 컷 — 책상 한 끝의 뒤 모서리에서 방 건너편을 본다")
+            checks.append("카메라 높이 — {:,}mm (1,500mm 이상). 앉은 눈높이에서는 책상 조명·스탠드가 가린다".format(
+                int(round(s["z"]))))
+            if s.get("bed"):
+                checks.append("의자 — 침대를 가리지 않는다")
+            checks.append("문 — 다른 방으로 가는 문이 화면 왼쪽·오른쪽 끝에 걸리지 않는다")
+            checks.append("낮·저녁 — 같은 카메라의 한 쌍이다")
         shots.append(dict(
             id=s["id"], kind=s["kind"], room=s["room"], for_room=s.get("for_room") or s["room"],
             master=is_master, title=ko,
             camera=dict(x=int(round(s["x"])), y=int(round(s["y"])), height=int(round(s["z"])),
                         yaw_deg=round(math.degrees(s["yaw"]), 1), pitch_deg=round(math.degrees(s["pitch"]), 1),
                         lens_mm=s["lens"], hfov_deg=round(math.degrees(hfov), 1)),
-            target=s.get("target"),
+            target=s.get("target"), time=s.get("time"), pair=s.get("pair_of"),
+            seated_ref=s.get("kind") == "desk",
             items=[dict(id=v["it"]["id"], label=P.label_of(v["it"]), share=round(v["share"], 3),
                         x=round(v["hx"], 2), hidden=round(1 - v["frac"], 2), en=f) for v, f in zip(vis, facts)],
             through=[dict(room=t["room"], label=t["label_ko"], share=round(t["share"], 3), items=t["items"],
@@ -3504,7 +3867,8 @@ def plan(house, out_dir, max_hero=6, ratio=None):
               for m in [SIZE_CLAIM.search(it.get("look") or "")] if m}
     data = dict(house=house.get("name"), concept=concept["key"], concept_ko=concept["ko"], ratio=ratio, image_size=size,
                 model=ph.get("model"), quality=ph.get("quality", "medium"),
-                missing_look=no_look, size_claims=claims, unshot=unshot, skipped=skipped,
+                missing_look=no_look, size_claims=claims, unshot=unshot, desk_unplaced=desk_unplaced,
+                skipped=skipped,
                 created=datetime.date.today().isoformat(), shots=order)
     with open(os.path.join(out_dir, "shots.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -3529,7 +3893,10 @@ def shots_md(data):
            "쓰는 가구를 소품으로 따로 적지 않는다. `{}` 처럼 같은 물건이라고 적는다"
            "(예의 이름은 그 사람의 이름이고, 가구 이름은 그 가구로 바꾼다). 그 컷의 프롬프트에 있는 Layout·Exactly 문장을 그대로 "
            "옮기고, 같은 사진을 쓰는 다른 컷에도 같은 문장을 넣는다.".format(
-               person_same_furniture("chair", "Yeonjae")), ""]
+               person_same_furniture("chair", "Yeonjae")),
+           "의자에 사람이 앉는 컷의 방 레퍼런스는 책상 쪽에서 찍은 사진(`day-desk-to-bed` 같은 책상 컷)이다. "
+           "책상 정면 제품 컷이나 문간에서 본 컷을 쓰지 않는다. 그 둘을 쓰면 사람 앞에 책상이 하나 더 생기거나 빈 의자가 "
+           "하나 더 생긴다. 호빵 훅 v5 는 v11 `day-desk-to-bed` 를 레퍼런스로 썼고 책상과 의자가 하나씩 나왔다(2026-11-19).", ""]
     for i, s in enumerate(data["shots"], 1):
         cam = s["camera"]
         out.append("## {}. `{}` — {}{}".format(i, s["id"], s["title"], " ★ 대표 컷(먼저 만든다)" if s["master"] else ""))
@@ -3542,9 +3909,13 @@ def shots_md(data):
         for t in s.get("through", []):
             out.append("- 문간 너머 {}({:.0%}): {}".format(t["label"], t["share"], ", ".join(
                 "{}({:.0%})".format(it["label"], it["share"]) for it in t["items"]) or "가구 없음"))
+        if s.get("seated_ref"):
+            out.append("- 앉는 컷 레퍼런스: 의자에 사람이 앉는 컷은 이 책상 쪽 사진을 쓴다. 책상 정면 제품 컷·문간 컷은 쓰지 않는다")
         refs = []
         for k, r in enumerate(s["refs"], 1):
-            if r["role"] == "master":
+            if r["role"] == "master" and r.get("same_camera"):
+                refs.append("{}) `{}` 에서 만든 그림(같은 카메라, 다른 빛)".format(k, r["shot"]))
+            elif r["role"] == "master":
                 refs.append("{}) `{}` 에서 만든 그림({})".format(k, r["shot"], "같은 방" if r.get("same_room") else "같은 집"))
             elif r["role"] == "neighbor" and r.get("opposite_view"):
                 refs.append("{}) `{}` 에서 만든 그림(같은 문간, 반대 방향)".format(k, r["shot"]))
@@ -3583,7 +3954,7 @@ def shots_svg(house, ctx, shots):
         L = fs * 11
         p1 = (x + L * math.cos(yaw - hf), y + L * math.sin(yaw - hf))
         p2 = (x + L * math.cos(yaw + hf), y + L * math.sin(yaw + hf))
-        col = "#e8590c" if s["kind"] == "wide" else "#7048e8"
+        col = "#0c8599" if s["kind"] == "desk" else "#e8590c" if s["kind"] == "wide" else "#7048e8"
         add.append('<polygon points="{:.0f},{:.0f} {:.0f},{:.0f} {:.0f},{:.0f}" fill="{}" fill-opacity="0.16" '
                    'stroke="{}" stroke-width="{:.0f}"/>'.format(x, y, p1[0], p1[1], p2[0], p2[1], col, col, fs * 0.12))
         add.append('<circle cx="{:.0f}" cy="{:.0f}" r="{:.0f}" fill="{}"/>'.format(x, y, fs * 0.62, col))
@@ -3911,6 +4282,8 @@ def main(argv=None):
         for rid in data.get("unshot") or []:
             print("  ⚠ {} — 전체 컷 없음. 폰 기본 렌즈로 {:.0f}cm 이상 물러설 자리가 방 안에도 트인 문간 너머에도 없다".format(
                 rid, NEAR_MIN / 10))
+        for d in data.get("desk_unplaced") or []:
+            print("  ⚠ {} — 책상 컷 없음. {}".format(d["room"], d["why"]))
         if data["missing_look"]:
             print("⚠ look 이 없는 품목: {} — 제품 사진을 보고 items[].look 에 영어 한 문장을 적은 뒤 plan 을 다시 돌린다"
                   "(없으면 상품명이 들어가 모양이 틀어진다)".format(", ".join(data["missing_look"])))
